@@ -9,6 +9,7 @@ interface ManiaStageProps {
 // Stage dimensions - match osu!mania coordinates
 const COLUMN_POSITIONS = [64, 192, 320, 448];
 const COLUMN_WIDTH = 128;
+const NOTE_HEIGHT = 40;
 const STAGE_WIDTH = 512;
 const STAGE_X = 64; // Start at first column position
 const STAGE_HEIGHT = 1080;
@@ -154,21 +155,24 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
         ))}
 
         {/* Lane effects - subtle gradient per column */}
-        {COLUMN_POSITIONS.map((pos, i) => (
-          <div
-            key={`lane-${i}`}
-            style={{
-              position: "absolute",
-              left: pos - COLUMN_WIDTH / 2 - STAGE_X,
-              top: 0,
-              width: COLUMN_WIDTH,
-              height: 1080,
-              background: `linear-gradient(180deg, transparent 0%, ${
-                ["rgba(255,107,107,0.05)", "rgba(78,205,196,0.05)", "rgba(69,183,209,0.05)", "rgba(150,206,180,0.05)"][i]
-              } 50%, transparent 100%)`,
-            }}
-          />
-        ))}
+        {
+        //   COLUMN_POSITIONS.map((pos, i) => (
+        //   <div
+        //     key={`lane-${i}`}
+        //     style={{
+        //       position: "absolute",
+        //       left: pos - COLUMN_WIDTH / 2 - STAGE_X,
+        //       top: 0,
+        //       width: COLUMN_WIDTH,
+        //       height: 1080,
+        //       opacity: 0.2,
+        //       background: `linear-gradient(180deg, transparent 0%, ${
+        //         ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"][i]
+        //       } 50%, transparent 100%)`,
+        //     }}
+        //   />
+        // ))
+        }
       </div>
 
       {/* Judgment line */}
@@ -217,6 +221,94 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
           note={note}
         />
       ))}
+
+      {/* Hit effects - column highlight */}
+      {hitObjects.map((note, index) => {
+        const startTime = note.time;
+        const endTime = note.isLongNote && note.endTime ? note.endTime : note.time + 200;
+
+        // For LN: column stays lit while held
+        // For regular note: light up for 200ms after hit with fade out
+        const isActive = note.isLongNote
+          ? (currentTime >= startTime && currentTime <= endTime)
+          : (currentTime >= startTime && currentTime < startTime + 200);
+
+        if (isActive) {
+          const column = Math.min(note.column, 3);
+          const posX = COLUMN_POSITIONS[column];
+          const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
+          const color = colors[column];
+
+          // Calculate fade out for regular notes (200ms fade)
+          const timeSinceHit = currentTime - startTime;
+          const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / 200);
+          const opacity = note.isLongNote
+            ? Math.min(0.2, (endTime - currentTime) / 200 + 0.3)
+            : 0.1 * (1 - fadeProgress);
+
+          return (
+            <div
+              key={`col-hit-${startTime}-${note.column}-${index}`}
+              style={{
+                position: "absolute",
+                left: STAGE_X + posX - COLUMN_WIDTH / 2,
+                top: 0,
+                width: COLUMN_WIDTH,
+                height: 1080,
+                backgroundColor: color,
+                opacity,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        }
+        return null;
+      })}
+
+      {/* Hit effects - note flash */}
+      {hitObjects.map((note, index) => {
+        const column = Math.min(note.column, 3);
+        const posX = COLUMN_POSITIONS[column];
+        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
+        const color = colors[column];
+
+        // For LN: flash at head and tail
+        // For regular note: flash once
+        const flashTimes = note.isLongNote && note.endTime
+          ? [note.time, note.endTime]
+          : [note.time];
+
+        return (
+          <>
+            {flashTimes.map((flashTime, flashIndex) => {
+              const timeSinceHit = currentTime - flashTime;
+
+              // Show effect for 200ms after flash with fade out
+              if (timeSinceHit >= 0 && timeSinceHit < 200) {
+                const progress = timeSinceHit / 200;
+
+                return (
+                  <div
+                    key={`hit-${flashTime}-${note.column}-${index}-${flashIndex}`}
+                    style={{
+                      position: "absolute",
+                      left: STAGE_X + posX - COLUMN_WIDTH / 2,
+                      top: JUDGMENT_LINE_Y,
+                      width: COLUMN_WIDTH,
+                      height: NOTE_HEIGHT,
+                      backgroundColor: color,
+                      opacity: 1 - progress,
+                      borderRadius: 4,
+                      boxShadow: `0 0 ${20 * (1 - progress)}px ${color}`,
+                    }}
+                  />
+                );
+              }
+              return null;
+            })}
+          </>
+        );
+      })}
 
       {/* Metadata display */}
       <div

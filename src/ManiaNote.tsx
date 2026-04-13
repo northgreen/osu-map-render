@@ -50,7 +50,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
   const x = COLUMN_POSITIONS[column] - NOTE_WIDTH / 2;
 
   // Note color based on column
-  const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4"];
+  const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
   const color = colors[column];
 
   // === Render Long Note ===
@@ -71,8 +71,8 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
     // Body: always connects head bottom to tail top
     // Only visible when both head and tail have appeared
     const bodyTop = headY + NOTE_HEIGHT;  // Bottom of head note
-    const bodyBottom = tailY;               // Top of tail
-    const bodyHeight = bodyTop - bodyBottom;
+    const bodyBottom = tailY;             // Position of tail
+    const bodyHeight = Math.abs(bodyTop - bodyBottom);
 
     const headIsHit = Math.abs(timeUntilStart) < 50;
     const tailIsHit = Math.abs(timeUntilEnd) < 50;
@@ -101,42 +101,48 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
           }}
         />
         {/* LN Body - connects head to tail */}
-        {showBody && (
+        {showBody && bodyHeight > 10 && (
           <div
             style={{
               position: "absolute",
               left: x + 5,
               width: NOTE_WIDTH - 10,
-              top: bodyBottom,
-              height: bodyHeight,
+              top: Math.min(bodyTop, bodyBottom),
+              height: bodyHeight - 10,
               backgroundColor: color,
               opacity: 0.4,
-              borderRadius: 2,
+              borderRadius: 50,
             }}
           />
         )}
-        {/* Tail - small indicator at judgment line */}
-        {timeUntilEnd < VISIBLE_TIME && timeUntilEnd > -200 && (
-          <div
-            style={{
-              position: "absolute",
-              left: x + NOTE_WIDTH / 2 - 6,
-              top: tailY - 6,
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderTop: `10px solid ${color}`,
-              opacity: tailOpacity,
-              filter: tailIsHit ? `drop-shadow(0 0 8px ${color})` : "none",
-            }}
-          />
-        )}
+        {/* Tail - LN release indicator at judgment line */}
+        {
+        //   timeUntilEnd < VISIBLE_TIME && timeUntilEnd > -200 && (
+        //   <div
+        //     style={{
+        //       position: "absolute",
+        //       left: x + 5,
+        //       top: tailY,
+        //       width: NOTE_WIDTH - 10,
+        //       height: 20,
+        //       backgroundColor: color,
+        //       clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+        //       opacity: 0.4,
+        //       boxShadow: tailIsHit ? `0 0 15px ${color}` : `0 0 5px ${color}`,
+        //     }}
+        //   />
+        // )
+        }
       </>
     );
   }
 
   // === Regular note (not LN) ===
+  // Hide note after it passes judgment line
+  if (timeUntilStart < -50) {
+    return null;
+  }
+
   const progress = 1 - timeUntilStart / VISIBLE_TIME;
   const y = interpolate(progress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
 
