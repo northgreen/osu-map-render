@@ -1,6 +1,11 @@
 import { AbsoluteFill, Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
+import { ReplayCursor } from "./ReplayCursor";
+import { JudgmentIndicator, clearJudgmentCache } from "./JudgmentIndicator";
+import { replay, KEY_K1, KEY_K2, KEY_M1, KEY_M2 } from "./lib/replay";
+import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
+import { getJudgmentResults, JudgmentResult, getJudgmentColor } from "./lib/judgment";
 import {
   COLUMN_POSITIONS_STAGE,
   COLUMN_WIDTH,
@@ -56,9 +61,75 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
 
   const { metadata, difficulty, hitObjects, timingPoints, backgroundImage } = beatmap;
   const currentTime = (frame / fps) * 1000;
+
+  // Calculate difficulty (only once at frame 0)
+  const difficultyResult = calculateDifficulty(beatmap);
+
+  // Calculate real-time PP based on current progress
+  // Assume full accuracy for now (can be enhanced with replay data)
+  const realtimePP = calculateRealtimePP(
+    beatmap,
+    currentTime,
+    Math.floor(currentTime / 100), // Approximate combo based on time
+    { count300: Math.floor(hitObjects.length * 0.9), count100: 0, count50: 0, countMiss: 0 }
+  );
+
+  // Get judgment results for current time display
+  const judgments = getJudgmentResults(hitObjects, difficulty.overallDifficulty);
+
+  // Calculate cumulative scores
+  let count300 = 0, count100 = 0, count50 = 0, countMiss = 0;
+  let lastJudgment: JudgmentResult | null = null;
+  for (const j of judgments) {
+    if (j.hitTime <= currentTime) {
+      if (j.judgment === "300") count300++;
+      else if (j.judgment === "100") count100++;
+      else if (j.judgment === "50") count50++;
+      else if (j.judgment === "Miss") countMiss++;
+      lastJudgment = j;
+    }
+  }
+
+  // Debug first frame
+  if (frame === 0) {
+    console.log("beatmap loaded, hitObjects:", hitObjects.length, "first note time:", hitObjects[0]?.time);
+    console.log("Difficulty:", difficultyResult);
+  }
+
   const durationMs = beatmap.hitObjects.length > 0
     ? beatmap.hitObjects[beatmap.hitObjects.length - 1].endTime || beatmap.hitObjects[beatmap.hitObjects.length - 1].time
     : 60000;
+
+  // Find current replay frame and pressed keys
+  const getPressedKeys = () => {
+    const pressedColumns: boolean[] = [false, false, false, false];
+
+    if (!replay?.replayData) return pressedColumns;
+
+    // Find the frame at or before currentTime
+    let cumulativeTime = 0;
+    for (const frame of replay.replayData) {
+      cumulativeTime += frame.timeOffset;
+      if (cumulativeTime > currentTime) break;
+
+      const keys = frame.keys;
+      // For 4-key: typically K1=column 0, K2=column 1, M1=column 2, M2=column 3
+      // But mapping varies - use Y position to determine column
+      if (frame.y >= 0 && frame.y < 384) {
+        const column = Math.floor(frame.y / 96); // 384/4 = 96 per column
+        if (column >= 0 && column < 4) {
+          // Check if any key is pressed
+          if (keys & KEY_K1 || keys & KEY_M1) pressedColumns[column] = true;
+          // Check adjacent column for K2/M2
+          if (keys & KEY_K2 || keys & KEY_M2) pressedColumns[(column + 1) % 4] = true;
+        }
+      }
+    }
+
+    return pressedColumns;
+  };
+
+  const pressedKeys = getPressedKeys();
 
   // Generate beat lines
   const beatLines = generateBeatLines(timingPoints, durationMs);
@@ -190,30 +261,38 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
       />
 
       {/* Key press indicators at bottom */}
-      {COLUMN_POSITIONS_STAGE.map((pos, i) => (
-        <div
-          key={`key-${i}`}
-          style={{
-            position: "absolute",
-            left: STAGE_X + pos - COLUMN_WIDTH / 2,
-            top: JUDGMENT_LINE_Y + 10,
-            width: COLUMN_WIDTH,
-            height: 60,
-            backgroundColor: "#2a2a4a",
-            borderRadius: "0 0 8 8",
-            border: "2px solid #444",
-            borderTop: "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 24,
-            fontWeight: "bold",
-            color: "#666",
-          }}
-        >
-          {["D", "F", "J", "K"][i]}
-        </div>
-      ))}
+      {COLUMN_POSITIONS_STAGE.map((pos, i) => {
+        const isPressed = pressedKeys[i];
+        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
+        const color = colors[i];
+        return (
+          <div
+            key={`key-${i}`}
+            style={{
+              position: "absolute",
+              left: STAGE_X + pos - COLUMN_WIDTH / 2,
+              top: JUDGMENT_LINE_Y + 10,
+              width: COLUMN_WIDTH,
+              height: 60,
+              backgroundColor: isPressed ? color : "#2a2a4a",
+              opacity: isPressed ? 0.8 : 1,
+              borderRadius: "0 0 8 8",
+              border: `2px solid ${isPressed ? color : "#444"}`,
+              borderTop: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 24,
+              fontWeight: "bold",
+              color: isPressed ? "#fff" : "#666",
+              boxShadow: isPressed ? `0 0 20px ${color}` : "none",
+              transition: "all 0.05s",
+            }}
+          >
+            {["D", "F", "J", "K"][i]}
+          </div>
+        );
+      })}
 
       {/* Notes */}
       {hitObjects.map((note, index) => (
@@ -222,6 +301,18 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
           note={note}
         />
       ))}
+
+      {/* Replay cursor - shows player key presses falling */}
+      <ReplayCursor />
+
+      {/* Judgment indicators */}
+      {
+      // <JudgmentIndicator
+      //   hitObjects={hitObjects}
+      //   od={difficulty.overallDifficulty}
+      //   currentTime={currentTime}
+      // />
+      }
 
       {/* Hit effects - column highlight */}
       {hitObjects.map((note, index) => {
@@ -333,9 +424,12 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
         <div style={{ fontSize: 16, color: "#555", marginTop: 8 }}>
           {difficulty.circleSize}K | AR {difficulty.approachRate} | OD {difficulty.overallDifficulty}
         </div>
+        <div style={{ fontSize: 16, color: "#FFD700", marginTop: 8, fontWeight: "bold" }}>
+          ★ {difficultyResult.stars.toFixed(1)}
+        </div>
       </div>
 
-      {/* Score/Combo display */}
+      {/* Score/Combo/PP display */}
       <div
         style={{
           position: "absolute",
@@ -347,9 +441,53 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
           textAlign: "right",
         }}
       >
-        <div style={{ color: "#00ff88" }}>1,000,000</div>
-        <div style={{ fontSize: 18, color: "#666" }}>x1.0</div>
+        <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
+        <div style={{ fontSize: 18, color: "#666" }}>x{Math.floor(currentTime / 100)}</div>
       </div>
+
+      {/* Judgment stats display */}
+      {
+
+      // <div
+      //   style={{
+      //     position: "absolute",
+      //     top: 100,
+      //     right: 30,
+      //     fontFamily: "monospace",
+      //     fontSize: 18,
+      //     textAlign: "right",
+      //   }}
+      // >
+      //   <div style={{ color: "#00FF88" }}>{count300}x300</div>
+      //   <div style={{ color: "#00AAFF" }}>{count100}x100</div>
+      //   <div style={{ color: "#FFAA00" }}>{count50}x50</div>
+      //   <div style={{ color: "#FF4444" }}>{countMiss}xMiss</div>
+      //   <div style={{ color: "#888", marginTop: 8 }}>
+      //     Total: {count300 * 300 + count100 * 100 + count50 * 50}
+      //   </div>
+      // </div>
+      }
+
+      {/* Last judgment indicator */}
+      {
+      //   lastJudgment && currentTime - lastJudgment.hitTime < 500 && (
+      //   <div
+      //     style={{
+      //       position: "absolute",
+      //       top: "40%",
+      //       left: "50%",
+      //       transform: "translate(-50%, -50%)",
+      //       fontSize: 64,
+      //       fontWeight: "bold",
+      //       color: getJudgmentColor(lastJudgment.judgment),
+      //       textShadow: `0 0 20px ${getJudgmentColor(lastJudgment.judgment)}`,
+      //       zIndex: 200,
+      //     }}
+      //   >
+      //     {lastJudgment.judgment}
+      //   </div>
+      // )
+      }
     </AbsoluteFill>
   );
 };

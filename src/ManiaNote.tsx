@@ -30,6 +30,11 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
   const timeUntilStart = startTime - currentTime;
   const timeUntilEnd = isLongNote && endTime ? endTime - currentTime : timeUntilStart;
 
+  // Debug: log first few notes
+  if (frame === 0 && note.time < 5000) {
+    console.log(`Note time: ${startTime}, currentTime: ${currentTime}, until: ${timeUntilStart}, visible: ${VISIBLE_TIME}`);
+  }
+
   // For LN, visible if either head OR tail is in range
   // For regular note, visible if timeUntilStart is in range
   const isVisible = isLongNote && endTime
@@ -91,6 +96,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
             height: NOTE_HEIGHT,
             backgroundColor: color,
             borderRadius: 4,
+            border: "2px solid white", // Debug border
             opacity: headOpacity,
             boxShadow: headIsHit ? `0 0 20px ${color}` : "none",
           }}
@@ -155,6 +161,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
         backgroundColor: color,
         borderRadius: 4,
         opacity,
+        border: "2px solid white", // Debug border
         boxShadow: isHit ? `0 0 20px ${color}` : "none",
       }}
     >

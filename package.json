@@ -9,6 +9,7 @@
     "@remotion/cli": "4.0.448",
     "@remotion/tailwind-v4": "4.0.448",
     "@remotion/zod-types": "4.0.448",
+    "lzma": "^2.3.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwindcss": "4.0.0",
@@ -29,6 +30,7 @@
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
     "parse": "tsx scripts/parseBeatmap.ts",
+    "parse:replay": "tsx scripts/parseReplay.ts",
     "prebuild": "tsx scripts/parseBeatmap.ts"
   },
   "sideEffects": [

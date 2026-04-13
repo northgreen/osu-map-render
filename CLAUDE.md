@@ -13,6 +13,7 @@ npm run dev                          # Start Remotion Studio (live preview)
 npm run build                        # Bundle the project (auto-runs parse)
 npm run lint                         # Run ESLint + TypeScript
 npm run parse                        # Parse beatmap to JSON (run manually if needed)
+npm run parse:replay              # Parse .osr replay file to JSON
 npx remotion render ManiaRender out/video.mp4  # Render osu!mania video
 npx remotion render HelloWorld out/video.mp4    # Render template video
 npm run upgrade                      # Upgrade Remotion version
@@ -42,3 +43,16 @@ All customization options are centralized in `src/config.ts`:
 
 Beatmaps are parsed from `cheart/` folder. Current target:
 `cheart/Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu`
+
+## Replay Data (.osr)
+
+To include player replay data in renders:
+1. Place your .osr file in `cheart/` folder
+2. Update the filename in `scripts/parseReplay.ts`
+3. Run `npm run parse:replay` to parse to JSON
+4. Import `replay.json` in your component to show actual key presses
+
+Use `src/lib/osrParser.ts` to parse replay files:
+- `parseOsuReplay(path)` - Parse .osr file
+- `ReplayFrame` - Contains timeOffset, x, y, keys (bitmask)
+- Key constants: `KEY_M1`, `KEY_M2`, `KEY_K1`, `KEY_K2`, `KEY_SMOKE`
