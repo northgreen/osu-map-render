@@ -1,22 +1,17 @@
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { HitObject } from "./lib/osuParser";
+import {
+  SCROLL_SPEED,
+  BASE_VISIBLE_TIME,
+  NOTE_WIDTH,
+  NOTE_HEIGHT,
+  JUDGMENT_LINE_Y,
+  COLUMN_POSITIONS_NOTE,
+} from "./config";
 
 interface ManiaNoteProps {
   note: HitObject;
 }
-
-const COLUMN_POSITIONS = [120, 257, 385, 513];
-const NOTE_WIDTH = 100;
-const NOTE_HEIGHT = 40;
-const JUDGMENT_LINE_Y = 900;
-
-// osu!mania scroll speed (玩家自定)
-// 常见值: 10 (默认), 15, 20, 25, 30, 40 等
-// 数值越大，流速越快
-const SCROLL_SPEED = 20;
-
-// Base visible time at scroll speed 10
-const BASE_VISIBLE_TIME = 1800; // ms
 
 // Calculate visible time based on scroll speed
 function getVisibleTime(scrollSpeed: number): number {
@@ -47,7 +42,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
 
   // Column position
   const column = Math.min(note.column, 3);
-  const x = COLUMN_POSITIONS[column] - NOTE_WIDTH / 2;
+  const x = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2;
 
   // Note color based on column
   const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];

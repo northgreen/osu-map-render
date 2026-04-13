@@ -26,11 +26,19 @@ npm run upgrade                      # Upgrade Remotion version
 - **Parser script**: `scripts/parseBeatmap.ts` - parses .osu file to JSON
 - **Mania renderer**: `src/ManiaStage.tsx` + `src/ManiaNote.tsx` - renders osu!mania gameplay
 
-## osu!mania Rendering
+## Configuration
 
-- Beatmaps are parsed from `cheart/` folder using `npm run parse`
-- The script extracts: metadata, difficulty, timing points, hit objects
-- Parsed data is saved to `src/lib/beatmap.json` and imported at runtime
-- Hit objects are rendered as falling notes in a 4-column playfield
-- Audio file should be in `public/audio.mp3` (copied from `cheart/audio.mp3`)
-- To change the beatmap, modify the file path in `scripts/parseBeatmap.ts`
+All customization options are centralized in `src/config.ts`:
+- `SCROLL_SPEED` - Note fall speed (10-40, default 20)
+- `BASE_VISIBLE_TIME` - Base visible time at scroll speed 10 (ms)
+- `NOTE_WIDTH`, `NOTE_HEIGHT` - Note dimensions
+- `COLUMN_POSITIONS_STAGE` - Column positions for stage background
+- `COLUMN_POSITIONS_NOTE` - Column positions for note rendering
+- `JUDGMENT_LINE_Y` - Y position of judgment line
+- `HIT_EFFECT_DURATION` - Hit effect fade duration (ms)
+- `LN_BODY_OPACITY` - Long note body opacity
+
+## Beatmap Source
+
+Beatmaps are parsed from `cheart/` folder. Current target:
+`cheart/Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu`
