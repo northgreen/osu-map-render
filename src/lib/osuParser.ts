@@ -51,6 +51,7 @@ export interface ParsedBeatmap {
   hitObjects: HitObject[];
   audioFile: string;
   mode: number;
+  backgroundImage?: string;
 }
 
 // Export the pre-loaded beatmap data

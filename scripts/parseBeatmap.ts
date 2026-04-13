@@ -52,6 +52,7 @@ interface ParsedBeatmap {
   hitObjects: HitObject[];
   audioFile: string;
   mode: number;
+  backgroundImage?: string;
 }
 
 function parseSection(content: string, section: string): string[] {
@@ -88,6 +89,20 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
   for (const line of generalLines) {
     const [key, value] = parseKeyValue(line);
     general[key] = value;
+  }
+
+  // Parse Events for background
+  const eventsLines = parseSection(content, "Events");
+  let backgroundImage: string | undefined;
+  for (const line of eventsLines) {
+    // Background: 0,0,"filename",x,y
+    if (line.startsWith("0,") || line.startsWith("0,")) {
+      const match = line.match(/^0,0,"([^"]+)"/);
+      if (match) {
+        backgroundImage = match[1];
+        break;
+      }
+    }
   }
 
   // Parse Metadata
@@ -197,32 +212,14 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       const time = parseInt(parts[2]);
       const type = parseInt(parts[3]);
       const hitSound = parseInt(parts[4]);
-      const objectParams = parts[5] || "";
-      const hitSample = parts[6] || "";
 
-      // LN detection: type bit 7 (128) = slider (long note in mania)
+      // For LN (type & 128), parts[5] is endTime (ms), parts[6] is hitSample
+      // For circle, parts[5] is objectParams, parts[6] is hitSample
       const isLongNote = (type & 128) !== 0;
-
-      // Calculate end time for LNs
-      let endTime: number | undefined;
-      if (isLongNote && objectParams) {
-        // objectParams format: length:edgeSounds:edgeAdditions
-        const length = parseFloat(objectParams.split(":")[0]) || 0;
-        if (length > 0) {
-          // Find the applicable timing point for this time
-          let beatLength = 300; // default
-          for (let i = timingPoints.length - 1; i >= 0; i--) {
-            if (timingPoints[i].time <= time) {
-              beatLength = timingPoints[i].beatLength;
-              break;
-            }
-          }
-          // Calculate end time: duration = length / (sliderMultiplier * 1000) * beatLength
-          const sliderVelocity = difficulty.sliderMultiplier * 1000;
-          const durationMs = (length / sliderVelocity) * beatLength;
-          endTime = time + durationMs;
-        }
-      }
+      const endTimeStr = isLongNote ? (parts[5] || "") : "";
+      const endTime = isLongNote ? parseInt(endTimeStr) : undefined;
+      const objectParams = !isLongNote ? (parts[5] || "") : "";
+      const hitSample = parts[6] || "";
 
       // Calculate column based on x position
       const column = Math.floor(x / 128);
@@ -249,6 +246,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     hitObjects,
     audioFile: general["AudioFilename"] || "",
     mode: parseInt(general["Mode"]) || 0,
+    backgroundImage,
   };
 }
 

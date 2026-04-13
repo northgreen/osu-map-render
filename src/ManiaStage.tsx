@@ -52,7 +52,7 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
     );
   }
 
-  const { metadata, difficulty, hitObjects, timingPoints } = beatmap;
+  const { metadata, difficulty, hitObjects, timingPoints, backgroundImage } = beatmap;
   const currentTime = (frame / fps) * 1000;
   const durationMs = beatmap.hitObjects.length > 0
     ? beatmap.hitObjects[beatmap.hitObjects.length - 1].endTime || beatmap.hitObjects[beatmap.hitObjects.length - 1].time
@@ -68,8 +68,35 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
     ? 1200 - (difficulty.approachRate - 5) * 120
     : 1200;
 
+  // Get the background image filename from beatmap
+  const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+      {/* Background image */}
+      {bgFileName && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: 1920,
+            height: 1080,
+            overflow: "hidden",
+          }}
+        >
+          <img
+            src={staticFile(bgFileName)}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: 0.6,
+            }}
+          />
+        </div>
+      )}
+
       {/* Audio */}
       <Audio src={staticFile("audio.mp3")} />
 
@@ -188,7 +215,6 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
         <ManiaNote
           key={`${note.time}-${note.column}-${index}`}
           note={note}
-          approachRate={difficulty.approachRate}
         />
       ))}
 
