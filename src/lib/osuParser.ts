@@ -40,6 +40,8 @@ export interface HitObject {
   objectParams: string;
   hitSample: string;
   column: number;
+  endTime?: number;
+  isLongNote: boolean;
 }
 
 export interface ParsedBeatmap {

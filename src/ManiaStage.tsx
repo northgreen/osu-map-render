@@ -1,18 +1,49 @@
-import { AbsoluteFill, Audio, staticFile } from "remotion";
-import { ParsedBeatmap } from "./lib/osuParser";
+import { AbsoluteFill, Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 
 interface ManiaStageProps {
   beatmap?: ParsedBeatmap;
 }
 
+// Stage dimensions - match osu!mania coordinates
 const COLUMN_POSITIONS = [64, 192, 320, 448];
 const COLUMN_WIDTH = 128;
 const STAGE_WIDTH = 512;
-const STAGE_X = (1920 - STAGE_WIDTH) / 2;
+const STAGE_X = 64; // Start at first column position
+const STAGE_HEIGHT = 1080;
 const JUDGMENT_LINE_Y = 900;
 
+// Generate beat lines based on timing points
+function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): number[] {
+  const beatLines: number[] = [];
+  if (timingPoints.length === 0) return beatLines;
+
+  // Get all uninherited timing points (these define BPM)
+  const uninheritedPoints = timingPoints.filter(tp => tp.uninherited);
+  if (uninheritedPoints.length === 0) return beatLines;
+
+  // For each uninherited timing point, generate beat lines
+  for (let i = 0; i < uninheritedPoints.length; i++) {
+    const tp = uninheritedPoints[i];
+    const nextTp = uninheritedPoints[i + 1];
+    const endTime = nextTp ? nextTp.time : durationMs + 5000;
+
+    const msPerBeat = Math.abs(tp.beatLength);
+
+    // Generate beat lines from this TP's time until next TP
+    for (let time = tp.time; time < endTime; time += msPerBeat) {
+      if (time > 0) beatLines.push(time);
+    }
+  }
+
+  return beatLines;
+}
+
 export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
   if (!beatmap) {
     return (
       <AbsoluteFill style={{ backgroundColor: "#1a1a2e", justifyContent: "center", alignItems: "center" }}>
@@ -21,12 +52,51 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
     );
   }
 
-  const { metadata, difficulty, hitObjects } = beatmap;
+  const { metadata, difficulty, hitObjects, timingPoints } = beatmap;
+  const currentTime = (frame / fps) * 1000;
+  const durationMs = beatmap.hitObjects.length > 0
+    ? beatmap.hitObjects[beatmap.hitObjects.length - 1].endTime || beatmap.hitObjects[beatmap.hitObjects.length - 1].time
+    : 60000;
+
+  // Generate beat lines
+  const beatLines = generateBeatLines(timingPoints, durationMs);
+
+  // Calculate visible time based on AR
+  const visibleTime = difficulty.approachRate < 5
+    ? 1200 + (5 - difficulty.approachRate) * 120
+    : difficulty.approachRate > 5
+    ? 1200 - (difficulty.approachRate - 5) * 120
+    : 1200;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
       {/* Audio */}
       <Audio src={staticFile("audio.mp3")} />
+
+      {/* Beat lines */}
+      {beatLines.map((time, i) => {
+        const timeUntilHit = time - currentTime;
+        if (timeUntilHit > visibleTime || timeUntilHit < -500) return null;
+
+        const progress = 1 - timeUntilHit / visibleTime;
+        const y = progress * JUDGMENT_LINE_Y;
+        const isBarLine = i % 4 === 0; // Every 4 beats is a bar
+
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: STAGE_X,
+              top: y,
+              width: STAGE_WIDTH,
+              height: isBarLine ? 2 : 1,
+              backgroundColor: isBarLine ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)",
+              opacity: Math.max(0, Math.min(1, 1 - timeUntilHit / 500)),
+            }}
+          />
+        );
+      })}
 
       {/* Stage background */}
       <div
@@ -35,10 +105,10 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
           left: STAGE_X,
           top: 0,
           width: STAGE_WIDTH,
-          height: 1080,
+          height: STAGE_HEIGHT,
           backgroundColor: "#16213e",
-          borderLeft: "2px solid #333",
-          borderRight: "2px solid #333",
+          borderLeft: "2px solid #444",
+          borderRight: "2px solid #444",
         }}
       >
         {/* Column dividers */}

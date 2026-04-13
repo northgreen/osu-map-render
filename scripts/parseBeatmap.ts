@@ -41,6 +41,8 @@ interface HitObject {
   objectParams: string;
   hitSample: string;
   column: number;
+  endTime?: number; // For long notes
+  isLongNote: boolean;
 }
 
 interface ParsedBeatmap {
@@ -198,7 +200,31 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       const objectParams = parts[5] || "";
       const hitSample = parts[6] || "";
 
-      // Calculate column based on x position and circle size
+      // LN detection: type bit 7 (128) = slider (long note in mania)
+      const isLongNote = (type & 128) !== 0;
+
+      // Calculate end time for LNs
+      let endTime: number | undefined;
+      if (isLongNote && objectParams) {
+        // objectParams format: length:edgeSounds:edgeAdditions
+        const length = parseFloat(objectParams.split(":")[0]) || 0;
+        if (length > 0) {
+          // Find the applicable timing point for this time
+          let beatLength = 300; // default
+          for (let i = timingPoints.length - 1; i >= 0; i--) {
+            if (timingPoints[i].time <= time) {
+              beatLength = timingPoints[i].beatLength;
+              break;
+            }
+          }
+          // Calculate end time: duration = length / (sliderMultiplier * 1000) * beatLength
+          const sliderVelocity = difficulty.sliderMultiplier * 1000;
+          const durationMs = (length / sliderVelocity) * beatLength;
+          endTime = time + durationMs;
+        }
+      }
+
+      // Calculate column based on x position
       const column = Math.floor(x / 128);
 
       hitObjects.push({
@@ -210,6 +236,8 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
         objectParams,
         hitSample,
         column,
+        endTime,
+        isLongNote,
       });
     }
   }
