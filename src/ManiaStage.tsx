@@ -19,6 +19,8 @@ import {
 
 interface ManiaStageProps {
   beatmap?: ParsedBeatmap;
+  scrollSpeed?: number;
+  timeOffset?: number;
 }
 
 // Generate beat lines based on timing points
@@ -47,7 +49,7 @@ function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): num
   return beatLines;
 }
 
-export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
+export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap, scrollSpeed = 20, timeOffset = 0 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -60,7 +62,7 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
   }
 
   const { metadata, difficulty, hitObjects, timingPoints, backgroundImage } = beatmap;
-  const currentTime = (frame / fps) * 1000;
+  const currentTime = (frame / fps) * 1000 + timeOffset;
 
   // Calculate difficulty (only once at frame 0)
   const difficultyResult = calculateDifficulty(beatmap);
@@ -134,12 +136,16 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
   // Generate beat lines
   const beatLines = generateBeatLines(timingPoints, durationMs);
 
-  // Calculate visible time based on AR
-  const visibleTime = difficulty.approachRate < 5
+  // Calculate visible time based on AR and scroll speed
+  // Base visible time at AR=5 is 1200ms, adjusted by scroll speed
+  const baseVisibleTime = (difficulty.approachRate < 5
     ? 1200 + (5 - difficulty.approachRate) * 120
     : difficulty.approachRate > 5
-    ? 1200 - (difficulty.approachRate - 5) * 120
-    : 1200;
+      ? 1200 - (difficulty.approachRate - 5) * 120
+      : 1200);
+
+  // Adjust by scroll speed (10 = normal, higher = faster)
+  const visibleTime = baseVisibleTime * (10 / scrollSpeed);
 
   // Get the background image filename from beatmap
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
@@ -228,22 +234,22 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
 
         {/* Lane effects - subtle gradient per column */}
         {
-        //   COLUMN_POSITIONS_STAGE.map((pos, i) => (
-        //   <div
-        //     key={`lane-${i}`}
-        //     style={{
-        //       position: "absolute",
-        //       left: pos - COLUMN_WIDTH / 2 - STAGE_X,
-        //       top: 0,
-        //       width: COLUMN_WIDTH,
-        //       height: 1080,
-        //       opacity: 0.2,
-        //       background: `linear-gradient(180deg, transparent 0%, ${
-        //         ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"][i]
-        //       } 50%, transparent 100%)`,
-        //     }}
-        //   />
-        // ))
+          //   COLUMN_POSITIONS_STAGE.map((pos, i) => (
+          //   <div
+          //     key={`lane-${i}`}
+          //     style={{
+          //       position: "absolute",
+          //       left: pos - COLUMN_WIDTH / 2 - STAGE_X,
+          //       top: 0,
+          //       width: COLUMN_WIDTH,
+          //       height: 1080,
+          //       opacity: 0.2,
+          //       background: `linear-gradient(180deg, transparent 0%, ${
+          //         ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"][i]
+          //       } 50%, transparent 100%)`,
+          //     }}
+          //   />
+          // ))
         }
       </div>
 
@@ -307,11 +313,11 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
 
       {/* Judgment indicators */}
       {
-      // <JudgmentIndicator
-      //   hitObjects={hitObjects}
-      //   od={difficulty.overallDifficulty}
-      //   currentTime={currentTime}
-      // />
+        // <JudgmentIndicator
+        //   hitObjects={hitObjects}
+        //   od={difficulty.overallDifficulty}
+        //   currentTime={currentTime}
+        // />
       }
 
       {/* Hit effects - column highlight */}
@@ -424,9 +430,11 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
         <div style={{ fontSize: 16, color: "#555", marginTop: 8 }}>
           {difficulty.circleSize}K | AR {difficulty.approachRate} | OD {difficulty.overallDifficulty}
         </div>
-        <div style={{ fontSize: 16, color: "#FFD700", marginTop: 8, fontWeight: "bold" }}>
-          ★ {difficultyResult.stars.toFixed(1)}
-        </div>
+        {
+          // <div style={{ fontSize: 16, color: "#FFD700", marginTop: 8, fontWeight: "bold" }}>
+          //   ★ {difficultyResult.stars.toFixed(1)}
+          // </div>
+        }
       </div>
 
       {/* Score/Combo/PP display */}
@@ -441,52 +449,54 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap }) => {
           textAlign: "right",
         }}
       >
-        <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
+        {
+          // <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
+        }
         <div style={{ fontSize: 18, color: "#666" }}>x{Math.floor(currentTime / 100)}</div>
       </div>
 
       {/* Judgment stats display */}
       {
 
-      // <div
-      //   style={{
-      //     position: "absolute",
-      //     top: 100,
-      //     right: 30,
-      //     fontFamily: "monospace",
-      //     fontSize: 18,
-      //     textAlign: "right",
-      //   }}
-      // >
-      //   <div style={{ color: "#00FF88" }}>{count300}x300</div>
-      //   <div style={{ color: "#00AAFF" }}>{count100}x100</div>
-      //   <div style={{ color: "#FFAA00" }}>{count50}x50</div>
-      //   <div style={{ color: "#FF4444" }}>{countMiss}xMiss</div>
-      //   <div style={{ color: "#888", marginTop: 8 }}>
-      //     Total: {count300 * 300 + count100 * 100 + count50 * 50}
-      //   </div>
-      // </div>
+        // <div
+        //   style={{
+        //     position: "absolute",
+        //     top: 100,
+        //     right: 30,
+        //     fontFamily: "monospace",
+        //     fontSize: 18,
+        //     textAlign: "right",
+        //   }}
+        // >
+        //   <div style={{ color: "#00FF88" }}>{count300}x300</div>
+        //   <div style={{ color: "#00AAFF" }}>{count100}x100</div>
+        //   <div style={{ color: "#FFAA00" }}>{count50}x50</div>
+        //   <div style={{ color: "#FF4444" }}>{countMiss}xMiss</div>
+        //   <div style={{ color: "#888", marginTop: 8 }}>
+        //     Total: {count300 * 300 + count100 * 100 + count50 * 50}
+        //   </div>
+        // </div>
       }
 
       {/* Last judgment indicator */}
       {
-      //   lastJudgment && currentTime - lastJudgment.hitTime < 500 && (
-      //   <div
-      //     style={{
-      //       position: "absolute",
-      //       top: "40%",
-      //       left: "50%",
-      //       transform: "translate(-50%, -50%)",
-      //       fontSize: 64,
-      //       fontWeight: "bold",
-      //       color: getJudgmentColor(lastJudgment.judgment),
-      //       textShadow: `0 0 20px ${getJudgmentColor(lastJudgment.judgment)}`,
-      //       zIndex: 200,
-      //     }}
-      //   >
-      //     {lastJudgment.judgment}
-      //   </div>
-      // )
+        //   lastJudgment && currentTime - lastJudgment.hitTime < 500 && (
+        //   <div
+        //     style={{
+        //       position: "absolute",
+        //       top: "40%",
+        //       left: "50%",
+        //       transform: "translate(-50%, -50%)",
+        //       fontSize: 64,
+        //       fontWeight: "bold",
+        //       color: getJudgmentColor(lastJudgment.judgment),
+        //       textShadow: `0 0 20px ${getJudgmentColor(lastJudgment.judgment)}`,
+        //       zIndex: 200,
+        //     }}
+        //   >
+        //     {lastJudgment.judgment}
+        //   </div>
+        // )
       }
     </AbsoluteFill>
   );
