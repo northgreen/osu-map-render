@@ -2,10 +2,15 @@ import "./index.css";
 import { Composition } from "remotion";
 import { HelloWorld, myCompSchema } from "./HelloWorld";
 import { Logo, myCompSchema2 } from "./HelloWorld/Logo";
+import { ManiaStage } from "./ManiaStage";
+import { beatmap, getBeatmapDuration } from "./lib/osuParser";
 
 // Each <Composition> is an entry in the sidebar!
 
 export const RemotionRoot: React.FC = () => {
+  const duration = getBeatmapDuration(beatmap);
+  const fps = 60;
+
   return (
     <>
       <Composition
@@ -40,6 +45,19 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           logoColor1: "#91dAE2" as const,
           logoColor2: "#86A8E7" as const,
+        }}
+      />
+
+      {/* osu!mania beatmap render */}
+      <Composition
+        id="ManiaRender"
+        component={ManiaStage}
+        durationInFrames={Math.ceil(duration / 1000 * fps)}
+        fps={fps}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          beatmap,
         }}
       />
     </>
