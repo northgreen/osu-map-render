@@ -3,7 +3,7 @@
 
 // Scroll speed - determines how fast notes fall
 // Common values: 10 (slow), 15, 20 (default), 25, 30, 40 (fast)
-export const SCROLL_SPEED = 27;
+export const SCROLL_SPEED = 37;
 
 // Base visible time at scroll speed 10 (in milliseconds)
 export const BASE_VISIBLE_TIME = 1800;

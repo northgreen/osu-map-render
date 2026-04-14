@@ -73,12 +73,12 @@ export const RemotionRoot: React.FC = () => {
       {/* Stage layer (beat lines, notes, key presses, hit effects + audio) */}
       <Composition
         id="ManiaStageOnly"
-        component={() => (
-          <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+        component={({ scrollSpeed = 20 }: ManiaRenderProps) => (
+          <AbsoluteFill style={{ backgroundColor: "transparent" }}>
             <Audio src={staticFile("audio.mp3")} />
             <ManiaStageLayer
               beatmap={beatmap}
-              scrollSpeed={20}
+              scrollSpeed={scrollSpeed}
               beatOffset={beatOffset}
             />
           </AbsoluteFill>
@@ -87,11 +87,8 @@ export const RemotionRoot: React.FC = () => {
         fps={fps}
         width={1920}
         height={1080}
-        defaultProps={{
-          beatmap,
-          scrollSpeed: 20,
-          beatOffset,
-        }}
+        schema={maniaRenderSchema}
+        defaultProps={defaultProps}
       />
 
       {/* Overlay only (info display: metadata, score, PP) */}
