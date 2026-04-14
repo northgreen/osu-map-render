@@ -211,48 +211,67 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           return (ms / visibleTime) * JUDGMENT_LINE_Y;
         };
 
-        // Render zones centered on note position - both above (early) and below (late)
-        let cumulativeHeight = 0;
+        // Render zones centered on note - extends both above and below
+        // Zone starts from noteY, extends upward (early) and downward (late)
+        let zoneTop = noteY;
         return (
           <div key={`note-zones-${note.time}-${note.column}-${index}`}>
             {zoneColors.map((zone, zoneIndex) => {
-              const zoneHeight = Math.max(1, msToPixels(zone.window));
-              const topOffset = cumulativeHeight;
-              cumulativeHeight += zoneHeight;
+              const zoneHeight = msToPixels(zone.window);
+              if (zoneHeight <= 0) return null;
+
+              // Calculate fade based on screen position
+              const fadeStart = 100;
+              const opacity = Math.min(1, Math.max(0.1, (zoneTop - fadeStart) / fadeStart + 1));
+
+              const currentTop = zoneTop - zoneHeight;
+              zoneTop -= zoneHeight;
 
               return (
                 <>
-                  {/* Above note - early hit window */}
+                  {/* Zone extends upward from previous zone (early hit window) */}
                   <div
                     key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
                     style={{
                       position: "absolute",
                       left: posX - NOTE_WIDTH / 2 + 2,
-                      top: noteY - zoneHeight - topOffset,
+                      top: currentTop,
                       width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
                       backgroundColor: zone.color,
-                      borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
-                      borderRight: `1px solid ${zone.borderColor}`,
-                      pointerEvents: "none",
-                    }}
-                  />
-                  {/* Below note - late hit window */}
-                  <div
-                    key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
-                    style={{
-                      position: "absolute",
-                      left: posX - NOTE_WIDTH / 2 + 2,
-                      top: noteY + topOffset,
-                      width: NOTE_WIDTH - 4,
-                      height: zoneHeight - 1,
-                      backgroundColor: zone.color,
+                      opacity,
                       borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
                       borderRight: `1px solid ${zone.borderColor}`,
                       pointerEvents: "none",
                     }}
                   />
                 </>
+              );
+            })}
+            {/* Render late zones below note */}
+            {zoneColors.map((zone, zoneIndex) => {
+              const zoneHeight = msToPixels(zone.window);
+              if (zoneHeight <= 0) return null;
+
+              const startY = noteY + msToPixels(zoneColors.slice(0, zoneIndex).reduce((sum, z) => sum + msToPixels(z.window), 0));
+              const opacity = Math.min(1, Math.max(0.1, (startY - 100) / 100 + 1));
+
+              return (
+                <div
+                  key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                  style={{
+                    position: "absolute",
+                    left: posX - NOTE_WIDTH / 2 + 2,
+                    top: startY,
+                    width: NOTE_WIDTH - 4,
+                    height: zoneHeight - 1,
+                    backgroundColor: zone.color,
+                    opacity,
+                    borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
+                    borderRight: `1px solid ${zone.borderColor}`,
+                    pointerEvents: "none",
+                  }}
+                />
               );
             })}
           </div>
