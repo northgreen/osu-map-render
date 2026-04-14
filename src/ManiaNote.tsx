@@ -19,11 +19,11 @@ function getVisibleTime(scrollSpeed: number): number {
   return BASE_VISIBLE_TIME * (10 / scrollSpeed);
 }
 
-export const ManiaNote: React.FC<ManiaNoteProps> = ({ note }) => {
+export const ManiaNote: React.FC<ManiaNoteProps> = ({ note, scrollSpeed = SCROLL_SPEED }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const VISIBLE_TIME = getVisibleTime(SCROLL_SPEED);
+  const VISIBLE_TIME = getVisibleTime(scrollSpeed);
   const currentTime = (frame / fps) * 1000;
 
   const { isLongNote, endTime, time: startTime } = note;

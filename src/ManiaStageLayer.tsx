@@ -1,8 +1,10 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
+import { ReplayCursor } from "./ReplayCursor";
 import { replay } from "./lib/replay";
 import {
+  SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   COLUMN_POSITIONS_STAGE,
   COLUMN_WIDTH,
   NOTE_HEIGHT,
@@ -44,7 +46,7 @@ function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): num
 
 export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   beatmap,
-  scrollSpeed = 20,
+  scrollSpeed = DEFAULT_SCROLL_SPEED,
   beatOffset = 0,
 }) => {
   const frame = useCurrentFrame();
@@ -55,7 +57,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   }
 
   const { hitObjects, timingPoints } = beatmap;
-  const currentTime = (frame / fps) * 1000 + beatOffset;
+  // currentTime is the actual playback time in ms
+  const currentTime = (frame / fps) * 1000;
 
   const durationMs = hitObjects.length > 0
     ? (hitObjects[hitObjects.length - 1].endTime || hitObjects[hitObjects.length - 1].time) + 5000
@@ -172,9 +175,11 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           key={`${note.time}-${note.column}-${index}`}
           note={note}
           scrollSpeed={scrollSpeed}
-          beatOffset={beatOffset}
         />
       ))}
+
+      {/* Replay cursor - shows player key presses falling */}
+      <ReplayCursor scrollSpeed={scrollSpeed} />
 
       {/* Key press indicators at bottom */}
       {COLUMN_POSITIONS_STAGE.map((pos, i) => {
@@ -254,8 +259,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         const timeSinceHit = currentTime - startTime;
         const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
         const opacity = note.isLongNote
-          ? Math.min(0.2, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.4)
-          : 0.05 * (1 - fadeProgress);
+          ? Math.min(0.1, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.01)
+          : 0.1 * (1 - fadeProgress);
 
         return (
           <div

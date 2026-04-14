@@ -1,7 +1,7 @@
-import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
 import {
-  SCROLL_SPEED,
+  SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   BASE_VISIBLE_TIME,
   NOTE_HEIGHT,
   NOTE_WIDTH,
@@ -14,7 +14,9 @@ function getVisibleTime(scrollSpeed: number): number {
   return BASE_VISIBLE_TIME * (10 / scrollSpeed);
 }
 
-const VISIBLE_TIME = getVisibleTime(SCROLL_SPEED);
+interface ReplayCursorProps {
+  scrollSpeed?: number;
+}
 
 // Find all key press intervals (press time, release time, column)
 function getKeyPressIntervals() {
@@ -71,17 +73,18 @@ function getKeyIntervals(): { start: number; end: number; column: number }[] {
   return keyIntervalsCache;
 }
 
-export const ReplayCursor: React.FC = () => {
+export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAULT_SCROLL_SPEED }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTime = (frame / fps) * 1000;
+
+  const VISIBLE_TIME = getVisibleTime(scrollSpeed);
 
   // Debug at frame 0
   if (frame === 0) {
     console.log("ReplayCursor START, frames:", replay?.replayData?.length);
     const intervals = getKeyPressIntervals();
     console.log("Key intervals found:", intervals.length);
-    console.log("First 5 intervals:", intervals.slice(0, 5));
   }
 
   if (!replay?.replayData || replay.replayData.length === 0) {
@@ -91,14 +94,7 @@ export const ReplayCursor: React.FC = () => {
   const keyIntervals = getKeyIntervals();
   const cursors: JSX.Element[] = [];
 
-  // Debug at specific frame
-  if (frame === 30) {
-    console.log("Frame 30, currentTime:", currentTime, "intervals:", keyIntervals.length);
-  }
-
   // Find visible intervals
-  // Show interval if it will appear on screen (start <= currentTime + VISIBLE_TIME)
-  // and hasn't completely passed (end >= currentTime - 200)
   const visibleEnd = currentTime + VISIBLE_TIME;
   const visibleStart = currentTime - 200;
 
@@ -109,12 +105,10 @@ export const ReplayCursor: React.FC = () => {
     if (interval.end < visibleStart || interval.start > visibleEnd) continue;
 
     // Calculate progress for start and end times
-    // progress = 1 means at judgment line, progress = 0 means at top of visible area
     const startProgress = 1 - (interval.start - currentTime) / VISIBLE_TIME;
     const endProgress = 1 - (interval.end - currentTime) / VISIBLE_TIME;
 
     // Calculate Y positions
-    // Clamp progress to valid range
     const clampedStartProgress = Math.max(0, Math.min(1, startProgress));
     const clampedEndProgress = Math.max(0, Math.min(1, endProgress));
 
