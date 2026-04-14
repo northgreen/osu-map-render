@@ -6,6 +6,10 @@
 
 /* Column colors */
 :root {
+  /* Stage dimensions */
+  --stage-x: 64px;
+  --stage-width: 512px;
+
   /* Stage background */
   --stage-bg: #16213e;
   --stage-border: #444;
@@ -28,8 +32,8 @@
   --key-text-pressed: #fff;
 
   /* Beat line colors */
-  --beatline-bar: rgba(255, 255, 255, 0.4);
-  --beatline-normal: rgba(255, 255, 255, 0.15);
+  --beatline-bar: rgba(255, 255, 255, 1);
+  --beatline-normal: rgba(255, 255, 255, 0.7);
 
   /* Judgment zone colors (from center outward) */
   --zone-perfect: rgba(255, 0, 255, 0.3);
@@ -81,6 +85,18 @@
   position: absolute;
   left: var(--stage-x, 64px);
   width: var(--stage-width, 512px);
+  z-index: 50;
+  will-change: top;
+}
+
+.beat-line.bar {
+  height: 3px;
+  background-color: var(--beatline-bar);
+}
+
+.beat-line.normal {
+  height: 1px;
+  background-color: var(--beatline-normal);
 }
 
 /* Judgment line */

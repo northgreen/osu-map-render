@@ -114,22 +114,26 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     <AbsoluteFill>
       {/* Beat lines */}
       {beatLines.map((time, i) => {
-        const timeUntilHit = time - currentTime;
-        if (timeUntilHit > visibleTime || timeUntilHit < -500) return null;
+        // Apply beatOffset so beat lines start appearing at the right time
+        const adjustedTime = time + beatOffset;
+        const timeUntilHit = adjustedTime - currentTime;
+
+        // Only show when above judgment line (add small buffer to prevent flickering)
+        if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
 
         const progress = 1 - timeUntilHit / visibleTime;
         const y = progress * JUDGMENT_LINE_Y;
-        const isBarLine = i % 4 === 0;
+        const msPerBeat = 5000000;
+        const beatNumber = Math.floor(time / msPerBeat);
+        const isBarLine = beatNumber % 4 === 0;
 
         return (
           <div
-            key={i}
-            className="beat-line"
+            key={`beat-${time}`}
+            className={`beat-line ${isBarLine ? 'bar' : 'normal'}`}
             style={{
               top: y,
-              height: isBarLine ? 2 : 1,
-              backgroundColor: isBarLine ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)",
-              opacity: Math.max(0, Math.min(1, 1 - timeUntilHit / 500)),
+              height: isBarLine ? 3 : 1,
             }}
           />
         );
@@ -323,7 +327,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         const timeSinceHit = currentTime - startTime;
         const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
         const opacity = note.isLongNote
-          ? Math.min(0.1, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.01)
+          ? Math.min(0.1, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.0)
           : 0.1 * (1 - fadeProgress);
 
         return (
