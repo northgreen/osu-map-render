@@ -47,7 +47,7 @@ ManiaRenderComponent.defaultProps = {
   scrollSpeed: 20,
   timeOffset: 0,
   beatOffset: 900,
-  judgmentMode: "v1",
+  judgmentMode: "v2",
   judgmentOffset: 0,
 };
 

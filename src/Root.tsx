@@ -42,7 +42,7 @@ export const RemotionRoot: React.FC = () => {
     scrollSpeed: 20,
     timeOffset: 0,
     beatOffset,
-    judgmentMode: "v1",
+    judgmentMode: "v2",
     judgmentOffset: 0,
   };
 

@@ -16,19 +16,14 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMod
 
   // Sync mode and offset from props
   useEffect(() => {
-    const targetMode = judgmentMode || getJudgmentMode();
-    if (targetMode !== getJudgmentMode()) {
-      setJudgmentMode(targetMode);
-      clearJudgmentCache();
+    if (judgmentMode) {
+      setJudgmentMode(judgmentMode);
     }
-  }, [judgmentMode]);
-
-  useEffect(() => {
-    if (judgmentOffset !== 0) {
+    if (judgmentOffset !== undefined) {
       setJudgmentOffset(judgmentOffset);
-      clearJudgmentCache();
     }
-  }, [judgmentOffset]);
+    clearJudgmentCache();
+  }, [judgmentMode, judgmentOffset]);
 
   const mode = judgmentMode || getJudgmentMode();
 
@@ -146,7 +141,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMod
 
         {/* Current judgment mode indicator */}
         <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
-          {mode.toUpperCase()}
+          {mode.toUpperCase()} (offset: {judgmentOffset})
         </div>
       </div>
 
