@@ -1,41 +1,115 @@
 import "./index.css";
-import { Composition } from "remotion";
-import { ManiaStage } from "./ManiaStage";
+import { Composition, AbsoluteFill, Audio, staticFile } from "remotion";
+import { z } from "zod";
+import { ManiaRender, getManiaRenderDuration } from "./ManiaRender";
+import { ManiaBackground } from "./ManiaBackground";
+import { ManiaStageLayer } from "./ManiaStageLayer";
+import { ManiaOverlay } from "./ManiaOverlay";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
 import "./lib/replay"; // Force import replay.json
 
-// Input props for ManiaRender
-export type ManiaRenderProps = {
-  scrollSpeed: number;
-  timeOffset: number;
-};
+// Zod schema for props
+export const maniaRenderSchema = z.object({
+  scrollSpeed: z.number().min(5).max(50),
+  timeOffset: z.number(),
+  beatOffset: z.number().min(0),
+});
 
-export const defaultProps: ManiaRenderProps = {
-  scrollSpeed: 20,
-  timeOffset: 0,
-};
+export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
+
+// Get 3 beats offset from first timing point
+function getBeatOffset(): number {
+  const firstTp = beatmap.timingPoints?.[0];
+  if (!firstTp?.beatLength || firstTp.beatLength <= 0) {
+    return 3 * 500;
+  }
+  return 3 * firstTp.beatLength;
+}
 
 // Each <Composition> is an entry in the sidebar!
 
 export const RemotionRoot: React.FC = () => {
-  const duration = getBeatmapDuration(beatmap);
+  const beatOffset = getBeatOffset();
+  const baseDuration = getBeatmapDuration(beatmap);
+  const totalDuration = baseDuration + beatOffset;
   const fps = 60;
+  const durationInFrames = Math.ceil(totalDuration / 1000 * fps);
 
-  // Merge beatmap with props
-  const props = { beatmap, ...defaultProps };
+  const defaultProps: ManiaRenderProps = {
+    scrollSpeed: 20,
+    timeOffset: 0,
+    beatOffset,
+  };
 
   return (
     <>
-      {/* osu!mania beatmap render */}
+      {/* Combined render - all layers */}
       <Composition
         id="ManiaRender"
-        component={ManiaStage}
-        durationInFrames={Math.ceil(duration / 1000 * fps)}
+        component={ManiaRender}
+        durationInFrames={durationInFrames}
         fps={fps}
         width={1920}
         height={1080}
-        defaultProps={props}
-        inputProps={defaultProps}
+        schema={maniaRenderSchema}
+        defaultProps={defaultProps}
+      />
+
+      {/* Background layer (bg + audio) */}
+      <Composition
+        id="ManiaBackground"
+        component={() => (
+          <AbsoluteFill>
+            <Audio src={staticFile("audio.mp3")} />
+            <ManiaBackground />
+          </AbsoluteFill>
+        )}
+        durationInFrames={durationInFrames}
+        fps={fps}
+        width={1920}
+        height={1080}
+      />
+
+      {/* Stage layer (beat lines, notes, key presses, hit effects + audio) */}
+      <Composition
+        id="ManiaStageOnly"
+        component={() => (
+          <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+            <Audio src={staticFile("audio.mp3")} />
+            <ManiaStageLayer
+              beatmap={beatmap}
+              scrollSpeed={20}
+              beatOffset={beatOffset}
+            />
+          </AbsoluteFill>
+        )}
+        durationInFrames={durationInFrames}
+        fps={fps}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          beatmap,
+          scrollSpeed: 20,
+          beatOffset,
+        }}
+      />
+
+      {/* Overlay only (info display: metadata, score, PP) */}
+      <Composition
+        id="ManiaOverlayOnly"
+        component={() => (
+          <AbsoluteFill style={{ backgroundColor: "transparent" }}>
+            <Audio src={staticFile("audio.mp3")} />
+            <ManiaOverlay beatmap={beatmap} />
+          </AbsoluteFill>
+        )}
+        durationInFrames={durationInFrames}
+        fps={fps}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          beatmap,
+        }}
       />
     </>
   );
