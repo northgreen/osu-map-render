@@ -23,7 +23,6 @@ function getKeyPressIntervals() {
   if (!replay?.replayData) return intervals;
 
   // Calculate cumulative times - directly sum timeOffset like osu does
-  // timeOffset is the delta time since last frame
   let cumulativeTime = 0;
   const times: number[] = [];
 
@@ -127,7 +126,7 @@ export const ReplayCursor: React.FC = () => {
     if (height < 2) continue;
 
     const posX = COLUMN_POSITIONS_STAGE[interval.column];
-    const colors = ["#ffcb25", "#06ff16", "#06ff16", "#ffcb25"];
+    const colors = ["#6978c2", "#6978c2", "#6978c2", "#6978c2"];
     const color = colors[interval.column];
 
     cursors.push(
@@ -137,10 +136,10 @@ export const ReplayCursor: React.FC = () => {
           position: "absolute",
           left: STAGE_X + posX - NOTE_WIDTH / 4,
           top: Math.min(startY, endY),
-          width: 50,
+          width: 30,
           height: height,
           backgroundColor: color,
-          opacity: 0.2,
+          opacity: 0.4,
           borderRadius: 50,
           border: "2px solid white",
           boxShadow: `0 0 10px ${color}`,

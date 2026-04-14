@@ -341,8 +341,8 @@ export const ManiaStage: React.FC<ManiaStageProps> = ({ beatmap, scrollSpeed = 2
           const timeSinceHit = currentTime - startTime;
           const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
           const opacity = note.isLongNote
-            ? Math.min(0.2, (endTime - currentTime) / 200 + 0.3)
-            : 0.1 * (1 - fadeProgress);
+            ? Math.min(0.2, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.1)
+            : 0.2 * (1 - fadeProgress);
 
           return (
             <div
