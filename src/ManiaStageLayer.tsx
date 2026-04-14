@@ -3,9 +3,11 @@ import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
 import { replay } from "./lib/replay";
+import { getHitWindows, getJudgmentMode, getJudgmentOffset } from "./lib/judgment";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   COLUMN_POSITIONS_STAGE,
+  COLUMN_POSITIONS_NOTE,
   COLUMN_WIDTH,
   NOTE_HEIGHT,
   STAGE_WIDTH,
@@ -19,6 +21,7 @@ interface ManiaStageLayerProps {
   beatmap?: ParsedBeatmap;
   scrollSpeed?: number;
   beatOffset?: number;
+  showJudgmentZones?: boolean;
 }
 
 // Generate beat lines based on timing points
@@ -48,6 +51,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   beatmap,
   scrollSpeed = DEFAULT_SCROLL_SPEED,
   beatOffset = 0,
+  showJudgmentZones = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -177,6 +181,86 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           boxShadow: "0 0 15px #00ff88",
         }}
       />
+
+      {/* Judgment zones - colored rectangles showing timing windows */}
+      {showJudgmentZones && visibleTime > 0 && hitObjects.map((note, index) => {
+        const timeUntilHit = note.time - currentTime;
+        // Show zones for notes that are about to hit (within visible time)
+        if (timeUntilHit > visibleTime || timeUntilHit < -200) return null;
+
+        const od = beatmap.difficulty.overallDifficulty;
+        const windows = getHitWindows(od);
+
+        // Calculate note position
+        const progress = 1 - timeUntilHit / visibleTime;
+        const noteY = progress * JUDGMENT_LINE_Y;
+        if (isNaN(noteY)) return null;
+
+        // Judgment zone colors (from center outward)
+        const zoneColors = [
+          { color: "rgba(255, 0, 255, 0.3)", borderColor: "rgba(255, 0, 255, 0.8)", window: windows.perfect },   // Magenta - Perfect
+          { color: "rgba(0, 255, 136, 0.25)", borderColor: "rgba(0, 255, 136, 0.6)", window: windows.great },  // Green - Great
+          { color: "rgba(0, 170, 255, 0.2)", borderColor: "rgba(0, 170, 255, 0.5)", window: windows.good },  // Blue - Good
+          { color: "rgba(255, 170, 0, 0.15)", borderColor: "rgba(255, 170, 0, 0.4)", window: windows.ok },  // Orange - Ok
+          { color: "rgba(255, 68, 68, 0.12)", borderColor: "rgba(255, 68, 68, 0.3)", window: windows.meh },  // Red - Meh
+        ];
+
+        const column = Math.min(note.column, 3);
+        const posX = COLUMN_POSITIONS_NOTE[column];
+
+        // Calculate zone heights based on time windows (converted to pixels)
+        const msToPixels = (ms: number) => {
+          if (visibleTime <= 0 || isNaN(ms)) return 0;
+          return (ms / visibleTime) * JUDGMENT_LINE_Y;
+        };
+
+        // Render zones centered on note position - both above (early) and below (late)
+        let cumulativeHeight = 0;
+        return (
+          <div key={`note-zones-${note.time}-${note.column}-${index}`}>
+            {zoneColors.map((zone, zoneIndex) => {
+              const zoneHeight = Math.max(1, msToPixels(zone.window));
+              const topOffset = cumulativeHeight;
+              cumulativeHeight += zoneHeight;
+
+              return (
+                <>
+                  {/* Above note - early hit window */}
+                  <div
+                    key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                    style={{
+                      position: "absolute",
+                      left: STAGE_X + posX - COLUMN_WIDTH / 2 + 2,
+                      top: noteY - NOTE_HEIGHT / 2 - zoneHeight - topOffset,
+                      width: COLUMN_WIDTH - 4,
+                      height: zoneHeight - 1,
+                      backgroundColor: zone.color,
+                      borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
+                      borderRight: `1px solid ${zone.borderColor}`,
+                      pointerEvents: "none",
+                    }}
+                  />
+                  {/* Below note - late hit window */}
+                  <div
+                    key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                    style={{
+                      position: "absolute",
+                      left: STAGE_X + posX - COLUMN_WIDTH / 2 + 2,
+                      top: noteY + NOTE_HEIGHT / 2 + topOffset,
+                      width: COLUMN_WIDTH - 4,
+                      height: zoneHeight - 1,
+                      backgroundColor: zone.color,
+                      borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
+                      borderRight: `1px solid ${zone.borderColor}`,
+                      pointerEvents: "none",
+                    }}
+                  />
+                </>
+              );
+            })}
+          </div>
+        );
+      })}
 
       {/* Notes */}
       {hitObjects.map((note, index) => (
