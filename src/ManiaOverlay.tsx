@@ -145,14 +145,14 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMod
         </div>
       </div>
 
-      {/* Last judgment indicator - center */}
+      {/* Last judgment indicator - center of track */}
       {lastJudgment && currentTime - lastJudgment.hitTime < 500 && (
         <div
           style={{
             position: "absolute",
             top: "40%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
+            left: 320,
+            transform: "translateX(-50%)",
             fontSize: 64,
             fontWeight: "bold",
             color: getJudgmentColor(lastJudgment.judgment),
