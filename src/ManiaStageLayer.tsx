@@ -81,12 +81,21 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     const pressedColumns: boolean[] = [false, false, false, false];
     if (!replay?.replayData) return pressedColumns;
 
+    // Calculate cumulative times - just sum up timeOffsets like osu does
     let cumulativeTime = 0;
-    for (const frame of replay.replayData) {
-      cumulativeTime += frame.timeOffset;
-      if (cumulativeTime > currentTime) break;
+    const times: number[] = [];
 
-      const keys = frame.x;
+    for (let i = 0; i < replay.replayData.length; i++) {
+      cumulativeTime += replay.replayData[i].timeOffset;
+      times.push(cumulativeTime);
+    }
+
+    for (let i = 0; i < times.length; i++) {
+      const time = times[i];
+      if (time < 0) continue;
+      if (time > currentTime) break;
+
+      const keys = replay.replayData[i].x;
       if (keys >= 0 && keys < 16) {
         for (let col = 0; col < 4; col++) {
           if ((keys & (1 << col)) !== 0) {

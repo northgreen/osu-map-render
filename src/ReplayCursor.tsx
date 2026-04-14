@@ -24,7 +24,7 @@ function getKeyPressIntervals() {
 
   if (!replay?.replayData) return intervals;
 
-  // Calculate cumulative times - directly sum timeOffset like osu does
+  // Calculate cumulative times - just sum up timeOffsets like osu does
   let cumulativeTime = 0;
   const times: number[] = [];
 
@@ -33,6 +33,9 @@ function getKeyPressIntervals() {
     cumulativeTime += frame.timeOffset;
     times.push(cumulativeTime);
   }
+
+  // Debug
+  console.log("ReplayCursor first 10 times:", times.slice(0, 10));
 
   // Track key state per column
   const keyState = [false, false, false, false];

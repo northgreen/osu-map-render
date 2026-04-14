@@ -22,29 +22,41 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap }) => {
   // Calculate difficulty
   const difficultyResult = calculateDifficulty(beatmap);
 
-  // Calculate real-time PP
-  const realtimePP = calculateRealtimePP(
-    beatmap,
-    currentTime,
-    Math.floor(currentTime / 100),
-    { count300: Math.floor(hitObjects.length * 0.9), count100: 0, count50: 0, countMiss: 0 }
-  );
-
   // Get judgment results
   const judgments = getJudgmentResults(hitObjects, difficulty.overallDifficulty);
 
-  // Calculate cumulative scores
-  let count300 = 0, count100 = 0, count50 = 0, countMiss = 0;
+  // Calculate cumulative scores (osu!mania: Perfect=320, Great=300, Good=200, Ok=100, Meh=50, Miss=0)
+  let countPerfect = 0, countGreat = 0, countGood = 0, countOk = 0, countMeh = 0, countMiss = 0;
   let lastJudgment: JudgmentResult | null = null;
   for (const j of judgments) {
     if (j.hitTime <= currentTime) {
-      if (j.judgment === "300") count300++;
-      else if (j.judgment === "100") count100++;
-      else if (j.judgment === "50") count50++;
+      if (j.judgment === "Perfect") countPerfect++;
+      else if (j.judgment === "Great") countGreat++;
+      else if (j.judgment === "Good") countGood++;
+      else if (j.judgment === "Ok") countOk++;
+      else if (j.judgment === "Meh") countMeh++;
       else if (j.judgment === "Miss") countMiss++;
       lastJudgment = j;
     }
   }
+
+  // Calculate score
+  const totalScore = countPerfect * 320 + countGreat * 300 + countGood * 200 +
+                     countOk * 100 + countMeh * 50;
+
+  // Calculate real-time PP (using actual judgment counts)
+  // Convert new judgment types to old format for PP calculation
+  const realtimePP = calculateRealtimePP(
+    beatmap,
+    currentTime,
+    Math.floor(currentTime / 100),
+    {
+      count300: countPerfect + countGreat,  // Perfect(320) + Great(300) count as 300
+      count100: countGood + countOk,         // Good(200) + Ok(100) count as 100
+      count50: countMeh,                      // Meh(50)
+      countMiss: countMiss
+    }
+  );
 
   return (
     <AbsoluteFill>
@@ -102,12 +114,14 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap }) => {
           textAlign: "right",
         }}
       >
-        <div style={{ color: "#00FF88" }}>{count300}x300</div>
-        <div style={{ color: "#00AAFF" }}>{count100}x100</div>
-        <div style={{ color: "#FFAA00" }}>{count50}x50</div>
-        <div style={{ color: "#FF4444" }}>{countMiss}xMiss</div>
+        <div style={{ color: "#FF00FF" }}>{countPerfect}x320</div>
+        <div style={{ color: "#00FF88" }}>{countGreat}x300</div>
+        <div style={{ color: "#00AAFF" }}>{countGood}x200</div>
+        <div style={{ color: "#FFAA00" }}>{countOk}x100</div>
+        <div style={{ color: "#FF6666" }}>{countMeh}x50</div>
+        <div style={{ color: "#888888" }}>{countMiss}xMiss</div>
         <div style={{ color: "#888", marginTop: 8 }}>
-          Total: {count300 * 300 + count100 * 100 + count50 * 50}
+          Total: {totalScore}
         </div>
       </div>
 

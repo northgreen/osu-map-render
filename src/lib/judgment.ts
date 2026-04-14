@@ -22,9 +22,9 @@ function difficultyRange(od: number, range: [number, number, number]): number {
 }
 
 // Hit window configurations for osu!mania (in ms) based on OD
-// These are the osu! client values
+// From osu! wiki: 判定区间取决于谱面的判定严度 (OD)
 function getHitWindows(od: number) {
-  // Perfect/Great/Good/Ok/Meh/Miss windows
+  // PERFECT/GREAT/GOOD/OK/MEH/MISS windows (in ms)
   const perfect = difficultyRange(od, [22.4, 19.4, 13.9]);
   const great = difficultyRange(od, [64, 49, 34]);
   const good = difficultyRange(od, [97, 82, 67]);
@@ -35,9 +35,8 @@ function getHitWindows(od: number) {
   return { perfect, great, good, ok, meh, miss };
 }
 
-// Map osu judgments to our internal 300/100/50/Miss
-// Perfect = 300, Great = 100, Good = 50, Ok/Meh/Miss = Miss
-export type Judgment = "300" | "100" | "50" | "Miss" | null;
+// osu!mania judgment: Perfect(320), Great(300), Good(200), Ok(100), Meh(50), Miss
+export type Judgment = "Perfect" | "Great" | "Good" | "Ok" | "Meh" | "Miss" | null;
 
 // Calculate judgment based on time difference and OD using osu algorithm
 export function calculateJudgment(
@@ -48,20 +47,37 @@ export function calculateJudgment(
   const diff = Math.abs(hitTime - noteTime);
   const windows = getHitWindows(od);
 
-  if (diff <= windows.perfect) return "300";
-  if (diff <= windows.great) return "100";
-  if (diff <= windows.good) return "50";
+  if (diff <= windows.perfect) return "Perfect";
+  if (diff <= windows.great) return "Great";
+  if (diff <= windows.good) return "Good";
+  if (diff <= windows.ok) return "Ok";
+  if (diff <= windows.meh) return "Meh";
   return "Miss";
 }
 
 // Get color for judgment
 export function getJudgmentColor(judgment: Judgment): string {
   switch (judgment) {
-    case "300": return "#00FF88"; // Perfect - green
-    case "100": return "#00AAFF"; // Good - blue
-    case "50": return "#FFAA00"; // Bad - orange
-    case "Miss": return "#FF4444"; // Miss - red
+    case "Perfect": return "#FF00FF"; // Magenta - 320
+    case "Great": return "#00FF88";   // Green - 300
+    case "Good": return "#00AAFF";    // Blue - 200
+    case "Ok": return "#FFAA00";      // Orange - 100
+    case "Meh": return "#FF4444";     // Red - 50
+    case "Miss": return "#888888";     // Gray - 0
     default: return "#888888";
+  }
+}
+
+// Get score value for judgment
+export function getJudgmentScore(judgment: Judgment): number {
+  switch (judgment) {
+    case "Perfect": return 320;
+    case "Great": return 300;
+    case "Good": return 200;
+    case "Ok": return 100;
+    case "Meh": return 50;
+    case "Miss": return 0;
+    default: return 0;
   }
 }
 
@@ -88,15 +104,18 @@ function getKeyPressEvents(): KeyPressEvent[] {
 
   const events: KeyPressEvent[] = [];
 
-  // Calculate cumulative times - directly sum timeOffset like osu does
+  // Calculate cumulative times - just sum up timeOffsets like osu does
+  // The replay time starts at negative (before song) and goes positive
   let cumulativeTime = 0;
   const times: number[] = [];
 
   for (let i = 0; i < replay.replayData.length; i++) {
-    const frame = replay.replayData[i];
-    cumulativeTime += frame.timeOffset;
+    cumulativeTime += replay.replayData[i].timeOffset;
     times.push(cumulativeTime);
   }
+
+  // Debug: show first few times
+  console.log("First 10 replay times:", times.slice(0, 10));
 
   // Track key state per column
   const keyState = [false, false, false, false];
@@ -104,6 +123,10 @@ function getKeyPressEvents(): KeyPressEvent[] {
   for (let i = 0; i < replay.replayData.length; i++) {
     const frame = replay.replayData[i];
     const currentTime = times[i];
+
+    // Skip negative time frames (before song start, like SkipBoundary)
+    if (currentTime < 0) continue;
+
     const keys = frame.x; // Use x field for mania key press bitmask
 
     for (let col = 0; col < 4; col++) {
@@ -131,19 +154,21 @@ export function calculateJudgments(
 ): JudgmentResult[] {
   const events = getKeyPressEvents();
 
+  // Get the miss window (max time difference for a hit)
+  const windows = getHitWindows(od);
+  const maxHitWindow = windows.miss; // Use miss window as max matching window (~158-188ms)
+
   // Debug: log first few events and notes
   if (events.length > 0) {
-    console.log("First 5 key events:", events.slice(0, 5).map(e => ({ time: e.time, column: e.column, isRelease: e.isRelease })));
+    console.log("First 5 key events:", events.slice(0, 5).map(e => ({ time: Math.round(e.time), column: e.column, isRelease: e.isRelease })));
     console.log("First 5 note times:", hitObjects.slice(0, 5).map(n => ({ time: n.time, column: n.column, isLN: n.isLongNote })));
+    console.log("Max hit window:", maxHitWindow);
+    console.log("OD:", od, "Miss window:", maxHitWindow);
   }
 
   const results: JudgmentResult[] = [];
   const pressEvents = events.filter(e => !e.isRelease);
   const releaseEvents = events.filter(e => e.isRelease);
-
-  // Get the miss window (max time difference for a hit)
-  const windows = getHitWindows(od);
-  const maxHitWindow = windows.miss; // Use miss window as max matching window (~158-188ms)
 
   // Track which notes have been hit
   const hitNotes = new Set<number>();
