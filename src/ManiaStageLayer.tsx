@@ -9,6 +9,7 @@ import {
   COLUMN_POSITIONS_STAGE,
   COLUMN_POSITIONS_NOTE,
   COLUMN_WIDTH,
+  NOTE_WIDTH,
   NOTE_HEIGHT,
   STAGE_WIDTH,
   STAGE_X,
@@ -68,13 +69,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     ? (hitObjects[hitObjects.length - 1].endTime || hitObjects[hitObjects.length - 1].time) + 5000
     : 60000;
 
-  // Calculate visible time based on AR and scroll speed
+  // Calculate visible time based on AR and scroll speed - use consistent BASE_VISIBLE_TIME
   const difficulty = beatmap.difficulty;
-  const baseVisibleTime = difficulty.approachRate < 5
-    ? 1200 + (5 - difficulty.approachRate) * 120
-    : difficulty.approachRate > 5
-    ? 1200 - (difficulty.approachRate - 5) * 120
-    : 1200;
+  const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
   const visibleTime = baseVisibleTime * (10 / scrollSpeed);
 
   // Generate beat lines
@@ -230,9 +227,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                     key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
                     style={{
                       position: "absolute",
-                      left: STAGE_X + posX - COLUMN_WIDTH / 2 + 2,
-                      top: noteY - NOTE_HEIGHT / 2 - zoneHeight - topOffset,
-                      width: COLUMN_WIDTH - 4,
+                      left: posX - NOTE_WIDTH / 2 + 2,
+                      top: noteY - zoneHeight - topOffset,
+                      width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
                       backgroundColor: zone.color,
                       borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
@@ -245,9 +242,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                     key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
                     style={{
                       position: "absolute",
-                      left: STAGE_X + posX - COLUMN_WIDTH / 2 + 2,
-                      top: noteY + NOTE_HEIGHT / 2 + topOffset,
-                      width: COLUMN_WIDTH - 4,
+                      left: posX - NOTE_WIDTH / 2 + 2,
+                      top: noteY + topOffset,
+                      width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
                       backgroundColor: zone.color,
                       borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
