@@ -1,70 +1,61 @@
 import { HitObject } from "./osuParser";
 
-// Calculate mania difficulty rating (simplified)
-// Based on: note density, rhythm complexity, key count
+// ============================================
+// osu!mania Difficulty Calculator (Approximation)
+// ============================================
+
 export interface DifficultyResult {
   stars: number;
   maxCombo: number;
   pp: number;
- ppComponents: {
+  ppComponents: {
     aim: number;
     speed: number;
     accuracy: number;
   };
 }
 
-// Hit window definitions for osu!mania (in ms)
-const HIT_WINDOW_300 = [80, 50, 30, 20]; // For OD 0-10
-const HIT_WINDOW_100 = [160, 100, 60, 40];
-const HIT_WINDOW_50 = [240, 150, 90, 60];
+// ============================================
+// Star Rating Calculation (Density-based)
+// ============================================
 
-function getHitWindow(od: number, hit300: boolean): number {
-  const idx = Math.min(10, Math.max(0, Math.round(od)));
-  const window = hit300 ? HIT_WINDOW_300 : HIT_WINDOW_100;
-  const base = window[Math.floor(idx / 3)];
-  const next = window[Math.min(3, Math.ceil(idx / 3))];
-  return base + (next - base) * (idx % 3 / 3);
-}
-
-// Calculate strain for mania (simplified)
-// Higher density and longer notes = more difficulty
-function calculateStrain(hitObjects: HitObject[], keyCount: number): number {
+function calculateStarRating(hitObjects: HitObject[], totalColumns: number): number {
   if (hitObjects.length === 0) return 0;
 
-  let totalStrain = 0;
-  let previousTime = 0;
+  const sorted = [...hitObjects].sort((a, b) => a.time - b.time);
 
-  // Count notes per column
-  const columnCounts = new Array(keyCount).fill(0);
-
-  for (const obj of hitObjects) {
-    const col = Math.min(keyCount - 1, obj.column);
-    columnCounts[col]++;
-
-    const time = obj.time;
-    const delta = time - previousTime;
-
-    // Shorter deltas = higher strain
-    if (delta > 0 && delta < 1000) {
-      totalStrain += 100 / Math.sqrt(delta);
-    }
-
-    // LN adds extra strain
-    if (obj.isLongNote && obj.endTime) {
-      const lnDuration = obj.endTime - obj.time;
-      totalStrain += lnDuration / 100;
-    }
-
-    previousTime = time;
+  // Calculate average delta time between notes
+  let totalDelta = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    totalDelta += sorted[i].time - sorted[i - 1].time;
   }
+  const avgDelta = totalDelta / (sorted.length - 1);
 
-  // Calculate column balance (unbalanced = harder)
-  const maxCol = Math.max(...columnCounts);
-  const minCol = Math.min(...columnCounts.filter(c => c > 0));
-  const balance = minCol > 0 ? 1 + (maxCol - minCol) / columnCounts.reduce((a, b) => a + b, 0) : 1;
+  // Notes per second
+  const notesPerSecond = avgDelta > 0 ? 1000 / avgDelta : 0;
 
-  return totalStrain * balance / hitObjects.length;
+  // LN ratio
+  const lnCount = sorted.filter(n => n.isLongNote).length;
+  const lnRatio = lnCount / sorted.length;
+
+  // Column distribution (balance)
+  const colCounts = new Array(totalColumns).fill(0);
+  sorted.forEach(n => colCounts[n.column]++);
+  const maxCol = Math.max(...colCounts);
+  const minCol = Math.min(...colCounts.filter(c => c > 0));
+  const balance = maxCol / (minCol || 1);
+
+  // Combined formula
+  const baseSR = Math.sqrt(notesPerSecond / totalColumns) * 2.65;
+  const lnBonus = 1 + lnRatio * 0.33;
+  const balanceFactor = 1 + (balance - 1) * 0.12;
+
+  return baseSR * lnBonus * balanceFactor;
 }
+
+// ============================================
+// Main API
+// ============================================
 
 export function calculateDifficulty(beatmap: {
   hitObjects: HitObject[];
@@ -78,13 +69,42 @@ export function calculateDifficulty(beatmap: {
   const { hitObjects, difficulty } = beatmap;
   const keyCount = Math.max(4, difficulty.circleSize);
 
-  // Calculate total possible score for each hit result type
-  const maxScore300 = hitObjects.length * 300;
-  const maxScore100 = hitObjects.length * 100;
-  const maxScore50 = hitObjects.length * 50;
+  // Calculate star rating
+  const starRating = calculateStarRating(hitObjects, keyCount);
 
-  // If we have replay data, use actual hit results
-  let count300 = hitObjects.length;
+  // Calculate max combo
+  const maxCombo = calculateMaxCombo(hitObjects);
+
+  // Calculate PP
+  const ppResult = calculatePP(beatmap, maxCombo, starRating, replayData);
+
+  return {
+    stars: Math.round(starRating * 100) / 100,
+    maxCombo,
+    pp: ppResult.total,
+    ppComponents: ppResult.components,
+  };
+}
+
+function calculateMaxCombo(hitObjects: HitObject[]): number {
+  if (hitObjects.length === 0) return 0;
+  return hitObjects.length;
+}
+
+// ============================================
+// PP Calculation
+// ============================================
+
+function calculatePP(
+  beatmap: { hitObjects: HitObject[]; difficulty: { overallDifficulty: number; circleSize: number } },
+  maxCombo: number,
+  stars: number,
+  replayData?: { hitResults: number[] }
+): { total: number; components: { aim: number; speed: number; accuracy: number } } {
+  const hitObjects = beatmap.hitObjects;
+  const totalNotes = hitObjects.length;
+
+  let count300 = totalNotes;
   let count100 = 0;
   let count50 = 0;
   let countMiss = 0;
@@ -96,100 +116,44 @@ export function calculateDifficulty(beatmap: {
     countMiss = replayData.hitResults.filter(r => r === 0).length;
   }
 
-  // Calculate max combo
-  const maxCombo = calculateMaxCombo(hitObjects);
+  const accuracy = (count300 * 300 + count100 * 100 + count50 * 50) / (totalNotes * 300);
 
-  // Calculate strain
-  const strain = calculateStrain(hitObjects, keyCount);
-
-  // Star rating formula (simplified)
-  // Based on: strain * keyCount * od factor
-  const odFactor = 1 + (10 - difficulty.overallDifficulty) / 10;
-  const baseStars = strain * Math.sqrt(keyCount) * 0.015 * odFactor;
-  const stars = Math.min(10, baseStars);
-
-  // PP calculation (simplified)
-  const accuracy = (count300 * 300 + count100 * 100 + count50 * 50) / (hitObjects.length * 300);
-
-  // Aim (mostly based on key count and density)
   const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
-
-  // Speed (based on note density)
   const speedPP = stars * 0.5 * accuracy;
-
-  // Accuracy bonus
   const accPP = accuracy * accuracy * 100;
 
-  // Apply combo multiplier
   const comboMultiplier = Math.min(1, maxCombo / 500);
-  const pp = (aimPP + speedPP + accPP) * comboMultiplier;
+  const total = Math.round((aimPP + speedPP + accPP) * comboMultiplier);
 
   return {
-    stars: Math.round(stars * 10) / 10,
-    maxCombo,
-    pp: Math.round(pp),
-    ppComponents: {
+    total,
+    components: {
       aim: Math.round(aimPP),
       speed: Math.round(speedPP),
       accuracy: Math.round(accPP),
-    }
+    },
   };
 }
 
-function calculateMaxCombo(hitObjects: HitObject[]): number {
-  if (hitObjects.length === 0) return 0;
-
-  let currentCombo = 0;
-  let maxCombo = 0;
-  let timeSinceLastNote = 0;
-
-  for (let i = 0; i < hitObjects.length; i++) {
-    const obj = hitObjects[i];
-    const time = obj.time;
-
-    // Reset combo on miss (assuming no breaks > 2 seconds)
-    if (i > 0 && time - hitObjects[i - 1].time > 2000) {
-      currentCombo = 0;
-    }
-
-    currentCombo++;
-    maxCombo = Math.max(maxCombo, currentCombo);
-
-    // For LN, count end time as separate "hit"
-    if (obj.isLongNote && obj.endTime) {
-      if (i + 1 < hitObjects.length && obj.endTime < hitObjects[i + 1].time - 2000) {
-        // LN ended during a break
-      } else {
-        currentCombo++;
-        maxCombo = Math.max(maxCombo, currentCombo);
-      }
-    }
-  }
-
-  return maxCombo;
-}
-
-// Calculate real-time PP based on current combo and accuracy
+// Real-time PP calculation
 export function calculateRealtimePP(
   beatmap: { hitObjects: HitObject[]; difficulty: { overallDifficulty: number; circleSize: number } },
   currentTime: number,
   currentCombo: number,
-  hitResults: { count300: number; count100: number; count50: number; countMiss: number }
+  judgmentCounts: { count300: number; count100: number; count50: number; countMiss: number }
 ): number {
-  const { hitObjects, difficulty } = beatmap;
-  const totalHits = hitObjects.length;
-  const completedHits = hitResults.count300 + hitResults.count100 + hitResults.count50 + hitResults.countMiss;
+  const { hitObjects } = beatmap;
+  const stars = calculateDifficulty(beatmap).stars;
 
-  if (completedHits === 0) return 0;
+  const totalNotes = hitObjects.length;
+  const totalScore = judgmentCounts.count300 * 300 + judgmentCounts.count100 * 100 + judgmentCounts.count50 * 50;
+  const maxPossibleScore = totalNotes * 300;
+  const accuracy = totalScore / maxPossibleScore;
 
-  const accuracy = (hitResults.count300 * 300 + hitResults.count100 * 100 + hitResults.count50 * 50) / (completedHits * 300);
-  const baseStars = calculateStrain(hitObjects, difficulty.circleSize) * Math.sqrt(difficulty.circleSize) * 0.015;
+  const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
+  const speedPP = stars * 0.5 * accuracy;
+  const accPP = accuracy * accuracy * 100;
 
-  // Scale by progress
-  const progress = completedHits / totalHits;
   const comboMultiplier = Math.min(1, currentCombo / 500);
-
-  const pp = baseStars * 50 * accuracy * comboMultiplier * progress;
-
-  return Math.round(pp);
+  return Math.round((aimPP + speedPP + accPP) * comboMultiplier);
 }
