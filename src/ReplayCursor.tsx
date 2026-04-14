@@ -130,17 +130,29 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
     const posX = COLUMN_POSITIONS_STAGE[interval.column];
     const baseColor = "#6978c2";
 
-    // Find judgment for this key press (match by time and column)
-    let judgmentColor = baseColor;
-    const hitTime = interval.start;
+    // Find head judgment (key press)
+    let headJudgmentColor = baseColor;
+    let isLN = false;
+    const pressTime = interval.start;
+
+    // Find tail judgment (key release)
+    let tailJudgmentColor = baseColor;
+    const releaseTime = interval.end;
 
     for (const j of judgments) {
-      // Match by hit time (within 50ms tolerance) and column
-      if (j.column === interval.column && Math.abs(j.hitTime - hitTime) < 50) {
-        judgmentColor = getJudgmentColor(j.judgment);
-        break;
+      // Head judgment: match by note time and column
+      if (j.column === interval.column && Math.abs(j.noteTime - pressTime) < 50) {
+        headJudgmentColor = getJudgmentColor(j.judgment);
+        isLN = j.isLongNote;
+      }
+      // Tail judgment: only for LN, match by end time
+      if (j.column === interval.column && j.isLongNote && j.endTime && Math.abs(j.noteTime - releaseTime) < 50) {
+        tailJudgmentColor = getJudgmentColor(j.judgment);
       }
     }
+
+    // Main bar - use head color
+    const barColor = headJudgmentColor;
 
     // Main bar
     cursors.push(
@@ -148,60 +160,62 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
         key={`key-bar-${i}`}
         style={{
           position: "absolute",
-          left: STAGE_X + posX - NOTE_WIDTH / 4,
+          left: STAGE_X + posX - 15,
           top: Math.min(startY, endY),
           width: 30,
           height: height,
-          backgroundColor: judgmentColor,
+          backgroundColor: barColor,
           opacity: 0.4,
           borderRadius: 50,
-          border: `2px solid ${judgmentColor}`,
-          boxShadow: `0 0 10px ${judgmentColor}`,
+          border: `2px solid ${barColor}`,
+          boxShadow: `0 0 10px ${barColor}`,
           pointerEvents: "none",
           zIndex: 100,
         }}
       />
     );
 
-    // Circle at start (key press)
+    // Circle at start (key press) - always show for both single notes and LN
     cursors.push(
       <div
         key={`key-start-${i}`}
         style={{
           position: "absolute",
           left: STAGE_X + posX - 12,
-          top: startY - 6,
+          top: startY - 12,
           width: 24,
           height: 24,
           borderRadius: "50%",
-          backgroundColor: judgmentColor,
+          backgroundColor: headJudgmentColor,
           border: "3px solid white",
-          boxShadow: `0 0 15px ${judgmentColor}`,
+          boxShadow: `0 0 15px ${headJudgmentColor}`,
           pointerEvents: "none",
           zIndex: 101,
         }}
       />
     );
 
-    // Circle at end (key release)
-    cursors.push(
-      <div
-        key={`key-end-${i}`}
-        style={{
-          position: "absolute",
-          left: STAGE_X + posX - 12,
-          top: endY - 6,
-          width: 24,
-          height: 24,
-          borderRadius: "50%",
-          backgroundColor: judgmentColor,
-          border: "3px solid white",
-          boxShadow: `0 0 15px ${judgmentColor}`,
-          pointerEvents: "none",
-          zIndex: 101,
-        }}
-      />
-    );
+    // Circle at end (key release) - only show for LN (long notes)
+    if (isLN) {
+      cursors.push(
+        <div
+          key={`key-end-${i}`}
+          style={{
+            position: "absolute",
+            left: STAGE_X + posX - 12,
+            top: endY - 12,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            backgroundColor: tailJudgmentColor,
+            border: "3px solid white",
+            boxShadow: `0 0 15px ${tailJudgmentColor}`,
+            pointerEvents: "none",
+            zIndex: 101,
+          }}
+        />
+      );
+    }
   }
 
   return <>{cursors}</>;

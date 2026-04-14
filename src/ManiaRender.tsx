@@ -11,7 +11,8 @@ interface ManiaRenderProps {
   beatOffset?: number;
 }
 
-export const ManiaRender: React.FC<ManiaRenderProps> = ({
+// Create a wrapper component with defaultProps
+const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
   scrollSpeed = 20,
   timeOffset = 0,
   beatOffset = 900,
@@ -36,6 +37,15 @@ export const ManiaRender: React.FC<ManiaRenderProps> = ({
     </AbsoluteFill>
   );
 };
+
+// Add defaultProps for Remotion Studio
+ManiaRenderComponent.defaultProps = {
+  scrollSpeed: 20,
+  timeOffset: 0,
+  beatOffset: 900,
+};
+
+export { ManiaRenderComponent as ManiaRender };
 
 // Helper to get duration
 export function getManiaRenderDuration(beatOffset: number = 900): number {

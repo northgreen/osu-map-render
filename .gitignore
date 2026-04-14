@@ -9,3 +9,4 @@ out
 # Generated beatmap data
 src/lib/beatmap.json
 build
+/.playwright-cli
