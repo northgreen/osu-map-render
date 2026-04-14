@@ -2,18 +2,19 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { useEffect } from "react";
 import { ParsedBeatmap } from "./lib/osuParser";
 import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
-import { getJudgmentResults, getJudgmentColor, JudgmentResult, setJudgmentMode, getJudgmentMode, clearJudgmentCache } from "./lib/judgment";
+import { getJudgmentResults, getJudgmentColor, JudgmentResult, setJudgmentMode, getJudgmentMode, setJudgmentOffset, clearJudgmentCache } from "./lib/judgment";
 
 interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
   judgmentMode?: "v1" | "v2";
+  judgmentOffset?: number;
 }
 
-export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMode }) => {
+export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMode, judgmentOffset = 0 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Sync mode from props
+  // Sync mode and offset from props
   useEffect(() => {
     const targetMode = judgmentMode || getJudgmentMode();
     if (targetMode !== getJudgmentMode()) {
@@ -21,6 +22,13 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMod
       clearJudgmentCache();
     }
   }, [judgmentMode]);
+
+  useEffect(() => {
+    if (judgmentOffset !== 0) {
+      setJudgmentOffset(judgmentOffset);
+      clearJudgmentCache();
+    }
+  }, [judgmentOffset]);
 
   const mode = judgmentMode || getJudgmentMode();
 

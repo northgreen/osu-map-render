@@ -8,6 +8,7 @@ import { HitObject } from "../osuParser";
 export type JudgmentMode = "v1" | "v2";
 
 let currentJudgmentMode: JudgmentMode = "v1";
+let currentJudgmentOffset: number = 0;
 
 export function setJudgmentMode(mode: JudgmentMode): void {
   currentJudgmentMode = mode;
@@ -16,6 +17,14 @@ export function setJudgmentMode(mode: JudgmentMode): void {
 
 export function getJudgmentMode(): JudgmentMode {
   return currentJudgmentMode;
+}
+
+export function setJudgmentOffset(offset: number): void {
+  currentJudgmentOffset = offset;
+}
+
+export function getJudgmentOffset(): number {
+  return currentJudgmentOffset;
 }
 
 // ============================================
@@ -94,7 +103,9 @@ export function calculateJudgment(
   noteTime: number,
   od: number
 ): Judgment {
-  const diff = Math.abs(hitTime - noteTime);
+  // Apply judgment offset (positive = player hits early, negative = player hits late)
+  const adjustedHitTime = hitTime - currentJudgmentOffset;
+  const diff = Math.abs(adjustedHitTime - noteTime);
   const windows = getHitWindows(od);
 
   if (diff <= windows.perfect) return "Perfect";
@@ -302,8 +313,8 @@ export function calculateJudgments(
 
   // First pass: process key presses (head judgments)
   for (const event of pressEvents) {
-    let candidate: { note: HitObject; index: number } | null = null;
-    let shouldDeleteIndex: number | null = null;
+    // Find all notes that could be hit (within miss window AFTER the note)
+    const candidates: { note: HitObject; index: number; diff: number }[] = [];
 
     for (let i = 0; i < sortedNotes.length; i++) {
       const note = sortedNotes[i];
@@ -311,58 +322,46 @@ export function calculateJudgments(
 
       const diff = event.time - note.time;
 
-      // Different column
+      // Different column - skip
       if (note.column !== event.column) {
         continue;
       }
 
-      // Too early: action is more than miss window before note
-      if (-diff > missWindow) {
-        // Too early - break, no later notes can be hit either
+      // Only consider notes that are at or before the key press (diff >= 0 means key is at/after note)
+      // But we allow some early hits (negative diff)
+      if (diff < -missWindow) {
+        // Too early - stop here (no later notes can be hit)
         break;
       }
 
-      // Check if too late
-      let isTooLate = false;
-      if (note.isLongNote && note.endTime) {
-        // For LN, check if action time is too late relative to end time
-        if (event.time - note.endTime > windows.ok) {
-          isTooLate = true;
-        }
-      } else {
-        // For regular notes
-        if (diff >= windows.ok) {
-          isTooLate = true;
-        }
+      // Allow hits from -missWindow (early) to +missWindow (late)
+      if (Math.abs(diff) <= missWindow) {
+        candidates.push({ note, index: i, diff });
       }
-
-      if (isTooLate) {
-        // Too late - mark for removal
-        shouldDeleteIndex = i;
-        continue;
-      }
-
-      // Hit!
-      candidate = { note, index: i };
-      if (note.isLongNote && note.endTime) {
-        // For LN, may be able to hit again (hold) - don't remove yet
-      } else {
-        hitNotes.add(i);
-      }
-      break;
     }
 
-    if (candidate) {
-      const judgment = calculateJudgment(event.time, candidate.note.time, od);
-      hitNotes.add(candidate.index);
+    if (candidates.length > 0) {
+      // Choose the closest one - prefer notes that are hit AFTER (positive diff = key press after note time)
+      // Among those, choose the smallest positive diff (earliest note after key press)
+      // If no positive diff, choose the one with smallest absolute diff (earliest before key press)
+      const closest = candidates.reduce((a, b) => {
+        // Prefer positive diff (note is before key press)
+        if (a.diff >= 0 && b.diff < 0) return a;
+        if (a.diff < 0 && b.diff >= 0) return b;
+        // Both same sign - choose smaller absolute diff
+        return Math.abs(a.diff) < Math.abs(b.diff) ? a : b;
+      });
+
+      const judgment = calculateJudgment(event.time, closest.note.time, od);
+      hitNotes.add(closest.index);
 
       results.push({
-        noteTime: candidate.note.time,
-        column: candidate.note.column,
+        noteTime: closest.note.time,
+        column: closest.note.column,
         judgment,
         hitTime: event.time,
-        isLongNote: candidate.note.isLongNote,
-        endTime: candidate.note.endTime,
+        isLongNote: closest.note.isLongNote,
+        endTime: closest.note.endTime,
       });
     }
   }
