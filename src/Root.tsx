@@ -5,6 +5,7 @@ import { ManiaRender, getManiaRenderDuration } from "./ManiaRender";
 import { ManiaBackground } from "./ManiaBackground";
 import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
+import { ReplayCursorLayer } from "./ReplayCursorLayer";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
 import "./lib/replay"; // Force import replay.json
 
@@ -107,6 +108,23 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           beatmap,
         }}
+      />
+
+      {/* Replay cursor only (falling key press bars) */}
+      <Composition
+        id="ManiaReplayCursorOnly"
+        component={({ scrollSpeed = 20 }: ManiaRenderProps) => (
+          <AbsoluteFill style={{ backgroundColor: "transparent" }}>
+            <Audio src={staticFile("audio.mp3")} />
+            <ReplayCursorLayer scrollSpeed={scrollSpeed} />
+          </AbsoluteFill>
+        )}
+        durationInFrames={durationInFrames}
+        fps={fps}
+        width={1920}
+        height={1080}
+        schema={maniaRenderSchema}
+        defaultProps={defaultProps}
       />
     </>
   );
