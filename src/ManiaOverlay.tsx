@@ -8,9 +8,17 @@ interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
   judgmentMode?: "v1" | "v2";
   judgmentOffset?: number;
+  stageOffset?: number;
+  judgmentLineY?: number;
 }
 
-export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMode, judgmentOffset = 0 }) => {
+export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
+  beatmap,
+  judgmentMode,
+  judgmentOffset = 0,
+  stageOffset = 0,
+  judgmentLineY = 900,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -150,8 +158,8 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMod
         <div
           style={{
             position: "absolute",
-            top: "40%",
-            left: 320,
+            top: judgmentLineY - 150,
+            left: 320 + stageOffset,
             transform: "translateX(-50%)",
             fontSize: 64,
             fontWeight: "bold",

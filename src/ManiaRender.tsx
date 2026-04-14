@@ -12,6 +12,8 @@ interface ManiaRenderProps {
   judgmentMode?: "v1" | "v2";
   judgmentOffset?: number;
   showJudgmentZones?: boolean;
+  stageOffset?: number;
+  judgmentLineY?: number;
 }
 
 // Create a wrapper component with defaultProps
@@ -22,6 +24,8 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
   judgmentMode = "v1",
   judgmentOffset = 0,
   showJudgmentZones = false,
+  stageOffset = 0,
+  judgmentLineY = 900,
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
@@ -37,10 +41,18 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
         scrollSpeed={scrollSpeed}
         beatOffset={beatOffset + timeOffset}
         showJudgmentZones={showJudgmentZones}
+        stageOffset={stageOffset}
+        judgmentLineY={judgmentLineY}
       />
 
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}
-      <ManiaOverlay beatmap={importedBeatmap} judgmentMode={judgmentMode} judgmentOffset={judgmentOffset} />
+      <ManiaOverlay
+        beatmap={importedBeatmap}
+        judgmentMode={judgmentMode}
+        judgmentOffset={judgmentOffset}
+        stageOffset={stageOffset}
+        judgmentLineY={judgmentLineY}
+      />
     </AbsoluteFill>
   );
 };
@@ -53,6 +65,8 @@ ManiaRenderComponent.defaultProps = {
   judgmentMode: "v2",
   judgmentOffset: 0,
   showJudgmentZones: false,
+  stageOffset: 0,
+  judgmentLineY: 900,
 };
 
 export { ManiaRenderComponent as ManiaRender };

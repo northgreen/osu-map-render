@@ -18,6 +18,8 @@ function getVisibleTime(scrollSpeed: number): number {
 
 interface ReplayCursorProps {
   scrollSpeed?: number;
+  stageOffset?: number;
+  judgmentLineY?: number;
 }
 
 // Find all key press intervals (press time, release time, column)
@@ -78,7 +80,11 @@ function getKeyIntervals(): { start: number; end: number; column: number }[] {
   return keyIntervalsCache;
 }
 
-export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAULT_SCROLL_SPEED }) => {
+export const ReplayCursor: React.FC<ReplayCursorProps> = ({
+  scrollSpeed = DEFAULT_SCROLL_SPEED,
+  stageOffset = 0,
+  judgmentLineY = judgmentLineY,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTime = (frame / fps) * 1000;
@@ -120,8 +126,8 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
     const clampedStartProgress = Math.max(0, Math.min(1, startProgress));
     const clampedEndProgress = Math.max(0, Math.min(1, endProgress));
 
-    const startY = interpolate(clampedStartProgress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
-    const endY = interpolate(clampedEndProgress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
+    const startY = interpolate(clampedStartProgress, [0, 1], [-NOTE_HEIGHT, judgmentLineY]);
+    const endY = interpolate(clampedEndProgress, [0, 1], [-NOTE_HEIGHT, judgmentLineY]);
 
     // Skip if the rendered height would be negative or too small
     const height = Math.abs(startY - endY);
@@ -160,7 +166,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
         key={`key-bar-${i}`}
         style={{
           position: "absolute",
-          left: STAGE_X + posX - 15,
+          left: STAGE_X + stageOffset + posX - 15,
           top: Math.min(startY, endY),
           width: 30,
           height: height,
@@ -181,7 +187,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
         key={`key-start-${i}`}
         style={{
           position: "absolute",
-          left: STAGE_X + posX - 12,
+          left: STAGE_X + stageOffset + posX - 12,
           top: startY - 12,
           width: 24,
           height: 24,
@@ -202,7 +208,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
           key={`key-end-${i}`}
           style={{
             position: "absolute",
-            left: STAGE_X + posX - 12,
+            left: STAGE_X + stageOffset + posX - 12,
             top: endY - 12,
             width: 24,
             height: 24,

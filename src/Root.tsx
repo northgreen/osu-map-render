@@ -18,6 +18,8 @@ export const maniaRenderSchema = z.object({
   judgmentMode: z.enum(["v1", "v2"]).default("v1"),
   judgmentOffset: z.number().default(0),
   showJudgmentZones: z.boolean().default(false),
+  stageOffset: z.number().default(0),
+  judgmentLineY: z.number().min(100).max(1000).default(900),
 });
 
 export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
@@ -47,6 +49,8 @@ export const RemotionRoot: React.FC = () => {
     judgmentMode: "v2",
     judgmentOffset: 0,
     showJudgmentZones: true,
+    stageOffset: 0,
+    judgmentLineY: 900,
   };
 
   return (
@@ -81,7 +85,7 @@ export const RemotionRoot: React.FC = () => {
       {/* Stage layer (beat lines, notes, key presses, hit effects + audio) */}
       <Composition
         id="ManiaStageOnly"
-        component={({ scrollSpeed = 20, showJudgmentZones = false }: ManiaRenderProps) => (
+        component={({ scrollSpeed = 20, showJudgmentZones = false, stageOffset = 0, judgmentLineY = 900 }: ManiaRenderProps) => (
           <AbsoluteFill style={{ backgroundColor: "transparent" }}>
             <Audio src={staticFile("audio.mp3")} />
             <ManiaStageLayer
@@ -89,6 +93,8 @@ export const RemotionRoot: React.FC = () => {
               scrollSpeed={scrollSpeed}
               beatOffset={beatOffset}
               showJudgmentZones={showJudgmentZones}
+              stageOffset={stageOffset}
+              judgmentLineY={judgmentLineY}
             />
           </AbsoluteFill>
         )}

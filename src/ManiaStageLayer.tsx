@@ -23,6 +23,8 @@ interface ManiaStageLayerProps {
   scrollSpeed?: number;
   beatOffset?: number;
   showJudgmentZones?: boolean;
+  stageOffset?: number;
+  judgmentLineY?: number;
 }
 
 // Generate beat lines based on timing points
@@ -63,6 +65,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   scrollSpeed = DEFAULT_SCROLL_SPEED,
   beatOffset = 0,
   showJudgmentZones = false,
+  stageOffset = 0,
+  judgmentLineY = JUDGMENT_LINE_Y,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -83,6 +87,10 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   const difficulty = beatmap.difficulty;
   const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
   const visibleTime = baseVisibleTime * (10 / scrollSpeed);
+
+  // Compute actual positions with offsets
+  const stageX = STAGE_X + stageOffset;
+  const judgmentY = judgmentLineY;
 
   // Generate beat lines
   const beatLines = generateBeatLines(timingPoints, durationMs);
@@ -132,7 +140,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
 
         const progress = 1 - timeUntilHit / visibleTime;
-        const y = progress * JUDGMENT_LINE_Y;
+        const y = progress * judgmentY;
         const beatNumber = 60;
         const isBarLine = beatNumber % 4 === 0;
 
@@ -141,6 +149,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`beat-${time}`}
             className={`beat-line ${isBarLine ? 'bar' : 'normal'}`}
             style={{
+              left: stageX,
               top: y,
               height: isBarLine ? 3 : 1,
             }}
@@ -151,6 +160,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {/* Stage background */}
       <div
         className="stage-container"
+        style={{
+          left: stageX,
+        }}
       >
         {/* Column dividers */}
         {COLUMN_POSITIONS_STAGE.slice(1).map((pos, i) => (
@@ -169,7 +181,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       <div
         className="judgment-line"
         style={{
-          top: JUDGMENT_LINE_Y,
+          left: stageX,
+          top: judgmentY,
           width: STAGE_WIDTH,
           height: 4,
           backgroundColor: "#00ff88",
@@ -188,7 +201,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
         // Calculate note position
         const progress = 1 - timeUntilHit / visibleTime;
-        const noteY = progress * JUDGMENT_LINE_Y;
+        const noteY = progress * judgmentY;
         if (isNaN(noteY)) return null;
 
         // Judgment zone colors (from center outward)
@@ -206,7 +219,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         // Calculate zone heights based on time windows (converted to pixels)
         const msToPixels = (ms: number) => {
           if (visibleTime <= 0 || isNaN(ms)) return 0;
-          return (ms / visibleTime) * JUDGMENT_LINE_Y;
+          return (ms / visibleTime) * judgmentY;
         };
 
         // Render zones centered on note - extends both above and below
@@ -274,11 +287,13 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           key={`${note.time}-${note.column}-${index}`}
           note={note}
           scrollSpeed={scrollSpeed}
+          judgmentLineY={judgmentLineY}
+          stageOffset={stageOffset}
         />
       ))}
 
       {/* Replay cursor - shows player key presses falling */}
-      <ReplayCursor scrollSpeed={scrollSpeed} />
+      <ReplayCursor scrollSpeed={scrollSpeed} stageOffset={stageOffset} judgmentLineY={judgmentLineY} />
 
       {/* Key press indicators at bottom */}
       {COLUMN_POSITIONS_STAGE.map((pos, i) => {
@@ -289,8 +304,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`key-${i}`}
             className={`key-indicator column-${i} ${isPressed ? 'pressed' : ''}`}
             style={{
-              left: STAGE_X + pos - COLUMN_WIDTH / 2,
-              top: JUDGMENT_LINE_Y + 10,
+              left: stageX + pos - COLUMN_WIDTH / 2,
+              top: judgmentY + 10,
               width: COLUMN_WIDTH,
               height: 60,
             }}
@@ -310,7 +325,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`col-highlight-${i}`}
             className={`column-highlight column-${i}`}
             style={{
-              left: STAGE_X + pos - COLUMN_WIDTH / 2,
+              left: stageX + pos - COLUMN_WIDTH / 2,
               width: COLUMN_WIDTH,
             }}
           />
@@ -344,7 +359,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`col-hit-${startTime}-${note.column}-${index}`}
             style={{
               position: "absolute",
-              left: STAGE_X + posX - COLUMN_WIDTH / 2,
+              left: stageX + posX - COLUMN_WIDTH / 2,
               top: 0,
               width: COLUMN_WIDTH,
               height: 1080,
@@ -380,8 +395,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                     key={`hit-${flashTime}-${note.column}-${index}-${flashIndex}`}
                     style={{
                       position: "absolute",
-                      left: STAGE_X + posX - COLUMN_WIDTH / 2,
-                      top: JUDGMENT_LINE_Y,
+                      left: stageX + posX - COLUMN_WIDTH / 2,
+                      top: judgmentY,
                       width: COLUMN_WIDTH,
                       height: NOTE_HEIGHT,
                       backgroundColor: color,

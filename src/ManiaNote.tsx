@@ -11,6 +11,8 @@ import {
 
 interface ManiaNoteProps {
   note: HitObject;
+  jy?: number;
+  stageOffset?: number;
 }
 
 // Calculate visible time based on scroll speed
@@ -19,7 +21,12 @@ function getVisibleTime(scrollSpeed: number): number {
   return BASE_VISIBLE_TIME * (10 / scrollSpeed);
 }
 
-export const ManiaNote: React.FC<ManiaNoteProps> = ({ note, scrollSpeed = SCROLL_SPEED }) => {
+export const ManiaNote: React.FC<ManiaNoteProps> = ({
+  note,
+  scrollSpeed = SCROLL_SPEED,
+  jy: jy = JUDGMENT_LINE_Y,
+  stageOffset = 0,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -47,7 +54,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note, scrollSpeed = SCROLL
 
   // Column position
   const column = Math.min(note.column, 3);
-  const x = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2;
+  const x = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2 + stageOffset;
 
   // Note color based on column
   const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
@@ -63,10 +70,10 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note, scrollSpeed = SCROLL
     const clampedTailProgress = Math.max(0, Math.min(1, tailProgress));
 
     // Head position: from top (-NOTE_HEIGHT) to judgment line
-    const headY = interpolate(clampedHeadProgress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
+    const headY = interpolate(clampedHeadProgress, [0, 1], [-NOTE_HEIGHT, jy]);
 
     // Tail position: from top to judgment line
-    const tailY = interpolate(clampedTailProgress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
+    const tailY = interpolate(clampedTailProgress, [0, 1], [-NOTE_HEIGHT, jy]);
 
     // Body: always connects head bottom to tail top
     // Only visible when both head and tail have appeared
@@ -145,7 +152,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({ note, scrollSpeed = SCROLL
   }
 
   const progress = 1 - timeUntilStart / VISIBLE_TIME;
-  const y = interpolate(progress, [0, 1], [-NOTE_HEIGHT, JUDGMENT_LINE_Y]);
+  const y = interpolate(progress, [0, 1], [-NOTE_HEIGHT, jy]);
 
   const isHit = Math.abs(timeUntilStart) < 50;
   const opacity = isHit ? 1 : Math.min(1, progress * 1.5);
