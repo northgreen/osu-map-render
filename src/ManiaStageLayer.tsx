@@ -124,11 +124,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         return (
           <div
             key={i}
+            className="beat-line"
             style={{
-              position: "absolute",
-              left: STAGE_X,
               top: y,
-              width: STAGE_WIDTH,
               height: isBarLine ? 2 : 1,
               backgroundColor: isBarLine ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)",
               opacity: Math.max(0, Math.min(1, 1 - timeUntilHit / 500)),
@@ -139,28 +137,16 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
       {/* Stage background */}
       <div
-        style={{
-          position: "absolute",
-          left: STAGE_X,
-          top: 0,
-          width: STAGE_WIDTH,
-          height: STAGE_HEIGHT,
-          backgroundColor: "#16213e",
-          borderLeft: "2px solid #444",
-          borderRight: "2px solid #444",
-        }}
+        className="stage-container"
       >
         {/* Column dividers */}
         {COLUMN_POSITIONS_STAGE.slice(1).map((pos, i) => (
           <div
             key={i}
+            className="column-divider"
             style={{
-              position: "absolute",
               left: pos - STAGE_X,
-              top: 0,
               width: 2,
-              height: 1080,
-              backgroundColor: "#2a2a4a",
             }}
           />
         ))}
@@ -168,9 +154,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
       {/* Judgment line */}
       <div
+        className="judgment-line"
         style={{
-          position: "absolute",
-          left: STAGE_X,
           top: JUDGMENT_LINE_Y,
           width: STAGE_WIDTH,
           height: 4,
@@ -232,17 +217,13 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                   {/* Zone extends upward from previous zone (early hit window) */}
                   <div
                     key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                    className={`judgment-zone zone-${zoneIndex}`}
                     style={{
-                      position: "absolute",
                       left: posX - NOTE_WIDTH / 2 + 2,
                       top: currentTop,
                       width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
-                      backgroundColor: zone.color,
                       opacity,
-                      borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
-                      borderRight: `1px solid ${zone.borderColor}`,
-                      pointerEvents: "none",
                     }}
                   />
                 </>
@@ -259,17 +240,13 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
               return (
                 <div
                   key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                  className={`judgment-zone zone-${zoneIndex}`}
                   style={{
-                    position: "absolute",
                     left: posX - NOTE_WIDTH / 2 + 2,
                     top: startY,
                     width: NOTE_WIDTH - 4,
                     height: zoneHeight - 1,
-                    backgroundColor: zone.color,
                     opacity,
-                    borderLeft: zoneIndex === 0 ? `2px solid ${zone.borderColor}` : `1px solid ${zone.borderColor}`,
-                    borderRight: `1px solid ${zone.borderColor}`,
-                    pointerEvents: "none",
                   }}
                 />
               );
@@ -294,29 +271,15 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {COLUMN_POSITIONS_STAGE.map((pos, i) => {
         const isPressed = pressedKeys[i];
         const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
-        const color = colors[i];
         return (
           <div
             key={`key-${i}`}
+            className={`key-indicator column-${i} ${isPressed ? 'pressed' : ''}`}
             style={{
-              position: "absolute",
               left: STAGE_X + pos - COLUMN_WIDTH / 2,
               top: JUDGMENT_LINE_Y + 10,
               width: COLUMN_WIDTH,
               height: 60,
-              backgroundColor: isPressed ? color : "#2a2a4a",
-              opacity: isPressed ? 0.8 : 1,
-              borderRadius: "0 0 8 8",
-              border: `2px solid ${isPressed ? color : "#444"}`,
-              borderTop: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              fontWeight: "bold",
-              color: isPressed ? "#fff" : "#666",
-              boxShadow: isPressed ? `0 0 20px ${color}` : "none",
-              transition: "all 0.05s",
             }}
           >
             {["D", "F", "J", "K"][i]}
@@ -329,21 +292,13 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         const isPressed = pressedKeys[i];
         if (!isPressed) return null;
 
-        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
-        const color = colors[i];
-
         return (
           <div
             key={`col-highlight-${i}`}
+            className={`column-highlight column-${i}`}
             style={{
-              position: "absolute",
               left: STAGE_X + pos - COLUMN_WIDTH / 2,
-              top: 0,
               width: COLUMN_WIDTH,
-              height: 1080,
-              backgroundColor: color,
-              opacity: 0.15,
-              pointerEvents: "none",
             }}
           />
         );

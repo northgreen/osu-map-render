@@ -1,0 +1,298 @@
+/* osu!mania renderer custom styles */
+
+/* ============================================
+   Color Variables - Easy to customize
+   ============================================ */
+
+/* Column colors */
+:root {
+  /* Stage background */
+  --stage-bg: #16213e;
+  --stage-border: #444;
+  --column-divider: #2a2a4a;
+
+  /* Column key colors */
+  --column-color-1: #FF6B6B;
+  --column-color-2: #4ECDC4;
+  --column-color-3: #4ECDC4;
+  --column-color-4: #FF6B6B;
+
+  /* Judgment line */
+  --judgment-line-color: #00ff88;
+  --judgment-line-glow: #00ff88;
+
+  /* Key press indicator */
+  --key-bg-default: #2a2a4a;
+  --key-border-default: #444;
+  --key-text-default: #666;
+  --key-text-pressed: #fff;
+
+  /* Beat line colors */
+  --beatline-bar: rgba(255, 255, 255, 0.4);
+  --beatline-normal: rgba(255, 255, 255, 0.15);
+
+  /* Judgment zone colors (from center outward) */
+  --zone-perfect: rgba(255, 0, 255, 0.3);
+  --zone-perfect-border: rgba(255, 0, 255, 0.8);
+  --zone-great: rgba(0, 255, 136, 0.25);
+  --zone-great-border: rgba(0, 255, 136, 0.6);
+  --zone-good: rgba(0, 170, 255, 0.2);
+  --zone-good-border: rgba(0, 170, 255, 0.5);
+  --zone-ok: rgba(255, 170, 0, 0.15);
+  --zone-ok-border: rgba(255, 170, 0, 0.4);
+  --zone-meh: rgba(255, 68, 68, 0.12);
+  --zone-meh-border: rgba(255, 68, 68, 0.3);
+
+  /* Background */
+  --bg-color: #1a1a2e;
+
+  /* Hit effect */
+  --hit-effect-opacity: 0.1;
+
+  /* Note colors (fallback) */
+  --note-default: #4ECDC4;
+}
+
+/* ============================================
+   Component Classes
+   ============================================ */
+
+/* Stage layer */
+.stage-container {
+  position: absolute;
+  left: var(--stage-x, 64px);
+  top: 0;
+  width: var(--stage-width, 512px);
+  height: 1080px;
+  background-color: var(--stage-bg);
+  border-left: 2px solid var(--stage-border);
+  border-right: 2px solid var(--stage-border);
+}
+
+.column-divider {
+  position: absolute;
+  top: 0;
+  height: 1080px;
+  background-color: var(--column-divider);
+}
+
+/* Beat lines */
+.beat-line {
+  position: absolute;
+  left: var(--stage-x, 64px);
+  width: var(--stage-width, 512px);
+}
+
+/* Judgment line */
+.judgment-line {
+  position: absolute;
+  left: var(--stage-x, 64px);
+  width: var(--stage-width, 512px);
+  height: 4px;
+  background-color: var(--judgment-line-color);
+  box-shadow: 0 0 15px var(--judgment-line-glow);
+}
+
+/* Key press indicator */
+.key-indicator {
+  position: absolute;
+  background-color: var(--key-bg-default);
+  border: 2px solid var(--key-border-default);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--key-text-default);
+  transition: all 0.05s;
+}
+
+.key-indicator.pressed {
+  background-color: var(--column-color-1);
+  border-color: var(--column-color-1);
+  color: var(--key-text-pressed);
+  box-shadow: 0 0 20px var(--column-color-1);
+  opacity: 0.8;
+}
+
+.key-indicator.column-0.pressed { background-color: var(--column-color-1); border-color: var(--column-color-1); box-shadow: 0 0 20px var(--column-color-1); }
+.key-indicator.column-1.pressed { background-color: var(--column-color-2); border-color: var(--column-color-2); box-shadow: 0 0 20px var(--column-color-2); }
+.key-indicator.column-2.pressed { background-color: var(--column-color-3); border-color: var(--column-color-3); box-shadow: 0 0 20px var(--column-color-3); }
+.key-indicator.column-3.pressed { background-color: var(--column-color-4); border-color: var(--column-color-4); box-shadow: 0 0 20px var(--column-color-4); }
+
+/* Column highlight */
+.column-highlight {
+  position: absolute;
+  top: 0;
+  height: 1080px;
+  pointer-events: none;
+}
+
+.column-highlight.column-0 { background-color: var(--column-color-1); opacity: 0.15; }
+.column-highlight.column-1 { background-color: var(--column-color-2); opacity: 0.15; }
+.column-highlight.column-2 { background-color: var(--column-color-3); opacity: 0.15; }
+.column-highlight.column-3 { background-color: var(--column-color-4); opacity: 0.15; }
+
+/* Judgment zone */
+.judgment-zone {
+  position: absolute;
+  pointer-events: none;
+}
+
+.judgment-zone.zone-0 {
+  background-color: var(--zone-perfect);
+  border: 2px solid var(--zone-perfect-border);
+}
+.judgment-zone.zone-1 {
+  background-color: var(--zone-great);
+  border: 1px solid var(--zone-great-border);
+}
+.judgment-zone.zone-2 {
+  background-color: var(--zone-good);
+  border: 1px solid var(--zone-good-border);
+}
+.judgment-zone.zone-3 {
+  background-color: var(--zone-ok);
+  border: 1px solid var(--zone-ok-border);
+}
+.judgment-zone.zone-4 {
+  background-color: var(--zone-meh);
+  border: 1px solid var(--zone-meh-border);
+}
+
+/* Hit effect - column */
+.hit-effect-column {
+  position: absolute;
+  top: 0;
+  height: 1080px;
+  pointer-events: none;
+}
+
+/* Hit effect - flash */
+.hit-effect-flash {
+  position: absolute;
+  border-radius: 4px;
+  box-shadow: 0 0 20px currentColor;
+}
+
+/* Replay cursor */
+.replay-cursor-bar {
+  position: absolute;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+/* Replay cursor circle */
+.cursor-circle {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Note styles */
+.note {
+  position: absolute;
+  border-radius: 4px;
+}
+
+.note-head, .note-tail {
+  position: absolute;
+  border-radius: 4px;
+}
+
+.note-body {
+  position: absolute;
+  border-radius: 0;
+}
+
+.note.column-0 { background-color: var(--column-color-1); }
+.note.column-1 { background-color: var(--column-color-2); }
+.note.column-2 { background-color: var(--column-color-3); }
+.note.column-3 { background-color: var(--column-color-4); }
+
+/* Judgment indicator (center text) */
+.judgment-text {
+  position: absolute;
+  font-weight: bold;
+  text-shadow: 0 0 20px currentColor;
+  z-index: 200;
+}
+
+.judgment-text.perfect { color: #FF00FF; }
+.judgment-text.great { color: #00FF88; }
+.judgment-text.good { color: #00AAFF; }
+.judgment-text.ok { color: #FFAA00; }
+.judgment-text.meh { color: #FF4444; }
+.judgment-text.miss { color: #888888; }
+
+/* Overlay text */
+.overlay-title {
+  font-size: 36px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 8px;
+}
+
+.overlay-artist {
+  font-size: 24px;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.overlay-creator {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.overlay-difficulty {
+  font-size: 16px;
+  color: #555;
+  margin-top: 8px;
+}
+
+.overlay-stars {
+  font-size: 16px;
+  color: #FFD700;
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.overlay-pp {
+  color: #00ff88;
+  font-family: monospace;
+  font-size: 32px;
+}
+
+.overlay-combo {
+  font-size: 18px;
+  color: #666;
+  font-family: monospace;
+}
+
+/* Judgment stats */
+.judgment-stat {
+  font-family: monospace;
+  font-size: 18px;
+}
+
+.judgment-stat.perfect { color: #FF00FF; }
+.judgment-stat.great { color: #00FF88; }
+.judgment-stat.good { color: #00AAFF; }
+.judgment-stat.ok { color: #FFAA00; }
+.judgment-stat.meh { color: #FF6666; }
+.judgment-stat.miss { color: #888888; }
+
+.overlay-total {
+  color: #888;
+  margin-top: 8px;
+  font-family: monospace;
+}
+
+.overlay-mode {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #666;
+}

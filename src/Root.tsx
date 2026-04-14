@@ -1,4 +1,5 @@
 import "./index.css";
+import "./styles.css";
 import { Composition, AbsoluteFill, Audio, staticFile } from "remotion";
 import { z } from "zod";
 import { ManiaRender, getManiaRenderDuration } from "./ManiaRender";
