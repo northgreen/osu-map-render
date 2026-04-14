@@ -1,16 +1,28 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { useEffect } from "react";
 import { ParsedBeatmap } from "./lib/osuParser";
 import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
-import { getJudgmentResults } from "./lib/judgment";
-import { getJudgmentColor, JudgmentResult } from "./lib/judgment";
+import { getJudgmentResults, getJudgmentColor, JudgmentResult, setJudgmentMode, getJudgmentMode, clearJudgmentCache } from "./lib/judgment";
 
 interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
+  judgmentMode?: "v1" | "v2";
 }
 
-export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap }) => {
+export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap, judgmentMode }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // Sync mode from props
+  useEffect(() => {
+    const targetMode = judgmentMode || getJudgmentMode();
+    if (targetMode !== getJudgmentMode()) {
+      setJudgmentMode(targetMode);
+      clearJudgmentCache();
+    }
+  }, [judgmentMode]);
+
+  const mode = judgmentMode || getJudgmentMode();
 
   if (!beatmap) {
     return null;
@@ -122,6 +134,11 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({ beatmap }) => {
         <div style={{ color: "#888888" }}>{countMiss}xMiss</div>
         <div style={{ color: "#888", marginTop: 8 }}>
           Total: {totalScore}
+        </div>
+
+        {/* Current judgment mode indicator */}
+        <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
+          {mode.toUpperCase()}
         </div>
       </div>
 

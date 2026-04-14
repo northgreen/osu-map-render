@@ -14,6 +14,7 @@ export const maniaRenderSchema = z.object({
   scrollSpeed: z.number().min(5).max(50),
   timeOffset: z.number(),
   beatOffset: z.number().min(0),
+  judgmentMode: z.enum(["v1", "v2"]).default("v1"),
 });
 
 export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
@@ -40,6 +41,7 @@ export const RemotionRoot: React.FC = () => {
     scrollSpeed: 20,
     timeOffset: 0,
     beatOffset,
+    judgmentMode: "v1",
   };
 
   return (

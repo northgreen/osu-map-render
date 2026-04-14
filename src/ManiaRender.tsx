@@ -9,6 +9,7 @@ interface ManiaRenderProps {
   scrollSpeed?: number;
   timeOffset?: number;
   beatOffset?: number;
+  judgmentMode?: "v1" | "v2";
 }
 
 // Create a wrapper component with defaultProps
@@ -16,6 +17,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
   scrollSpeed = 20,
   timeOffset = 0,
   beatOffset = 900,
+  judgmentMode = "v1",
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
@@ -33,7 +35,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
       />
 
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}
-      <ManiaOverlay beatmap={importedBeatmap} />
+      <ManiaOverlay beatmap={importedBeatmap} judgmentMode={judgmentMode} />
     </AbsoluteFill>
   );
 };
@@ -43,6 +45,7 @@ ManiaRenderComponent.defaultProps = {
   scrollSpeed: 20,
   timeOffset: 0,
   beatOffset: 900,
+  judgmentMode: "v1",
 };
 
 export { ManiaRenderComponent as ManiaRender };

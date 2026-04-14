@@ -1,11 +1,26 @@
 import { replay } from "./replay";
 import { HitObject } from "../osuParser";
 
-// osu!mania hit window algorithm from ManiaHitWindows.cs
-// Uses DifficultyRange: (od, range) =>
-//   od > 5: mid + (max - mid) * (od - 5) / 5
-//   od < 5: mid + (mid - min) * od / 5
-//   od = 5: mid
+// ============================================
+// Judgment Mode: v1 (Classic) or v2 (ScoreV2)
+// ============================================
+
+export type JudgmentMode = "v1" | "v2";
+
+let currentJudgmentMode: JudgmentMode = "v1";
+
+export function setJudgmentMode(mode: JudgmentMode): void {
+  currentJudgmentMode = mode;
+  clearJudgmentCache();
+}
+
+export function getJudgmentMode(): JudgmentMode {
+  return currentJudgmentMode;
+}
+
+// ============================================
+// DifficultyRange algorithm from osu
+// ============================================
 
 function difficultyRange(od: number, range: [number, number, number]): number {
   const [min, mid, max] = range;
@@ -21,18 +36,53 @@ function difficultyRange(od: number, range: [number, number, number]): number {
   return Math.floor(result) + 0.5;
 }
 
-// Hit window configurations for osu!mania (in ms) based on OD
-// From osu! wiki: 判定区间取决于谱面的判定严度 (OD)
-function getHitWindows(od: number) {
-  // PERFECT/GREAT/GOOD/OK/MEH/MISS windows (in ms)
-  const perfect = difficultyRange(od, [22.4, 19.4, 13.9]);
-  const great = difficultyRange(od, [64, 49, 34]);
-  const good = difficultyRange(od, [97, 82, 67]);
-  const ok = difficultyRange(od, [127, 112, 97]);
-  const meh = difficultyRange(od, [151, 136, 121]);
-  const miss = difficultyRange(od, [188, 173, 158]);
+// ============================================
+// Hit Window Calculation
+// ============================================
 
-  return { perfect, great, good, ok, meh, miss };
+interface HitWindows {
+  perfect: number;
+  great: number;
+  good: number;
+  ok: number;
+  meh: number;
+  miss: number;
+}
+
+// v2 (ScoreV2): Uses DifficultyRange + floor + 0.5
+function getHitWindowsV2(od: number): HitWindows {
+  return {
+    perfect: difficultyRange(od, [22.4, 19.4, 13.9]),
+    great: difficultyRange(od, [64, 49, 34]),
+    good: difficultyRange(od, [97, 82, 67]),
+    ok: difficultyRange(od, [127, 112, 97]),
+    meh: difficultyRange(od, [151, 136, 121]),
+    miss: difficultyRange(od, [188, 173, 158]),
+  };
+}
+
+// v1 (Classic, non-ScoreV2): Uses simplified formula + floor + 0.5
+// Formula: base[od] + 3 * (10 - od), then floor + 0.5
+function getHitWindowsV1(od: number): HitWindows {
+  const base = [16, 34, 67, 97, 121, 158];
+  const windows = base.map((d, index) => {
+    if (index === 0) return d;
+    return d + 3 * (10 - od);
+  });
+
+  return {
+    perfect: Math.floor(windows[0]) + 0.5,
+    great: Math.floor(windows[1]) + 0.5,
+    good: Math.floor(windows[2]) + 0.5,
+    ok: Math.floor(windows[3]) + 0.5,
+    meh: Math.floor(windows[4]) + 0.5,
+    miss: Math.floor(windows[5]) + 0.5,
+  };
+}
+
+// Get hit windows based on current mode
+export function getHitWindows(od: number): HitWindows {
+  return currentJudgmentMode === "v2" ? getHitWindowsV2(od) : getHitWindowsV1(od);
 }
 
 // osu!mania judgment: Perfect(320), Great(300), Good(200), Ok(100), Meh(50), Miss
@@ -81,21 +131,15 @@ export function getJudgmentScore(judgment: Judgment): number {
   }
 }
 
+// ============================================
+// Key Press Event Extraction
+// ============================================
+
 // Key press event
 interface KeyPressEvent {
   time: number;
   column: number;
   isRelease: boolean;
-}
-
-// Judgment result for display
-export interface JudgmentResult {
-  noteTime: number;
-  column: number;
-  judgment: Judgment;
-  hitTime: number;
-  isLongNote: boolean;
-  endTime?: number;
 }
 
 // Extract key press events from replay
@@ -105,7 +149,6 @@ function getKeyPressEvents(): KeyPressEvent[] {
   const events: KeyPressEvent[] = [];
 
   // Calculate cumulative times - just sum up timeOffsets like osu does
-  // The replay time starts at negative (before song) and goes positive
   let cumulativeTime = 0;
   const times: number[] = [];
 
@@ -114,9 +157,6 @@ function getKeyPressEvents(): KeyPressEvent[] {
     times.push(cumulativeTime);
   }
 
-  // Debug: show first few times
-  console.log("First 10 replay times:", times.slice(0, 10));
-
   // Track key state per column
   const keyState = [false, false, false, false];
 
@@ -124,7 +164,7 @@ function getKeyPressEvents(): KeyPressEvent[] {
     const frame = replay.replayData[i];
     const currentTime = times[i];
 
-    // Skip negative time frames (before song start, like SkipBoundary)
+    // Skip negative time frames (before song start)
     if (currentTime < 0) continue;
 
     const keys = frame.x; // Use x field for mania key press bitmask
@@ -147,6 +187,87 @@ function getKeyPressEvents(): KeyPressEvent[] {
   return events;
 }
 
+// ============================================
+// Judgment Result
+// ============================================
+
+// Judgment result for display
+export interface JudgmentResult {
+  noteTime: number;
+  column: number;
+  judgment: Judgment;
+  hitTime: number;
+  isLongNote: boolean;
+  endTime?: number;
+}
+
+// ============================================
+// Key Press Intervals (for ReplayCursor)
+// ============================================
+
+interface KeyInterval {
+  start: number;
+  end: number;
+  column: number;
+}
+
+let keyIntervalsCache: KeyInterval[] | null = null;
+
+function getKeyPressIntervals(): KeyInterval[] {
+  const intervals: KeyInterval[] = [];
+
+  if (!replay?.replayData) return intervals;
+
+  // Calculate cumulative times
+  let cumulativeTime = 0;
+  const times: number[] = [];
+
+  for (let i = 0; i < replay.replayData.length; i++) {
+    cumulativeTime += replay.replayData[i].timeOffset;
+    times.push(cumulativeTime);
+  }
+
+  // Track key state per column
+  const keyState = [false, false, false, false];
+  const keyStartTime = [0, 0, 0, 0];
+
+  for (let i = 0; i < replay.replayData.length; i++) {
+    const frame = replay.replayData[i];
+    const currentTime = times[i];
+    const keys = frame.x;
+
+    for (let col = 0; col < 4; col++) {
+      const isPressed = (keys & (1 << col)) !== 0;
+
+      if (isPressed && !keyState[col]) {
+        keyState[col] = true;
+        keyStartTime[col] = currentTime;
+      } else if (!isPressed && keyState[col]) {
+        keyState[col] = false;
+        if (keyStartTime[col] > 0) {
+          intervals.push({
+            start: keyStartTime[col],
+            end: currentTime,
+            column: col,
+          });
+        }
+      }
+    }
+  }
+
+  return intervals;
+}
+
+export function getKeyIntervals(): KeyInterval[] {
+  if (keyIntervalsCache) return keyIntervalsCache;
+  keyIntervalsCache = getKeyPressIntervals();
+  return keyIntervalsCache;
+}
+
+// ============================================
+// Main Judgment Calculation
+// ============================================
+
 // Constants matching Mania-Replay-Master
 const IGNORE = 3;
 const TOO_EARLY = -1;
@@ -165,6 +286,9 @@ export function calculateJudgments(
   const windows = getHitWindows(od);
   const missWindow = windows.miss;
 
+  console.log(`=== Judgment Mode: ${currentJudgmentMode.toUpperCase()} ===`);
+  console.log(`OD: ${od}, Windows: P=${windows.perfect}, G=${windows.great}, Good=${windows.good}, Ok=${windows.ok}, Meh=${windows.meh}, Miss=${missWindow}`);
+
   // Sort hitObjects by time
   const sortedNotes = [...hitObjects].sort((a, b) => a.time - b.time);
 
@@ -175,7 +299,6 @@ export function calculateJudgments(
   // Track which notes have been hit (by index in sortedNotes)
   const hitNotes = new Set<number>();
   const hitTails = new Set<number>();
-  const cannotJudge = new Set<number>();
 
   // First pass: process key presses (head judgments)
   for (const event of pressEvents) {
@@ -227,11 +350,6 @@ export function calculateJudgments(
         hitNotes.add(i);
       }
       break;
-    }
-
-    // Remove notes marked as too late
-    if (shouldDeleteIndex !== null) {
-      cannotJudge.add(shouldDeleteIndex);
     }
 
     if (candidate) {
@@ -323,7 +441,7 @@ export function calculateJudgments(
       counts[r.judgment as keyof typeof counts]++;
     }
   }
-  console.log("=== Judgment Stats (v2) ===");
+  console.log("=== Judgment Stats ===");
   console.log(`Perfect: ${counts.Perfect}x320`);
   console.log(`Great: ${counts.Great}x300`);
   console.log(`Good: ${counts.Good}x200`);
@@ -347,7 +465,8 @@ export function getJudgmentResults(
   return judgmentCache;
 }
 
-// Clear cache (call when beatmap changes)
+// Clear cache (call when beatmap changes or mode changes)
 export function clearJudgmentCache(): void {
   judgmentCache = null;
+  keyIntervalsCache = null;
 }
