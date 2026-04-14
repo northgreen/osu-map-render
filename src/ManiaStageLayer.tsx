@@ -33,15 +33,25 @@ function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): num
   const uninheritedPoints = timingPoints.filter(tp => tp.uninherited);
   if (uninheritedPoints.length === 0) return beatLines;
 
+  // Start from the earliest timing point and go backwards to cover the beginning
+  const firstTp = uninheritedPoints[0];
+  const msPerBeat = Math.abs(firstTp.beatLength);
+
+  // Generate beat lines from time 0 to the first timing point
+  for (let time = 0; time < firstTp.time; time += msPerBeat) {
+    if (time > 0) beatLines.push(time);
+  }
+
+  // Then generate beat lines from first timing point onwards
   for (let i = 0; i < uninheritedPoints.length; i++) {
     const tp = uninheritedPoints[i];
     const nextTp = uninheritedPoints[i + 1];
     const endTime = nextTp ? nextTp.time : durationMs + 5000;
 
-    const msPerBeat = Math.abs(tp.beatLength);
+    const beatLength = Math.abs(tp.beatLength);
 
-    for (let time = tp.time; time < endTime; time += msPerBeat) {
-      if (time > 0) beatLines.push(time);
+    for (let time = tp.time; time < endTime; time += beatLength) {
+      if (time > firstTp.time) beatLines.push(time);  // Avoid duplicates
     }
   }
 
@@ -123,8 +133,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
         const progress = 1 - timeUntilHit / visibleTime;
         const y = progress * JUDGMENT_LINE_Y;
-        const msPerBeat = 5000000;
-        const beatNumber = Math.floor(time / msPerBeat);
+        const beatNumber = 60;
         const isBarLine = beatNumber % 4 === 0;
 
         return (
