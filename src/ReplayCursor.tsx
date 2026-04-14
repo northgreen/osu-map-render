@@ -1,5 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
+import { getJudgmentResults, getJudgmentColor, JudgmentResult } from "./lib/judgment";
+import { beatmap } from "./lib/osuParser";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   BASE_VISIBLE_TIME,
@@ -97,6 +99,9 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
   const keyIntervals = getKeyIntervals();
   const cursors: JSX.Element[] = [];
 
+  // Get judgment results for coloring
+  const judgments = getJudgmentResults(beatmap?.hitObjects || [], beatmap?.difficulty?.overallDifficulty || 7.5);
+
   // Find visible intervals
   const visibleEnd = currentTime + VISIBLE_TIME;
   const visibleStart = currentTime - 200;
@@ -123,25 +128,77 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({ scrollSpeed = DEFAUL
     if (height < 2) continue;
 
     const posX = COLUMN_POSITIONS_STAGE[interval.column];
-    const colors = ["#6978c2", "#6978c2", "#6978c2", "#6978c2"];
-    const color = colors[interval.column];
+    const baseColor = "#6978c2";
 
+    // Find judgment for this key press (match by time and column)
+    let judgmentColor = baseColor;
+    const hitTime = interval.start;
+
+    for (const j of judgments) {
+      // Match by hit time (within 50ms tolerance) and column
+      if (j.column === interval.column && Math.abs(j.hitTime - hitTime) < 50) {
+        judgmentColor = getJudgmentColor(j.judgment);
+        break;
+      }
+    }
+
+    // Main bar
     cursors.push(
       <div
-        key={`key-${i}`}
+        key={`key-bar-${i}`}
         style={{
           position: "absolute",
           left: STAGE_X + posX - NOTE_WIDTH / 4,
           top: Math.min(startY, endY),
           width: 30,
           height: height,
-          backgroundColor: color,
+          backgroundColor: judgmentColor,
           opacity: 0.4,
           borderRadius: 50,
-          border: "2px solid white",
-          boxShadow: `0 0 10px ${color}`,
+          border: `2px solid ${judgmentColor}`,
+          boxShadow: `0 0 10px ${judgmentColor}`,
           pointerEvents: "none",
           zIndex: 100,
+        }}
+      />
+    );
+
+    // Circle at start (key press)
+    cursors.push(
+      <div
+        key={`key-start-${i}`}
+        style={{
+          position: "absolute",
+          left: STAGE_X + posX - 12,
+          top: startY - 6,
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          backgroundColor: judgmentColor,
+          border: "3px solid white",
+          boxShadow: `0 0 15px ${judgmentColor}`,
+          pointerEvents: "none",
+          zIndex: 101,
+        }}
+      />
+    );
+
+    // Circle at end (key release)
+    cursors.push(
+      <div
+        key={`key-end-${i}`}
+        style={{
+          position: "absolute",
+          left: STAGE_X + posX - 12,
+          top: endY - 6,
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          backgroundColor: judgmentColor,
+          border: "3px solid white",
+          boxShadow: `0 0 15px ${judgmentColor}`,
+          pointerEvents: "none",
+          zIndex: 101,
         }}
       />
     );

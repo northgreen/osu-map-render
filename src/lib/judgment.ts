@@ -147,6 +147,13 @@ function getKeyPressEvents(): KeyPressEvent[] {
   return events;
 }
 
+// Constants matching Mania-Replay-Master
+const IGNORE = 3;
+const TOO_EARLY = -1;
+const TOO_LATE = 2;
+const HIT = 0;
+const HIT_AND_CAN_HIT_AGAIN = 1;
+
 // Match key presses to notes and calculate judgments
 export function calculateJudgments(
   hitObjects: HitObject[],
@@ -154,118 +161,135 @@ export function calculateJudgments(
 ): JudgmentResult[] {
   const events = getKeyPressEvents();
 
-  // Get the miss window (max time difference for a hit)
+  // Get the hit windows
   const windows = getHitWindows(od);
-  const maxHitWindow = windows.miss; // Use miss window as max matching window (~158-188ms)
+  const missWindow = windows.miss;
 
-  // Debug: log first few events and notes
-  if (events.length > 0) {
-    console.log("First 5 key events:", events.slice(0, 5).map(e => ({ time: Math.round(e.time), column: e.column, isRelease: e.isRelease })));
-    console.log("First 5 note times:", hitObjects.slice(0, 5).map(n => ({ time: n.time, column: n.column, isLN: n.isLongNote })));
-    console.log("Max hit window:", maxHitWindow);
-    console.log("OD:", od, "Miss window:", maxHitWindow);
-  }
+  // Sort hitObjects by time
+  const sortedNotes = [...hitObjects].sort((a, b) => a.time - b.time);
 
   const results: JudgmentResult[] = [];
   const pressEvents = events.filter(e => !e.isRelease);
   const releaseEvents = events.filter(e => e.isRelease);
 
-  // Track which notes have been hit
+  // Track which notes have been hit (by index in sortedNotes)
   const hitNotes = new Set<number>();
   const hitTails = new Set<number>();
+  const cannotJudge = new Set<number>();
 
   // First pass: process key presses (head judgments)
   for (const event of pressEvents) {
-    // Find the closest note in this column that hasn't been hit, within hit window
-    let closestNote: HitObject | null = null;
-    let closestDiff = Infinity;
-    let closestIndex = -1;
+    let candidate: { note: HitObject; index: number } | null = null;
+    let shouldDeleteIndex: number | null = null;
 
-    for (let i = 0; i < hitObjects.length; i++) {
-      const note = hitObjects[i];
-      if (note.column !== event.column) continue;
+    for (let i = 0; i < sortedNotes.length; i++) {
+      const note = sortedNotes[i];
       if (hitNotes.has(i)) continue;
 
-      const diff = Math.abs(note.time - event.time);
-      if (diff < closestDiff) {
-        closestDiff = diff;
-        closestNote = note;
-        closestIndex = i;
+      const diff = event.time - note.time;
+
+      // Different column
+      if (note.column !== event.column) {
+        continue;
       }
+
+      // Too early: action is more than miss window before note
+      if (-diff > missWindow) {
+        // Too early - break, no later notes can be hit either
+        break;
+      }
+
+      // Check if too late
+      let isTooLate = false;
+      if (note.isLongNote && note.endTime) {
+        // For LN, check if action time is too late relative to end time
+        if (event.time - note.endTime > windows.ok) {
+          isTooLate = true;
+        }
+      } else {
+        // For regular notes
+        if (diff >= windows.ok) {
+          isTooLate = true;
+        }
+      }
+
+      if (isTooLate) {
+        // Too late - mark for removal
+        shouldDeleteIndex = i;
+        continue;
+      }
+
+      // Hit!
+      candidate = { note, index: i };
+      if (note.isLongNote && note.endTime) {
+        // For LN, may be able to hit again (hold) - don't remove yet
+      } else {
+        hitNotes.add(i);
+      }
+      break;
     }
 
-    // Debug: log first few unmatched events
-    if (closestNote && closestDiff > maxHitWindow && results.length < 3) {
-      console.log("Event too far from note:", { eventTime: event.time, noteTime: closestNote?.time, diff: closestDiff, window: maxHitWindow });
+    // Remove notes marked as too late
+    if (shouldDeleteIndex !== null) {
+      cannotJudge.add(shouldDeleteIndex);
     }
 
-    // Only consider if within miss window
-    if (closestNote && closestDiff <= maxHitWindow) {
-      const judgment = calculateJudgment(event.time, closestNote.time, od);
-      hitNotes.add(closestIndex);
+    if (candidate) {
+      const judgment = calculateJudgment(event.time, candidate.note.time, od);
+      hitNotes.add(candidate.index);
 
       results.push({
-        noteTime: closestNote.time,
-        column: closestNote.column,
+        noteTime: candidate.note.time,
+        column: candidate.note.column,
         judgment,
         hitTime: event.time,
-        isLongNote: closestNote.isLongNote,
-        endTime: closestNote.endTime,
+        isLongNote: candidate.note.isLongNote,
+        endTime: candidate.note.endTime,
       });
     }
   }
 
   // Second pass: process key releases for LN tails
-  // Only consider LNs whose head was already hit
   for (const event of releaseEvents) {
-    // Find the closest LN tail in this column that hasn't been hit, AND whose head was hit
-    let closestNote: HitObject | null = null;
+    let candidate: { note: HitObject; index: number } | null = null;
     let closestDiff = Infinity;
-    let closestIndex = -1;
 
-    for (let i = 0; i < hitObjects.length; i++) {
-      const note = hitObjects[i];
+    for (let i = 0; i < sortedNotes.length; i++) {
+      const note = sortedNotes[i];
       // Only LNs that have been started (head hit)
       if (!note.isLongNote || !note.endTime) continue;
       if (!hitNotes.has(i)) continue; // Head must be hit first
-      if (note.column !== event.column) continue;
       if (hitTails.has(i)) continue;
+      if (note.column !== event.column) continue;
 
       const diff = Math.abs(note.endTime - event.time);
       if (diff < closestDiff) {
         closestDiff = diff;
-        closestNote = note;
-        closestIndex = i;
+        candidate = { note, index: i };
       }
     }
 
-    // Only consider if within miss window
-    if (closestNote && closestDiff <= maxHitWindow) {
-      const judgment = calculateJudgment(event.time, closestNote.endTime!, od);
-      hitTails.add(closestIndex);
+    if (candidate && Math.abs(candidate.note.endTime - event.time) <= missWindow) {
+      const judgment = calculateJudgment(event.time, candidate.note.endTime, od);
+      hitTails.add(candidate.index);
 
       results.push({
-        noteTime: closestNote.endTime!, // Use endTime for tail
-        column: closestNote.column,
+        noteTime: candidate.note.endTime,
+        column: candidate.note.column,
         judgment,
         hitTime: event.time,
         isLongNote: true,
-        endTime: closestNote.endTime,
+        endTime: candidate.note.endTime,
       });
     }
   }
 
-  // Find the last key event time to determine which notes should have been judged
-  const allTimes = events.map(e => e.time);
-  const lastEventTime = allTimes.length > 0 ? Math.max(...allTimes) : 0;
+  // Add misses for notes that weren't hit
+  for (let i = 0; i < sortedNotes.length; i++) {
+    const note = sortedNotes[i];
 
-  // Add misses for notes that weren't hit and have passed the miss window
-  for (let i = 0; i < hitObjects.length; i++) {
-    const note = hitObjects[i];
-
-    // Check head miss - only if note has passed the miss window relative to last key event
-    // and the note was within replay time range
-    if (!hitNotes.has(i) && note.time + windows.miss < lastEventTime) {
+    // Check head miss
+    if (!hitNotes.has(i)) {
       results.push({
         noteTime: note.time,
         column: note.column,
@@ -276,8 +300,8 @@ export function calculateJudgments(
       });
     }
 
-    // Check LN tail miss - only if tail has passed miss window
-    if (note.isLongNote && note.endTime && !hitTails.has(i) && note.endTime + windows.miss < lastEventTime) {
+    // Check LN tail miss
+    if (note.isLongNote && note.endTime && !hitTails.has(i)) {
       results.push({
         noteTime: note.endTime,
         column: note.column,
@@ -291,6 +315,22 @@ export function calculateJudgments(
 
   // Sort by time
   results.sort((a, b) => a.noteTime - b.noteTime);
+
+  // Debug: print final statistics
+  const counts = { Perfect: 0, Great: 0, Good: 0, Ok: 0, Meh: 0, Miss: 0 };
+  for (const r of results) {
+    if (r.judgment && counts[r.judgment as keyof typeof counts] !== undefined) {
+      counts[r.judgment as keyof typeof counts]++;
+    }
+  }
+  console.log("=== Judgment Stats (v2) ===");
+  console.log(`Perfect: ${counts.Perfect}x320`);
+  console.log(`Great: ${counts.Great}x300`);
+  console.log(`Good: ${counts.Good}x200`);
+  console.log(`Ok: ${counts.Ok}x100`);
+  console.log(`Meh: ${counts.Meh}x50`);
+  console.log(`Miss: ${counts.Miss}xMiss`);
+  console.log(`Total: ${counts.Perfect * 320 + counts.Great * 300 + counts.Good * 200 + counts.Ok * 100 + counts.Meh * 50}`);
 
   return results;
 }
