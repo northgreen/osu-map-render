@@ -343,22 +343,33 @@ async function main() {
     console.log(`Storyboard file not found: ${osbSrc}`);
   }
 
-  // Copy all image files referenced in storyboard
+  // Copy all image files referenced in storyboard (including subdirectories)
   const storyboardDir = path.join(sourceDir, "Storyboard");
   if (fs.existsSync(storyboardDir)) {
     const sbDestDir = path.join(publicDir, "Storyboard");
     if (!fs.existsSync(sbDestDir)) {
       fs.mkdirSync(sbDestDir, { recursive: true });
     }
-    const storyboardFiles = fs.readdirSync(storyboardDir);
-    for (const file of storyboardFiles) {
-      const src = path.join(storyboardDir, file);
-      const dest = path.join(sbDestDir, file);
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, dest);
+
+    // Recursively copy all files in Storyboard folder
+    function copyDirRecursive(src: string, dest: string) {
+      if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+      }
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+          copyDirRecursive(srcPath, destPath);
+        } else if (entry.isFile()) {
+          fs.copyFileSync(srcPath, destPath);
+        }
       }
     }
-    console.log(`Copied ${storyboardFiles.length} storyboard assets`);
+
+    copyDirRecursive(storyboardDir, sbDestDir);
+    console.log(`Copied storyboard assets from ${storyboardDir}`);
   }
 
   // Write the parsed beatmap to a JSON file for import

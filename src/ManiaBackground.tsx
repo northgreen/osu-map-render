@@ -1,12 +1,17 @@
 import { AbsoluteFill, staticFile, Img } from "remotion";
 import { beatmap as importedBeatmap } from "./lib/osuParser";
 import { config, STAGE_X } from "./config";
+import { StoryboardLayer, storyboard } from "./lib/StoryboardLayer";
 
 interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
+  isFailing?: boolean; // Controls Pass/Fail storyboard layer visibility
 }
 
-export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({ beatmap = importedBeatmap }) => {
+export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
+  beatmap = importedBeatmap,
+  isFailing = false,
+}) => {
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
 
@@ -16,7 +21,7 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({ beatmap = impo
       "--stage-x": `${STAGE_X}px`,
       "--stage-width": `${config.stageWidth}px`,
     } as React.CSSProperties}>
-      {/* Background image */}
+      {/* Background image - rendered FIRST, behind everything */}
       {bgFileName && (
         <div
           style={{
@@ -40,6 +45,17 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({ beatmap = impo
         </div>
       )}
 
+      {/* Storyboard layers - rendered ON TOP of background image */}
+      <StoryboardLayer storyboard={storyboard} layer="Background" />
+
+      {/* Storyboard layer - Fail (only when failing) */}
+      <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
+
+      {/* Storyboard layer - Pass (only when passing/not failing) */}
+      <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
+
+      {/* Storyboard layer - Foreground (always visible) */}
+      <StoryboardLayer storyboard={storyboard} layer="Foreground" />
     </AbsoluteFill>
   );
 };
