@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { listFiles, selectFile, matchFile, getCheartDir } from "./selectFile";
 
 interface BeatmapMetadata {
   title: string;
@@ -250,24 +251,56 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
   };
 }
 
-const beatmapPath = path.join(
-  process.cwd(),
-  "cheart",
-  "Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu"
-);
+// Default beatmap (fallback)
+const DEFAULT_BEATMAP =
+  "Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu";
 
-console.log("Looking for file:", beatmapPath);
-console.log("File exists:", fs.existsSync(beatmapPath));
+async function main() {
+  const args = process.argv.slice(2);
+  const searchTerm = args[0];
+  const cheartDir = getCheartDir();
+  const osuFiles = listFiles(cheartDir, ".osu");
 
-const beatmap = parseOsuFile(beatmapPath);
+  if (osuFiles.length === 0) {
+    console.error("No .osu files found in cheart/ folder");
+    process.exit(1);
+  }
 
-// Write the parsed beatmap to a JSON file for import
-fs.writeFileSync(
-  path.join(process.cwd(), "src", "lib", "beatmap.json"),
-  JSON.stringify(beatmap, null, 2)
-);
+  let selectedFile: string | null = null;
 
-console.log("Beatmap parsed and saved to src/lib/beatmap.json");
-console.log(`Found ${beatmap.hitObjects.length} hit objects`);
-console.log(`Title: ${beatmap.metadata.title}`);
-console.log(`Difficulty: ${beatmap.metadata.version}`);
+  if (searchTerm) {
+    // Try to match the search term
+    selectedFile = matchFile(searchTerm, osuFiles);
+    if (!selectedFile && osuFiles.length <= 3) {
+      // If match failed and only a few files, don't ask - just use default
+      console.log("Using default beatmap.");
+    } else if (!selectedFile) {
+      // Multiple matches or no match - let user choose
+      selectedFile = await selectFile("Available beatmaps:", osuFiles);
+    }
+  } else {
+    // No argument - show menu
+    selectedFile = await selectFile("Select a beatmap:", osuFiles);
+  }
+
+  const beatmapFile = selectedFile || DEFAULT_BEATMAP;
+  const beatmapPath = path.join(cheartDir, beatmapFile);
+
+  console.log(`\nLooking for file: ${beatmapFile}`);
+  console.log(`File exists: ${fs.existsSync(beatmapPath)}`);
+
+  const beatmap = parseOsuFile(beatmapPath);
+
+  // Write the parsed beatmap to a JSON file for import
+  fs.writeFileSync(
+    path.join(process.cwd(), "src", "lib", "beatmap.json"),
+    JSON.stringify(beatmap, null, 2)
+  );
+
+  console.log("Beatmap parsed and saved to src/lib/beatmap.json");
+  console.log(`Found ${beatmap.hitObjects.length} hit objects`);
+  console.log(`Title: ${beatmap.metadata.title}`);
+  console.log(`Difficulty: ${beatmap.metadata.version}`);
+}
+
+main();

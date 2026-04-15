@@ -14,6 +14,13 @@ import "./lib/replay"; // Force import replay.json
 // Nested Props Schema
 // ============================================
 
+
+export const maniaRenderContentsSchema = z.object( {
+  trackHeight:z.boolean().default(true),
+  replayCursor:z.boolean().default(true),
+  sessionLine:z.boolean().default(true),
+})
+
 export const maniaRenderSchema = z.object({
   time: z.object({
     beatOffset: z.number().min(0),
@@ -112,7 +119,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           time: { beatOffset: 900, timeOffset: 0 },
           scroll: { scrollSpeed: 20 },
-          judgment: { mode: "v2" as const, offset: 0, showZones: false },
+          judgment: { mode: "v2" as const, offset: -15, showZones: false },
           layout: { stageOffset: 642, judgmentLineY: 1000 },
         }}
       />

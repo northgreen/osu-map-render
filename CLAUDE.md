@@ -12,8 +12,10 @@ This is a Remotion project for rendering osu!mania beatmap videos. Remotion is a
 rtk npm run dev                          # Start Remotion Studio (live preview)
 rtk npm run build                        # Bundle the project (auto-runs parse)
 rtk npm run lint                         # Run ESLint + TypeScript
-rtk npm run parse                        # Parse beatmap to JSON (run manually if needed)
-rtk npm run parse:replay                 # Parse .osr replay file to JSON
+rtk npm run parse                        # Parse beatmap to JSON (shows menu if multiple files)
+rtk npm run parse -- "keyword"           # Parse beatmap matching keyword (fuzzy search)
+rtk npm run parse:replay                # Parse .osr replay file to JSON
+rtk npm run parse:replay -- "keyword"    # Parse replay matching keyword
 rtk npx remotion render ManiaRender out/video.mp4  # Render full osu!mania video
 rtk npx remotion render ManiaStageOnly out/video.mp4  # Stage layer only (notes, hit effects)
 rtk npx remotion render ManiaBackground out/video.mp4  # Background layer only
@@ -80,16 +82,21 @@ Located in `src/lib/judgment.ts`:
 
 ## Beatmap Source
 
-Beatmaps are parsed from `cheart/` folder. Current target:
-`cheart/Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu`
+Beatmaps are stored in `cheart/` folder. Run `npm run parse` to select a beatmap (shows interactive menu if multiple .osu files exist).
+
+```bash
+npm run parse                  # Interactive menu to select beatmap
+npm run parse -- "Extreme"     # Fuzzy search by keyword
+```
 
 ## Replay Data (.osr)
 
-To include player replay data in renders:
-1. Place your .osr file in `cheart/` folder
-2. Update the filename in `scripts/parseReplay.ts`
-3. Run `npm run parse:replay` to parse to JSON
-4. Replay data is auto-imported in `src/lib/replay.ts`
+Place your .osr file in `replay/` folder, then run `npm run parse:replay`.
+
+```bash
+npm run parse:replay                 # Interactive menu or default replay
+npm run parse:replay -- "filename"   # Fuzzy search by keyword
+```
 
 Use `src/lib/osrParser.ts` to parse replay files:
 - `parseOsuReplay(path)` - Parse .osr file
