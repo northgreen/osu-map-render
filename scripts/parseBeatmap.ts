@@ -291,6 +291,76 @@ async function main() {
 
   const beatmap = parseOsuFile(beatmapPath);
 
+  // Get source directory (where the .osu file is located)
+  const sourceDir = path.dirname(beatmapPath);
+  const projectDir = process.cwd();
+
+  // Ensure public directory exists
+  const publicDir = path.join(projectDir, "public");
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+
+  // Copy audio file to public folder
+  if (beatmap.audioFile) {
+    const audioSrc = path.join(sourceDir, beatmap.audioFile);
+    const audioDest = path.join(publicDir, "audio.mp3");
+    if (fs.existsSync(audioSrc)) {
+      fs.copyFileSync(audioSrc, audioDest);
+      console.log(`Copied audio: ${beatmap.audioFile}`);
+    } else {
+      console.log(`Audio file not found: ${audioSrc}`);
+    }
+  }
+
+  // Copy background image to public folder (keep original filename)
+  if (beatmap.backgroundImage) {
+    // Remove quotes if present
+    const bgFile = beatmap.backgroundImage.replace(/^"|"$/g, '');
+    const bgSrc = path.join(sourceDir, bgFile);
+    const bgDest = path.join(publicDir, bgFile);
+    if (fs.existsSync(bgSrc)) {
+      fs.copyFileSync(bgSrc, bgDest);
+      console.log(`Copied background: ${bgFile}`);
+    } else {
+      console.log(`Background file not found: ${bgSrc}`);
+    }
+  }
+
+  // Copy .osb storyboard file if exists
+  // Try different possible locations: same directory as .osu, or base directory
+  let osbSrc = path.join(sourceDir, beatmapFile.replace(".osu", ".osb"));
+  if (!fs.existsSync(osbSrc)) {
+    // Try base directory (osb might be in parent folder without difficulty suffix)
+    const baseName = beatmapFile.replace(/\s*\[[^\]]+\]\.osu$/, ".osb");
+    osbSrc = path.join(cheartDir, baseName);
+  }
+  const osbDest = path.join(publicDir, "storyboard.osb");
+  if (fs.existsSync(osbSrc)) {
+    fs.copyFileSync(osbSrc, osbDest);
+    console.log(`Copied storyboard: ${path.basename(osbSrc)}`);
+  } else {
+    console.log(`Storyboard file not found: ${osbSrc}`);
+  }
+
+  // Copy all image files referenced in storyboard
+  const storyboardDir = path.join(sourceDir, "Storyboard");
+  if (fs.existsSync(storyboardDir)) {
+    const sbDestDir = path.join(publicDir, "Storyboard");
+    if (!fs.existsSync(sbDestDir)) {
+      fs.mkdirSync(sbDestDir, { recursive: true });
+    }
+    const storyboardFiles = fs.readdirSync(storyboardDir);
+    for (const file of storyboardFiles) {
+      const src = path.join(storyboardDir, file);
+      const dest = path.join(sbDestDir, file);
+      if (fs.statSync(src).isFile()) {
+        fs.copyFileSync(src, dest);
+      }
+    }
+    console.log(`Copied ${storyboardFiles.length} storyboard assets`);
+  }
+
   // Write the parsed beatmap to a JSON file for import
   fs.writeFileSync(
     path.join(process.cwd(), "src", "lib", "beatmap.json"),
