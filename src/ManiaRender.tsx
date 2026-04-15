@@ -8,11 +8,17 @@ import "./lib/replay"; // Force import replay.json
 
 // Create a wrapper component with defaultProps
 const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
-  const { time, scroll, judgment, layout } = props;
-  const { beatOffset = 900, timeOffset = 0 } = time || {};
-  const { scrollSpeed = 20 } = scroll || {};
-  const { mode = "v2", offset = 0, showZones = false } = judgment || {};
-  const { stageOffset = 0, judgmentLineY = 900 } = layout || {};
+  const {
+    time = { beatOffset: 900, timeOffset: 0 },
+    scroll = { scrollSpeed: 20 },
+    judgment = { mode: "v2", offset: 0, showZones: false },
+    layout = { stageOffset: 0, judgmentLineY: 900 }
+  } = props;
+
+  const { beatOffset, timeOffset } = time;
+  const { scrollSpeed } = scroll;
+  const { mode, offset, showZones } = judgment;
+  const { stageOffset, judgmentLineY } = layout;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>

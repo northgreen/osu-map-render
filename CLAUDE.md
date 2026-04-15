@@ -9,16 +9,16 @@ This is a Remotion project for rendering osu!mania beatmap videos. Remotion is a
 ## Commands
 
 ```bash
-npm run dev                          # Start Remotion Studio (live preview)
-npm run build                        # Bundle the project (auto-runs parse)
-npm run lint                         # Run ESLint + TypeScript
-npm run parse                        # Parse beatmap to JSON (run manually if needed)
-npm run parse:replay                 # Parse .osr replay file to JSON
-npx remotion render ManiaRender out/video.mp4  # Render full osu!mania video
-npx remotion render ManiaStageOnly out/video.mp4  # Stage layer only (notes, hit effects)
-npx remotion render ManiaBackground out/video.mp4  # Background layer only
-npx remotion render ManiaOverlayOnly out/video.mp4  # Overlay only (score, metadata)
-npm run upgrade                      # Upgrade Remotion version
+rtk npm run dev                          # Start Remotion Studio (live preview)
+rtk npm run build                        # Bundle the project (auto-runs parse)
+rtk npm run lint                         # Run ESLint + TypeScript
+rtk npm run parse                        # Parse beatmap to JSON (run manually if needed)
+rtk npm run parse:replay                 # Parse .osr replay file to JSON
+rtk npx remotion render ManiaRender out/video.mp4  # Render full osu!mania video
+rtk npx remotion render ManiaStageOnly out/video.mp4  # Stage layer only (notes, hit effects)
+rtk npx remotion render ManiaBackground out/video.mp4  # Background layer only
+rtk npx remotion render ManiaOverlayOnly out/video.mp4  # Overlay only (score, metadata)
+rtk npm run upgrade                      # Upgrade Remotion version
 ```
 
 ## Architecture
