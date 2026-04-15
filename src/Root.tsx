@@ -15,10 +15,11 @@ import "./lib/replay"; // Force import replay.json
 // ============================================
 
 
-export const maniaRenderContentsSchema = z.object( {
-  trackHeight:z.boolean().default(true),
-  replayCursor:z.boolean().default(true),
-  sessionLine:z.boolean().default(true),
+export const maniaRenderContentsSchema = z.object({
+  trackHeight: z.boolean().default(true),
+  columnhigHlights: z.boolean().default(true),
+  replayCursor: z.boolean().default(true),
+  sessionLine: z.boolean().default(true),
 })
 
 export const maniaRenderSchema = z.object({
@@ -38,6 +39,14 @@ export const maniaRenderSchema = z.object({
     stageOffset: z.number().default(0),
     judgmentLineY: z.number().min(100).max(1000).default(900),
   }),
+  contents: maniaRenderContentsSchema.default(
+    {
+      trackHeight: true,
+      columnhigHlights: true,
+      replayCursor: true,
+      sessionLine: true,
+    }
+  ),
 });
 
 export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
@@ -58,13 +67,18 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
   const {
     scroll = { scrollSpeed: 20 },
     judgment = { showZones: false },
-    layout = { stageOffset: 0, judgmentLineY: 900 }
+    layout = { stageOffset: 0, judgmentLineY: 900 },
+    contents = {},
   } = props;
 
   const scrollSpeed = scroll.scrollSpeed;
   const showZones = judgment.showZones;
   const stageOffset = layout.stageOffset;
   const judgmentLineY = layout.judgmentLineY;
+
+  // Parse contents with defaults
+  const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
+  const { trackHeight, replayCursor, sessionLine, columnhigHlights } = contentsWithDefaults;
 
   // Debug: log received props
   console.log("ManiaStageOnly received props:", JSON.stringify(props));
@@ -79,6 +93,10 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
         showJudgmentZones={showZones}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}
+        showReplayCursor={replayCursor}
+        showJudgmentLine={trackHeight}
+        showBeatLines={sessionLine}
+        showColumnHighlights={columnhigHlights}
       />
     </AbsoluteFill>
   );
@@ -121,6 +139,12 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: -15, showZones: false },
           layout: { stageOffset: 642, judgmentLineY: 1000 },
+          contents: {
+            trackHeight: true,
+            columnhigHlights: true,
+            replayCursor: true,
+            sessionLine: true,
+          },
         }}
       />
 
@@ -153,6 +177,12 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 507, judgmentLineY: 1000 },
+          contents: {
+            trackHeight: true,
+            columnhigHlights: false,
+            replayCursor: true,
+            sessionLine: true,
+          },
         }}
       />
 
@@ -199,6 +229,12 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 30 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 499, judgmentLineY: 1000 },
+          contents: {
+            trackHeight: true,
+            columnhigHlights: true,
+            replayCursor: true,
+            sessionLine: true,
+          },
         }}
       />
     </>

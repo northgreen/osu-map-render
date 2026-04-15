@@ -25,6 +25,10 @@ interface ManiaStageLayerProps {
   showJudgmentZones?: boolean;
   stageOffset?: number;
   judgmentLineY?: number;
+  showReplayCursor?: boolean;
+  showJudgmentLine?: boolean;
+  showBeatLines?: boolean;
+  showColumnHighlights?: boolean;
 }
 
 // Generate beat lines based on timing points
@@ -67,13 +71,17 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   showJudgmentZones = false,
   stageOffset = 0,
   judgmentLineY = JUDGMENT_LINE_Y,
+  showReplayCursor = true,
+  showJudgmentLine = true,
+  showBeatLines = true,
+  showColumnHighlights = true,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   // Debug: log props at frame 0
   if (frame === 0) {
-    console.log("ManiaStageLayer props:", { stageOffset, judgmentLineY, scrollSpeed });
+    console.log("ManiaStageLayer props:", { stageOffset, judgmentLineY, scrollSpeed, showReplayCursor, showJudgmentLine, showBeatLines, showColumnHighlights });
   }
 
   if (!beatmap) {
@@ -193,7 +201,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   return (
     <AbsoluteFill>
       {/* Beat lines */}
-      {beatLines.map((time, i) => {
+      {showBeatLines && beatLines.map((time, i) => {
         // Apply beatOffset so beat lines start appearing at the right time
         const adjustedTime = time + beatOffset;
         const timeUntilHit = adjustedTime - currentTime;
@@ -240,6 +248,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       </div>
 
       {/* Judgment line */}
+      {showJudgmentLine && (
       <div
         className="judgment-line"
         style={{
@@ -251,6 +260,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           boxShadow: "0 0 15px #00ff88",
         }}
       />
+      )}
 
       {/* Judgment zones - colored rectangles showing timing windows */}
       {showJudgmentZones && visibleTime > 0 && hitObjects.map((note, index) => {
@@ -355,7 +365,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       ))}
 
       {/* Replay cursor - shows player key presses falling */}
-      <ReplayCursor scrollSpeed={scrollSpeed} stageOffset={stageOffset} judgmentLineY={judgmentLineY} />
+      {showReplayCursor && <ReplayCursor scrollSpeed={scrollSpeed} stageOffset={stageOffset} judgmentLineY={judgmentLineY} />}
 
       {/* Key press indicators at bottom */}
       {COLUMN_POSITIONS_STAGE.map((pos, i) => {
@@ -378,7 +388,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       })}
 
       {/* Column highlights when key is pressed (with fade-out) */}
-      {COLUMN_POSITIONS_STAGE.map((pos, i) => {
+      {showColumnHighlights && COLUMN_POSITIONS_STAGE.map((pos, i) => {
         const isPressed = pressedKeys[i];
         const opacity = getColumnOpacity(i, isPressed);
 
