@@ -6,7 +6,7 @@ import {
   NOTE_HEIGHT,
   NOTE_WIDTH,
   JUDGMENT_LINE_Y,
-  COLUMN_POSITIONS_NOTE,
+  config,
 } from "./config";
 import { getJudgmentResults, JudgmentResult, getJudgmentColor, clearJudgmentCache } from "./lib/judgment";
 
@@ -50,7 +50,7 @@ export const JudgmentIndicator: React.FC<JudgmentIndicatorProps> = ({
     if (!j.isLongNote) {
       // Show briefly when note is hit (around judgment line)
       if (Math.abs(timeUntilNote) < 100) {
-        const posX = COLUMN_POSITIONS_NOTE[j.column];
+        const posX = config.columnPositionsNote[j.column];
         indicators.push(
           <div
             key={`judge-${i}`}

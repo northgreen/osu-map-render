@@ -7,16 +7,12 @@ import { replay } from "./lib/replay";
 import { getHitWindows } from "./lib/judgment";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
-  COLUMN_POSITIONS_STAGE,
-  COLUMN_POSITIONS_NOTE,
-  COLUMN_WIDTH,
-  COLUMN_COLORS,
   NOTE_WIDTH,
   NOTE_HEIGHT,
-  STAGE_WIDTH,
   STAGE_X,
   JUDGMENT_LINE_Y,
   HIT_EFFECT_DURATION,
+  config,
 } from "./config";
 
 interface ManiaStageLayerProps {
@@ -222,7 +218,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         }}
       >
         {/* Column dividers */}
-        {COLUMN_POSITIONS_STAGE.slice(1).map((pos, i) => (
+        {config.columnPositionsStage.slice(1).map((pos, i) => (
           <div
             key={i}
             className="column-divider"
@@ -241,7 +237,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         style={{
           left: stageX,
           top: judgmentY,
-          width: STAGE_WIDTH,
+          width: config.stageWidth,
           height: 4,
           backgroundColor: "#00ff88",
           boxShadow: "0 0 15px #00ff88",
@@ -273,8 +269,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         ];
 
         const column = Math.min(note.column, 3);
-        // Use COLUMN_POSITIONS_NOTE + stageOffset to match note positioning (same as ManiaNote)
-        const posX = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2 + stageOffset;
+        // Use config.columnPositionsNote + stageOffset to match note positioning (same as ManiaNote)
+        const posX = config.columnPositionsNote[column] - NOTE_WIDTH / 2 + stageOffset;
 
         // Calculate zone heights based on time windows (converted to pixels)
         const msToPixels = (ms: number) => {
@@ -356,16 +352,16 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {showReplayCursor && <ReplayCursor scrollSpeed={scrollSpeed} stageOffset={stageOffset} judgmentLineY={judgmentLineY} />}
 
       {/* Key press indicators at bottom */}
-      {COLUMN_POSITIONS_STAGE.map((pos, i) => {
+      {config.columnPositionsStage.map((pos, i) => {
         const isPressed = pressedKeys[i];
         return (
           <div
             key={`key-${i}`}
             className={`key-indicator column-${i} ${isPressed ? 'pressed' : ''}`}
             style={{
-              left: stageX + pos - COLUMN_WIDTH / 2,
+              left: stageX + pos - config.columnWidth / 2,
               top: judgmentY + 10,
-              width: COLUMN_WIDTH,
+              width: config.columnWidth,
               height: 60,
             }}
           >
@@ -375,7 +371,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       })}
 
       {/* Column highlights when key is pressed (with fade-out) */}
-      {showColumnHighlights && COLUMN_POSITIONS_STAGE.map((pos, i) => {
+      {showColumnHighlights && config.columnPositionsStage.map((pos, i) => {
         const isPressed = pressedKeys[i];
         const opacity = getColumnOpacity(i, isPressed);
 
@@ -386,8 +382,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`col-highlight-${i}`}
             className={`column-highlight column-${i}`}
             style={{
-              left: stageX + pos - COLUMN_WIDTH / 2,
-              width: COLUMN_WIDTH,
+              left: stageX + pos - config.columnWidth / 2,
+              width: config.columnWidth,
               opacity,
             }}
           />
@@ -406,8 +402,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         if (!isActive) return null;
 
         const column = Math.min(note.column, 3);
-        const posX = COLUMN_POSITIONS_STAGE[column];
-        const color = COLUMN_COLORS[column];
+        const posX = config.columnPositionsStage[column];
+        const color = config.columnColors[column];
 
         const timeSinceHit = currentTime - startTime;
         const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
@@ -420,9 +416,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             key={`col-hit-${startTime}-${note.column}-${index}`}
             style={{
               position: "absolute",
-              left: stageX + posX - COLUMN_WIDTH / 2,
+              left: stageX + posX - config.columnWidth / 2,
               top: 0,
-              width: COLUMN_WIDTH,
+              width: config.columnWidth,
               height: 1080,
               backgroundColor: color,
               opacity,
@@ -435,7 +431,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {/* Hit effects - note flash */}
       {hitObjects.map((note, index) => {
         const column = Math.min(note.column, 3);
-        const posX = COLUMN_POSITIONS_STAGE[column];
+        const posX = config.columnPositionsStage[column];
         const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
         const color = colors[column];
 
@@ -456,9 +452,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                     key={`hit-${flashTime}-${note.column}-${index}-${flashIndex}`}
                     style={{
                       position: "absolute",
-                      left: stageX + posX - COLUMN_WIDTH / 2,
+                      left: stageX + posX - config.columnWidth / 2,
                       top: judgmentY,
-                      width: COLUMN_WIDTH,
+                      width: config.columnWidth,
                       height: NOTE_HEIGHT,
                       backgroundColor: color,
                       opacity: 1 - progress,

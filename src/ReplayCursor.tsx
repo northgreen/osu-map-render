@@ -9,9 +9,8 @@ import {
   NOTE_HEIGHT,
   NOTE_WIDTH,
   JUDGMENT_LINE_Y,
-  COLUMN_POSITIONS_STAGE,
   STAGE_X,
-  COLUMN_COLORS,
+  config,
 } from "./config";
 
 function getVisibleTime(scrollSpeed: number): number {
@@ -70,8 +69,8 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
     const height = Math.abs(startY - endY);
     if (height < 2) continue;
 
-    const posX = COLUMN_POSITIONS_STAGE[interval.column];
-    const baseColor = COLUMN_COLORS[interval.column];
+    const posX = config.columnPositionsStage[interval.column];
+    const baseColor = config.columnColors[interval.column];
 
     // Find head judgment (key press)
     let headJudgmentColor = baseColor;

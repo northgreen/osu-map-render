@@ -165,16 +165,21 @@ export function getColumnPositionsNote(keyCount: number): number[] {
 
 /**
  * Get stage width for a specific key count
+ * For key counts > 4, expand stage proportionally
  */
 export function getStageWidth(keyCount: number): number {
-  return STAGE_WIDTH_BASE;
+  if (keyCount <= 4) {
+    return STAGE_WIDTH_BASE;
+  }
+  // For key counts > 4, expand stage width proportionally
+  return STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
 }
 
 /**
  * Get column width for a specific key count
  */
 export function getColumnWidth(keyCount: number): number {
-  return STAGE_WIDTH_BASE / keyCount;
+  return getStageWidth(keyCount) / keyCount;
 }
 
 // ============================================
@@ -195,7 +200,7 @@ export let COLUMN_COLORS = COLUMN_COLORS_MAP[4];
 export function setKeyCount(count: number) {
   _keyCount = Math.max(1, count);
   KEY_COUNT = _keyCount;
-  COLUMN_WIDTH = STAGE_WIDTH_BASE / _keyCount;
+  COLUMN_WIDTH = getColumnWidth(_keyCount);
   COLUMN_POSITIONS_STAGE = getColumnPositionsStage(_keyCount);
   COLUMN_POSITIONS_NOTE = getColumnPositionsNote(_keyCount);
   COLUMN_COLORS = getColumnColors(_keyCount);
@@ -208,8 +213,8 @@ export function getKeyCount(): number {
 // Dynamic config object - alternative access method
 export const config = {
   get keyCount() { return _keyCount; },
-  get stageWidth() { return STAGE_WIDTH_BASE; },
-  get columnWidth() { return STAGE_WIDTH_BASE / _keyCount; },
+  get stageWidth() { return getStageWidth(_keyCount); },
+  get columnWidth() { return getColumnWidth(_keyCount); },
   get columnPositionsStage() { return getColumnPositionsStage(_keyCount); },
   get columnPositionsNote() { return getColumnPositionsNote(_keyCount); },
   get columnColors() { return getColumnColors(_keyCount); },
