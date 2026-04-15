@@ -4,6 +4,7 @@ import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
 import { beatmap as importedBeatmap, getBeatmapDuration } from "./lib/osuParser";
 import { ManiaRenderProps, maniaRenderContentsSchema } from "./Root";
+import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
 import "./lib/replay"; // Force import replay.json
 
 // Create a wrapper component with defaultProps
@@ -18,12 +19,19 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
 
   const { beatOffset, timeOffset } = time;
   const { scrollSpeed } = scroll;
-  const { mode, offset, showZones } = judgment;
+  const { mode, offset, showZones, customWindows } = judgment;
   const { stageOffset, judgmentLineY } = layout;
 
   // Merge with defaults from schema
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
   const { trackHeight, replayCursor, sessionLine, columnhigHlights } = contentsWithDefaults;
+
+  // Set judgment mode and custom windows
+  setJudgmentMode(mode);
+  setJudgmentOffset(offset);
+  if (customWindows) {
+    setCustomWindows(customWindows);
+  }
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>

@@ -2,13 +2,24 @@ import { replay } from "./replay";
 import { HitObject } from "../osuParser";
 
 // ============================================
-// Judgment Mode: v1 (Classic) or v2 (ScoreV2)
+// Judgment Mode: v1 (Classic), v2 (ScoreV2), or custom
 // ============================================
 
-export type JudgmentMode = "v1" | "v2";
+export type JudgmentMode = "v1" | "v2" | "custom";
 
 let currentJudgmentMode: JudgmentMode = "v1";
 let currentJudgmentOffset: number = 0;
+
+// Custom judgment windows (in ms)
+interface CustomHitWindows {
+  perfect?: number;
+  great?: number;
+  good?: number;
+  ok?: number;
+  meh?: number;
+}
+
+let currentCustomWindows: CustomHitWindows = {};
 
 export function setJudgmentMode(mode: JudgmentMode): void {
   currentJudgmentMode = mode;
@@ -25,6 +36,15 @@ export function setJudgmentOffset(offset: number): void {
 
 export function getJudgmentOffset(): number {
   return currentJudgmentOffset;
+}
+
+export function setCustomWindows(windows: CustomHitWindows): void {
+  currentCustomWindows = windows;
+  clearJudgmentCache();
+}
+
+export function getCustomWindows(): CustomHitWindows {
+  return currentCustomWindows;
 }
 
 // ============================================
@@ -91,6 +111,17 @@ function getHitWindowsV1(od: number): HitWindows {
 
 // Get hit windows based on current mode
 export function getHitWindows(od: number): HitWindows {
+  if (currentJudgmentMode === "custom") {
+    // Use custom windows with fallback to v2 defaults
+    return {
+      perfect: currentCustomWindows.perfect ?? 19.5,
+      great: currentCustomWindows.great ?? 49,
+      good: currentCustomWindows.good ?? 82,
+      ok: currentCustomWindows.ok ?? 112,
+      meh: currentCustomWindows.meh ?? 136,
+      miss: currentCustomWindows.meh ? currentCustomWindows.meh + 37 : 173,
+    };
+  }
   return currentJudgmentMode === "v2" ? getHitWindowsV2(od) : getHitWindowsV1(od);
 }
 

@@ -8,6 +8,7 @@ import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
 import { ReplayCursorLayer } from "./ReplayCursorLayer";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
+import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
 import "./lib/replay"; // Force import replay.json
 
 // ============================================
@@ -31,9 +32,16 @@ export const maniaRenderSchema = z.object({
     scrollSpeed: z.number().min(5).max(50),
   }),
   judgment: z.object({
-    mode: z.enum(["v1", "v2"]).default("v1"),
+    mode: z.enum(["v1", "v2", "custom"]).default("v2"),
     offset: z.number().default(0),
     showZones: z.boolean().default(false),
+    customWindows: z.object({
+      perfect: z.number().optional(),
+      great: z.number().optional(),
+      good: z.number().optional(),
+      ok: z.number().optional(),
+      meh: z.number().optional(),
+    }).optional(),
   }),
   layout: z.object({
     stageOffset: z.number().default(0),
@@ -66,15 +74,22 @@ function getBeatOffset(): number {
 const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
   const {
     scroll = { scrollSpeed: 20 },
-    judgment = { showZones: false },
+    judgment = { mode: "v2", offset: 0, showZones: false },
     layout = { stageOffset: 0, judgmentLineY: 900 },
     contents = {},
   } = props;
 
   const scrollSpeed = scroll.scrollSpeed;
-  const showZones = judgment.showZones;
+  const { mode, offset, showZones, customWindows } = judgment;
   const stageOffset = layout.stageOffset;
   const judgmentLineY = layout.judgmentLineY;
+
+  // Set judgment mode and custom windows
+  setJudgmentMode(mode);
+  setJudgmentOffset(offset);
+  if (customWindows) {
+    setCustomWindows(customWindows);
+  }
 
   // Parse contents with defaults
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
@@ -137,7 +152,18 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           time: { beatOffset: 900, timeOffset: 0 },
           scroll: { scrollSpeed: 20 },
-          judgment: { mode: "v2" as const, offset: -15, showZones: false },
+          judgment: {
+            mode: "custom" as const,
+            offset: -15,
+            showZones: false,
+            customWindows: {
+              perfect: 16.5,
+              great: 41.5,
+              good: 74.5,
+              ok: 104.5,
+              meh: 128.5,
+            },
+          },
           layout: { stageOffset: 642, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
