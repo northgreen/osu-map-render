@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
+import { getKeyIntervals } from "./lib/judgment";
 import { getJudgmentResults, getJudgmentColor, JudgmentResult } from "./lib/judgment";
 import { beatmap } from "./lib/osuParser";
 import {
@@ -10,6 +11,7 @@ import {
   JUDGMENT_LINE_Y,
   COLUMN_POSITIONS_STAGE,
   STAGE_X,
+  COLUMN_COLORS,
 } from "./config";
 
 function getVisibleTime(scrollSpeed: number): number {
@@ -22,64 +24,6 @@ interface ReplayCursorProps {
   judgmentLineY?: number;
 }
 
-// Find all key press intervals (press time, release time, column)
-function getKeyPressIntervals() {
-  const intervals: { start: number; end: number; column: number }[] = [];
-
-  if (!replay?.replayData) return intervals;
-
-  // Calculate cumulative times - just sum up timeOffsets like osu does
-  let cumulativeTime = 0;
-  const times: number[] = [];
-
-  for (let i = 0; i < replay.replayData.length; i++) {
-    const frame = replay.replayData[i];
-    cumulativeTime += frame.timeOffset;
-    times.push(cumulativeTime);
-  }
-
-  // Debug
-  console.log("ReplayCursor first 10 times:", times.slice(0, 10));
-
-  // Track key state per column
-  const keyState = [false, false, false, false];
-  const keyStartTime = [0, 0, 0, 0];
-
-  for (let i = 0; i < replay.replayData.length; i++) {
-    const frame = replay.replayData[i];
-    const currentTime = times[i];
-    const keys = frame.x; // Use x field for mania key press bitmask
-
-    for (let col = 0; col < 4; col++) {
-      const isPressed = (keys & (1 << col)) !== 0;
-
-      if (isPressed && !keyState[col]) {
-        keyState[col] = true;
-        keyStartTime[col] = currentTime;
-      } else if (!isPressed && keyState[col]) {
-        keyState[col] = false;
-        if (keyStartTime[col] > 0) {
-          intervals.push({
-            start: keyStartTime[col],
-            end: currentTime,
-            column: col,
-          });
-        }
-      }
-    }
-  }
-
-  return intervals;
-}
-
-let keyIntervalsCache: { start: number; end: number; column: number }[] | null = null;
-
-function getKeyIntervals(): { start: number; end: number; column: number }[] {
-  if (keyIntervalsCache) return keyIntervalsCache;
-  keyIntervalsCache = getKeyPressIntervals();
-  return keyIntervalsCache;
-}
-
 export const ReplayCursor: React.FC<ReplayCursorProps> = ({
   scrollSpeed = DEFAULT_SCROLL_SPEED,
   stageOffset = 0,
@@ -89,19 +33,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
   const { fps } = useVideoConfig();
   const currentTime = (frame / fps) * 1000;
 
-  // Debug: log props at frame 0
-  if (frame === 0) {
-    console.log("ReplayCursor props:", { stageOffset, judgmentLineY: jy, scrollSpeed });
-  }
-
   const VISIBLE_TIME = getVisibleTime(scrollSpeed);
-
-  // Debug at frame 0
-  if (frame === 0) {
-    console.log("ReplayCursor START, frames:", replay?.replayData?.length);
-    const intervals = getKeyPressIntervals();
-    console.log("Key intervals found:", intervals.length);
-  }
 
   if (!replay?.replayData || replay.replayData.length === 0) {
     return null;
@@ -139,7 +71,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
     if (height < 2) continue;
 
     const posX = COLUMN_POSITIONS_STAGE[interval.column];
-    const baseColor = "#6978c2";
+    const baseColor = COLUMN_COLORS[interval.column];
 
     // Find head judgment (key press)
     let headJudgmentColor = baseColor;

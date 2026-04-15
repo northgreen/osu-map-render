@@ -7,6 +7,7 @@ import {
   NOTE_HEIGHT,
   JUDGMENT_LINE_Y,
   COLUMN_POSITIONS_NOTE,
+  COLUMN_COLORS,
 } from "./config";
 
 interface ManiaNoteProps {
@@ -58,8 +59,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
   const x = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2 + stageOffset;
 
   // Note color based on column
-  const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
-  const color = colors[column];
+  const color = COLUMN_COLORS[column];
 
   // === Render Long Note ===
   if (isLongNote && endTime) {

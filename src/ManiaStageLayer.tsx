@@ -1,19 +1,20 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { useMemo } from "react";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
 import { replay } from "./lib/replay";
-import { getHitWindows, getJudgmentMode, getJudgmentOffset } from "./lib/judgment";
+import { getHitWindows } from "./lib/judgment";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   COLUMN_POSITIONS_STAGE,
   COLUMN_POSITIONS_NOTE,
   COLUMN_WIDTH,
+  COLUMN_COLORS,
   NOTE_WIDTH,
   NOTE_HEIGHT,
   STAGE_WIDTH,
   STAGE_X,
-  STAGE_HEIGHT,
   JUDGMENT_LINE_Y,
   HIT_EFFECT_DURATION,
 } from "./config";
@@ -79,11 +80,6 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Debug: log props at frame 0
-  if (frame === 0) {
-    console.log("ManiaStageLayer props:", { stageOffset, judgmentLineY, scrollSpeed, showReplayCursor, showJudgmentLine, showBeatLines, showColumnHighlights });
-  }
-
   if (!beatmap) {
     return null;
   }
@@ -97,7 +93,6 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     : 60000;
 
   // Calculate visible time based on AR and scroll speed - use consistent BASE_VISIBLE_TIME
-  const difficulty = beatmap.difficulty;
   const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
   const visibleTime = baseVisibleTime * (10 / scrollSpeed);
 
@@ -108,24 +103,27 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   // Generate beat lines
   const beatLines = generateBeatLines(timingPoints, durationMs);
 
-  // Get pressed keys from replay
-  const getPressedKeys = () => {
-    const pressedColumns: boolean[] = [false, false, false, false];
-    if (!replay?.replayData) return pressedColumns;
-
-    // Calculate cumulative times - just sum up timeOffsets like osu does
-    let cumulativeTime = 0;
+  // Cache cumulative times array (computed once)
+  const cumulativeTimes = useMemo(() => {
+    if (!replay?.replayData) return [];
     const times: number[] = [];
-
+    let cumulativeTime = 0;
     for (let i = 0; i < replay.replayData.length; i++) {
       cumulativeTime += replay.replayData[i].timeOffset;
       times.push(cumulativeTime);
     }
+    return times;
+  }, [replay]);
+
+  // Get pressed keys from replay
+  const pressedKeys = useMemo(() => {
+    const pressedColumns: boolean[] = [false, false, false, false];
+    if (!replay?.replayData || cumulativeTimes.length === 0) return pressedColumns;
 
     // Find the last frame at or before currentTime
     let lastFrameIndex = -1;
-    for (let i = times.length - 1; i >= 0; i--) {
-      if (times[i] <= currentTime) {
+    for (let i = cumulativeTimes.length - 1; i >= 0; i--) {
+      if (cumulativeTimes[i] <= currentTime) {
         lastFrameIndex = i;
         break;
       }
@@ -143,28 +141,18 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     }
 
     return pressedColumns;
-  };
-
-  const pressedKeys = getPressedKeys();
+  }, [replay, cumulativeTimes, currentTime]);
 
   // Get key release times for fade-out effect
-  const getReleaseTimes = () => {
-    const releaseTimes: number[] = [0, 0, 0, 0];
-    if (!replay?.replayData) return releaseTimes;
-
-    let cumulativeTime = 0;
-    const times: number[] = [];
-
-    for (let i = 0; i < replay.replayData.length; i++) {
-      cumulativeTime += replay.replayData[i].timeOffset;
-      times.push(cumulativeTime);
-    }
+  const releaseTimes = useMemo(() => {
+    const times: number[] = [0, 0, 0, 0];
+    if (!replay?.replayData || cumulativeTimes.length === 0) return times;
 
     const keyState = [false, false, false, false];
+    const result = [0, 0, 0, 0];
 
-    for (let i = 0; i < times.length; i++) {
-      const time = times[i];
-      // Only record release times that are before or at current time
+    for (let i = 0; i < cumulativeTimes.length; i++) {
+      const time = cumulativeTimes[i];
       if (time > currentTime) break;
 
       const keys = replay.replayData[i].x;
@@ -173,16 +161,15 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         const isPressed = (keys & (1 << col)) !== 0;
 
         if (!isPressed && keyState[col]) {
-          releaseTimes[col] = time;
+          result[col] = time;
         }
         keyState[col] = isPressed;
       }
     }
 
-    return releaseTimes;
-  };
+    return result;
+  }, [replay, cumulativeTimes, currentTime]);
 
-  const releaseTimes = getReleaseTimes();
   const COLUMN_FADE_DURATION = 150;
 
   const getColumnOpacity = (columnIndex: number, isPressed: boolean) => {
@@ -371,7 +358,6 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {/* Key press indicators at bottom */}
       {COLUMN_POSITIONS_STAGE.map((pos, i) => {
         const isPressed = pressedKeys[i];
-        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
         return (
           <div
             key={`key-${i}`}
@@ -421,8 +407,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
         const column = Math.min(note.column, 3);
         const posX = COLUMN_POSITIONS_STAGE[column];
-        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
-        const color = colors[column];
+        const color = COLUMN_COLORS[column];
 
         const timeSinceHit = currentTime - startTime;
         const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
