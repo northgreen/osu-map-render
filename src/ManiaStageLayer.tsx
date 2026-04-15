@@ -286,7 +286,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         ];
 
         const column = Math.min(note.column, 3);
-        const posX = COLUMN_POSITIONS_NOTE[column];
+        // Use COLUMN_POSITIONS_NOTE + stageOffset to match note positioning (same as ManiaNote)
+        const posX = COLUMN_POSITIONS_NOTE[column] - NOTE_WIDTH / 2 + stageOffset;
 
         // Calculate zone heights based on time windows (converted to pixels)
         const msToPixels = (ms: number) => {
@@ -317,7 +318,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                     key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
                     className={`judgment-zone zone-${zoneIndex}`}
                     style={{
-                      left: posX - NOTE_WIDTH / 2 + 2,
+                      left: posX + 2,  // posX already includes stageOffset
                       top: currentTop,
                       width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
@@ -340,7 +341,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
                   key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
                   className={`judgment-zone zone-${zoneIndex}`}
                   style={{
-                    left: posX - NOTE_WIDTH / 2 + 2,
+                    left: posX + 2,  // posX already includes stageOffset
                     top: startY,
                     width: NOTE_WIDTH - 4,
                     height: zoneHeight - 1,
