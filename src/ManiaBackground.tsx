@@ -1,5 +1,6 @@
 import { AbsoluteFill, staticFile, Img } from "remotion";
 import { beatmap as importedBeatmap } from "./lib/osuParser";
+import { config, STAGE_X } from "./config";
 
 interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
@@ -10,7 +11,11 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({ beatmap = impo
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+    <AbsoluteFill style={{
+      backgroundColor: "#1a1a2e",
+      "--stage-x": `${STAGE_X}px`,
+      "--stage-width": `${config.stageWidth}px`,
+    } as React.CSSProperties}>
       {/* Background image */}
       {bgFileName && (
         <div

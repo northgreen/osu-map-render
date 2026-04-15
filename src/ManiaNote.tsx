@@ -3,9 +3,10 @@ import { HitObject } from "./lib/osuParser";
 import {
   SCROLL_SPEED,
   BASE_VISIBLE_TIME,
-  NOTE_WIDTH,
   NOTE_HEIGHT,
+  NOTE_WIDTH,
   JUDGMENT_LINE_Y,
+  STAGE_X,
   config,
 } from "./config";
 
@@ -53,9 +54,9 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
     return null;
   }
 
-  // Column position
+  // Column position (relative to stage, so add STAGE_X)
   const column = Math.min(note.column, 3);
-  const x = config.columnPositionsNote[column] - NOTE_WIDTH / 2 + stageOffset;
+  const x = STAGE_X + config.columnPositionsNote[column] + stageOffset;
 
   // Note color based on column
   const color = config.columnColors[column];

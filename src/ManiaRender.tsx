@@ -5,6 +5,7 @@ import { ManiaOverlay } from "./ManiaOverlay";
 import { beatmap as importedBeatmap, getBeatmapDuration } from "./lib/osuParser";
 import { ManiaRenderProps, maniaRenderContentsSchema } from "./Root";
 import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
+import { config, STAGE_X } from "./config";
 import "./lib/replay"; // Force import replay.json
 
 // Create a wrapper component with defaultProps
@@ -34,7 +35,11 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
+    <AbsoluteFill style={{
+      backgroundColor: "#1a1a2e",
+      "--stage-x": `${STAGE_X}px`,
+      "--stage-width": `${config.stageWidth}px`,
+    } as React.CSSProperties}>
       {/* Audio - shared across all layers */}
       <Audio src={staticFile("audio.mp3")} />
 

@@ -92,6 +92,12 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   const stageX = STAGE_X + stageOffset;
   const judgmentY = judgmentLineY;
 
+  // Set CSS variables for stage positioning
+  const stageStyle = {
+    "--stage-x": `${stageX}px`,
+    "--stage-width": `${config.stageWidth}px`,
+  } as React.CSSProperties;
+
   // Generate beat lines
   const beatLines = generateBeatLines(timingPoints, durationMs);
 
@@ -183,7 +189,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   };
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={stageStyle}>
       {/* Beat lines */}
       {showBeatLines && beatLines.map((time) => {
         // Apply beatOffset so beat lines start appearing at the right time
@@ -271,7 +277,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
         const column = Math.min(note.column, 3);
         // Use config.columnPositionsNote + stageOffset to match note positioning (same as ManiaNote)
-        const posX = config.columnPositionsNote[column] - NOTE_WIDTH / 2 + stageOffset;
+        const posX = STAGE_X + config.columnPositionsNote[column] + stageOffset;
 
         // Calculate zone heights based on time windows (converted to pixels)
         const msToPixels = (ms: number) => {

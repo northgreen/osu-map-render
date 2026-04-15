@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { ParsedBeatmap } from "./lib/osuParser";
 import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
 import { getJudgmentResults, getJudgmentColor, JudgmentResult, setJudgmentMode, getJudgmentMode, setJudgmentOffset, clearJudgmentCache } from "./lib/judgment";
+import { config, STAGE_X } from "./config";
 
 interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
@@ -82,7 +83,10 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
   );
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{
+      "--stage-x": `${STAGE_X}px`,
+      "--stage-width": `${config.stageWidth}px`,
+    } as React.CSSProperties}>
       {/* Metadata display - top left */}
       <div
         style={{

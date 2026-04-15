@@ -63,19 +63,22 @@ const COLUMN_COLORS_WILDCARD = [
   "#12CBC4", "#FDA7DF", "#ED4C67", "#F79F1F"
 ];
 
-// Stage positions for each key count (center of each column)
+// Stage positions for each key count (column centers, relative to stage)
 function generateStagePositions(keyCount: number): number[] {
-  const columnWidth = STAGE_WIDTH_BASE / keyCount;
-  return Array.from({ length: keyCount }, (_, i) => STAGE_X + columnWidth * (i + 0.5));
+  const stageWidth = keyCount <= 4 ? STAGE_WIDTH_BASE : STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  const columnWidth = stageWidth / keyCount;
+  return Array.from({ length: keyCount }, (_, i) => columnWidth * (i + 0.5));
 }
 
-// Note positions (shifted from stage positions)
+// Note positions (left edge of each note, relative to stage)
 function generateNotePositions(keyCount: number): number[] {
-  const columnWidth = STAGE_WIDTH_BASE / keyCount;
-  // Shift by -NOTE_WIDTH/2 + columnWidth/2 to center note in column
+  // Calculate stage width based on key count (same logic as getStageWidth)
+  const stageWidth = keyCount <= 4 ? STAGE_WIDTH_BASE : STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  const columnWidth = stageWidth / keyCount;
+  // Left edge = column start + (columnWidth - NOTE_WIDTH) / 2
   return Array.from(
     { length: keyCount },
-    (_, i) => STAGE_X + columnWidth * (i + 0.5) - NOTE_WIDTH / 2 + columnWidth / 2 + 56
+    (_, i) => columnWidth * i + (columnWidth - NOTE_WIDTH) / 2
   );
 }
 
@@ -124,11 +127,20 @@ const COLUMN_POSITIONS_NOTE_MAP: Record<number, number[]> = {
 };
 
 // Wildcard fallback positions for key counts > 18
-function generateWildcardPositions(keyCount: number, offset: number): number[] {
-  const columnWidth = STAGE_WIDTH_BASE / keyCount;
+function generateWildcardPositions(keyCount: number, forNote: boolean): number[] {
+  const stageWidth = STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  const columnWidth = stageWidth / keyCount;
+  if (forNote) {
+    // Note left edge (relative to stage)
+    return Array.from(
+      { length: keyCount },
+      (_, i) => columnWidth * i + (columnWidth - NOTE_WIDTH) / 2
+    );
+  }
+  // Stage center (relative to stage)
   return Array.from(
     { length: keyCount },
-    (_, i) => offset + columnWidth * (i + 0.5)
+    (_, i) => columnWidth * (i + 0.5)
   );
 }
 
@@ -150,7 +162,7 @@ export function getColumnPositionsStage(keyCount: number): number[] {
   if (keyCount <= 18) {
     return COLUMN_POSITIONS_STAGE_MAP[keyCount];
   }
-  return generateWildcardPositions(keyCount, STAGE_X);
+  return generateWildcardPositions(keyCount, false);
 }
 
 /**
@@ -160,7 +172,7 @@ export function getColumnPositionsNote(keyCount: number): number[] {
   if (keyCount <= 18) {
     return COLUMN_POSITIONS_NOTE_MAP[keyCount];
   }
-  return generateWildcardPositions(keyCount, STAGE_X + 56);
+  return generateWildcardPositions(keyCount, true);
 }
 
 /**
