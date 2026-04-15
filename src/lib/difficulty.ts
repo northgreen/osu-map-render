@@ -107,13 +107,11 @@ function calculatePP(
   let count300 = totalNotes;
   let count100 = 0;
   let count50 = 0;
-  let countMiss = 0;
 
   if (replayData?.hitResults) {
     count300 = replayData.hitResults.filter(r => r === 300).length;
     count100 = replayData.hitResults.filter(r => r === 100).length;
     count50 = replayData.hitResults.filter(r => r === 50).length;
-    countMiss = replayData.hitResults.filter(r => r === 0).length;
   }
 
   const accuracy = (count300 * 300 + count100 * 100 + count50 * 50) / (totalNotes * 300);

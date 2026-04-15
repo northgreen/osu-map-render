@@ -1,4 +1,4 @@
-import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate } from "remotion";
 import { HitObject } from "./lib/osuParser";
 import {
   SCROLL_SPEED,
@@ -8,7 +8,7 @@ import {
   JUDGMENT_LINE_Y,
   config,
 } from "./config";
-import { getJudgmentResults, JudgmentResult, getJudgmentColor, clearJudgmentCache } from "./lib/judgment";
+import { getJudgmentResults, getJudgmentColor, clearJudgmentCache } from "./lib/judgment";
 
 function getVisibleTime(scrollSpeed: number): number {
   return BASE_VISIBLE_TIME * (10 / scrollSpeed);
@@ -74,7 +74,7 @@ export const JudgmentIndicator: React.FC<JudgmentIndicatorProps> = ({
 
     // For LNs: show at head
     const headY = y;
-    const posX = COLUMN_POSITIONS_NOTE[j.column];
+    const posX = config.columnPositionsNote[j.column];
 
     // Head indicator
     indicators.push(

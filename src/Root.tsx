@@ -2,7 +2,7 @@ import "./index.css";
 import "./styles.css";
 import { Composition, AbsoluteFill, Audio, staticFile } from "remotion";
 import { z } from "zod";
-import { ManiaRender, getManiaRenderDuration } from "./ManiaRender";
+import { ManiaRender } from "./ManiaRender";
 import { ManiaBackground } from "./ManiaBackground";
 import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
@@ -136,13 +136,6 @@ export const RemotionRoot: React.FC = () => {
   const fps = 60;
   const durationInFrames = Math.ceil(totalDuration / 1000 * fps);
 
-  const defaultProps: ManiaRenderProps = {
-    time: { beatOffset, timeOffset: 0 },
-    scroll: { scrollSpeed: 20 },
-    judgment: { mode: "v2", offset: 0, showZones: false },
-    layout: { stageOffset: 0, judgmentLineY: 900 },
-  };
-
   return (
     <>
       {/* Combined render - all layers */}
@@ -169,7 +162,7 @@ export const RemotionRoot: React.FC = () => {
               meh: 128.5,
             },
           },
-          layout: { stageOffset: 642, judgmentLineY: 1000 },
+          layout: { stageOffset: 613, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
             columnhigHlights: true,

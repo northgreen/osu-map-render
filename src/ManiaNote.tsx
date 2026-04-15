@@ -82,10 +82,8 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
     const bodyHeight = Math.abs(bodyTop - bodyBottom);
 
     const headIsHit = Math.abs(timeUntilStart) < 50;
-    const tailIsHit = Math.abs(timeUntilEnd) < 50;
 
     const headOpacity = headIsHit ? 1 : Math.min(1, clampedHeadProgress * 1.5);
-    const tailOpacity = tailIsHit ? 1 : Math.min(1, clampedTailProgress * 1.5);
 
     // Body is visible when head has appeared, and tail hasn't passed too far
     // bodyHeight > 0 means tail is below head (normal case)

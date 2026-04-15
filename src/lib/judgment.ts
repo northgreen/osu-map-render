@@ -1,5 +1,5 @@
 import { replay } from "./replay";
-import { HitObject } from "../osuParser";
+import { HitObject } from "./osuParser";
 
 // ============================================
 // Judgment Mode: v1 (Classic), v2 (ScoreV2), or custom
@@ -309,13 +309,6 @@ export function getKeyIntervals(): KeyInterval[] {
 // ============================================
 // Main Judgment Calculation
 // ============================================
-
-// Constants matching Mania-Replay-Master
-const IGNORE = 3;
-const TOO_EARLY = -1;
-const TOO_LATE = 2;
-const HIT = 0;
-const HIT_AND_CAN_HIT_AGAIN = 1;
 
 // Match key presses to notes and calculate judgments
 export function calculateJudgments(

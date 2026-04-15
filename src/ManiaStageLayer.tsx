@@ -76,13 +76,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  if (!beatmap) {
-    return null;
-  }
-
-  const { hitObjects, timingPoints } = beatmap;
-  // currentTime is the actual playback time in ms
-  const currentTime = (frame / fps) * 1000;
+  // Handle missing beatmap - return placeholder (all hooks above this line)
+  const { hitObjects, timingPoints } = beatmap || { hitObjects: [], timingPoints: [] };
+  const currentTime = beatmap ? (frame / fps) * 1000 : 0;
 
   const durationMs = hitObjects.length > 0
     ? (hitObjects[hitObjects.length - 1].endTime || hitObjects[hitObjects.length - 1].time) + 5000
@@ -109,7 +105,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       times.push(cumulativeTime);
     }
     return times;
-  }, [replay]);
+  }, [replay?.replayData]);
 
   // Get pressed keys from replay
   const pressedKeys = useMemo(() => {
@@ -137,7 +133,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     }
 
     return pressedColumns;
-  }, [replay, cumulativeTimes, currentTime]);
+  }, [replay?.replayData, cumulativeTimes, currentTime]);
 
   // Get key release times for fade-out effect
   const releaseTimes = useMemo(() => {
@@ -164,9 +160,14 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     }
 
     return result;
-  }, [replay, cumulativeTimes, currentTime]);
+  }, [replay?.replayData, cumulativeTimes, currentTime]);
 
   const COLUMN_FADE_DURATION = 150;
+
+  // Early return after all hooks
+  if (!beatmap) {
+    return null;
+  }
 
   const getColumnOpacity = (columnIndex: number, isPressed: boolean) => {
     if (isPressed) return 0.15;
@@ -184,7 +185,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   return (
     <AbsoluteFill>
       {/* Beat lines */}
-      {showBeatLines && beatLines.map((time, i) => {
+      {showBeatLines && beatLines.map((time) => {
         // Apply beatOffset so beat lines start appearing at the right time
         const adjustedTime = time + beatOffset;
         const timeUntilHit = adjustedTime - currentTime;

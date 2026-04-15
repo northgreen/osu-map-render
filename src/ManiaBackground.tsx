@@ -1,4 +1,4 @@
-import { AbsoluteFill, Audio, staticFile } from "remotion";
+import { AbsoluteFill, staticFile, Img } from "remotion";
 import { beatmap as importedBeatmap } from "./lib/osuParser";
 
 interface ManiaBackgroundProps {
@@ -23,7 +23,7 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({ beatmap = impo
             overflow: "hidden",
           }}
         >
-          <img
+          <Img
             src={staticFile(bgFileName)}
             style={{
               width: "100%",

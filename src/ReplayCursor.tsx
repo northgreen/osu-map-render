@@ -1,13 +1,12 @@
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
 import { getKeyIntervals } from "./lib/judgment";
-import { getJudgmentResults, getJudgmentColor, JudgmentResult } from "./lib/judgment";
+import { getJudgmentResults, getJudgmentColor } from "./lib/judgment";
 import { beatmap } from "./lib/osuParser";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   BASE_VISIBLE_TIME,
   NOTE_HEIGHT,
-  NOTE_WIDTH,
   JUDGMENT_LINE_Y,
   STAGE_X,
   config,
