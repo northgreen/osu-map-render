@@ -3,30 +3,17 @@ import { ManiaBackground } from "./ManiaBackground";
 import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
 import { beatmap as importedBeatmap, getBeatmapDuration } from "./lib/osuParser";
+import { ManiaRenderProps } from "./Root";
 import "./lib/replay"; // Force import replay.json
 
-interface ManiaRenderProps {
-  scrollSpeed?: number;
-  timeOffset?: number;
-  beatOffset?: number;
-  judgmentMode?: "v1" | "v2";
-  judgmentOffset?: number;
-  showJudgmentZones?: boolean;
-  stageOffset?: number;
-  judgmentLineY?: number;
-}
-
 // Create a wrapper component with defaultProps
-const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
-  scrollSpeed = 20,
-  timeOffset = 0,
-  beatOffset = 900,
-  judgmentMode = "v1",
-  judgmentOffset = 0,
-  showJudgmentZones = false,
-  stageOffset = 0,
-  judgmentLineY = 900,
-}) => {
+const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
+  const { time, scroll, judgment, layout } = props;
+  const { beatOffset = 900, timeOffset = 0 } = time || {};
+  const { scrollSpeed = 20 } = scroll || {};
+  const { mode = "v2", offset = 0, showZones = false } = judgment || {};
+  const { stageOffset = 0, judgmentLineY = 900 } = layout || {};
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a2e" }}>
       {/* Audio - shared across all layers */}
@@ -39,8 +26,8 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
       <ManiaStageLayer
         beatmap={importedBeatmap}
         scrollSpeed={scrollSpeed}
-        beatOffset={beatOffset + timeOffset}
-        showJudgmentZones={showJudgmentZones}
+        beatOffset={(beatOffset || 900) + (timeOffset || 0)}
+        showJudgmentZones={showZones}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}
       />
@@ -48,8 +35,8 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}
       <ManiaOverlay
         beatmap={importedBeatmap}
-        judgmentMode={judgmentMode}
-        judgmentOffset={judgmentOffset}
+        judgmentMode={mode}
+        judgmentOffset={offset}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}
       />
@@ -59,14 +46,10 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = ({
 
 // Add defaultProps for Remotion Studio
 ManiaRenderComponent.defaultProps = {
-  scrollSpeed: 20,
-  timeOffset: 0,
-  beatOffset: 900,
-  judgmentMode: "v2",
-  judgmentOffset: 0,
-  showJudgmentZones: false,
-  stageOffset: 0,
-  judgmentLineY: 900,
+  time: { beatOffset: 900, timeOffset: 0 },
+  scroll: { scrollSpeed: 20 },
+  judgment: { mode: "v2", offset: 0, showZones: false },
+  layout: { stageOffset: 0, judgmentLineY: 900 },
 };
 
 export { ManiaRenderComponent as ManiaRender };

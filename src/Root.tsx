@@ -10,16 +10,27 @@ import { ReplayCursorLayer } from "./ReplayCursorLayer";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
 import "./lib/replay"; // Force import replay.json
 
-// Zod schema for props
+// ============================================
+// Nested Props Schema
+// ============================================
+
 export const maniaRenderSchema = z.object({
-  scrollSpeed: z.number().min(5).max(50),
-  timeOffset: z.number(),
-  beatOffset: z.number().min(0),
-  judgmentMode: z.enum(["v1", "v2"]).default("v1"),
-  judgmentOffset: z.number().default(0),
-  showJudgmentZones: z.boolean().default(false),
-  stageOffset: z.number().default(0),
-  judgmentLineY: z.number().min(100).max(1000).default(900),
+  time: z.object({
+    beatOffset: z.number().min(0),
+    timeOffset: z.number(),
+  }),
+  scroll: z.object({
+    scrollSpeed: z.number().min(5).max(50),
+  }),
+  judgment: z.object({
+    mode: z.enum(["v1", "v2"]).default("v1"),
+    offset: z.number().default(0),
+    showZones: z.boolean().default(false),
+  }),
+  layout: z.object({
+    stageOffset: z.number().default(0),
+    judgmentLineY: z.number().min(100).max(1000).default(900),
+  }),
 });
 
 export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
@@ -37,12 +48,14 @@ function getBeatOffset(): number {
 
 // ManiaStageOnly component with defaultProps for proper Remotion integration
 const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = ({
-  scrollSpeed = 20,
-  showJudgmentZones = false,
-  stageOffset = 0,
-  judgmentLineY = 900,
-  beatOffset: bo = 900,
+  scroll,
+  judgment,
+  layout,
 }) => {
+  const { scrollSpeed } = scroll || { scrollSpeed: 20 };
+  const { showZones } = judgment || { showZones: false };
+  const { stageOffset = 0, judgmentLineY = 900 } = layout || {};
+
   // Debug: log received props
   if (typeof window !== 'undefined') {
     console.log("ManiaStageOnly received:", { stageOffset, judgmentLineY });
@@ -53,8 +66,8 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = ({
       <ManiaStageLayer
         beatmap={beatmap}
         scrollSpeed={scrollSpeed}
-        beatOffset={bo}
-        showJudgmentZones={showJudgmentZones}
+        beatOffset={900}
+        showJudgmentZones={showZones}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}
       />
@@ -63,14 +76,10 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = ({
 };
 
 ManiaStageOnlyComponent.defaultProps = {
-  scrollSpeed: 20,
-  timeOffset: 0,
-  beatOffset: 900,
-  judgmentMode: "v2" as const,
-  judgmentOffset: 0,
-  showJudgmentZones: false,
-  stageOffset: 0,
-  judgmentLineY: 900,
+  time: { beatOffset: 900, timeOffset: 0 },
+  scroll: { scrollSpeed: 20 },
+  judgment: { mode: "v2", offset: 0, showZones: false },
+  layout: { stageOffset: 0, judgmentLineY: 900 },
 };
 
 export const RemotionRoot: React.FC = () => {
@@ -81,14 +90,10 @@ export const RemotionRoot: React.FC = () => {
   const durationInFrames = Math.ceil(totalDuration / 1000 * fps);
 
   const defaultProps: ManiaRenderProps = {
-    scrollSpeed: 20,
-    timeOffset: 0,
-    beatOffset,
-    judgmentMode: "v2",
-    judgmentOffset: 0,
-    showJudgmentZones: false,
-    stageOffset: 0,
-    judgmentLineY: 900,
+    time: { beatOffset, timeOffset: 0 },
+    scroll: { scrollSpeed: 20 },
+    judgment: { mode: "v2", offset: 0, showZones: false },
+    layout: { stageOffset: 0, judgmentLineY: 900 },
   };
 
   return (
@@ -103,14 +108,10 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         schema={maniaRenderSchema}
         defaultProps={{
-          scrollSpeed: 20,
-          timeOffset: 0,
-          beatOffset: 900,
-          judgmentMode: "v2" as const,
-          judgmentOffset: 0,
-          showJudgmentZones: false,
-          stageOffset: 150,
-          judgmentLineY: 900,
+          time: { beatOffset: 900, timeOffset: 0 },
+          scroll: { scrollSpeed: 20 },
+          judgment: { mode: "v2" as const, offset: 0, showZones: false },
+          layout: { stageOffset: 642, judgmentLineY: 1000 },
         }}
       />
 
@@ -139,14 +140,10 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         schema={maniaRenderSchema}
         defaultProps={{
-          scrollSpeed: 20,
-          timeOffset: 0,
-          beatOffset: 900,
-          judgmentMode: "v2" as const,
-          judgmentOffset: 0,
-          showJudgmentZones: false,
-          stageOffset: 100,
-          judgmentLineY: 900,
+          time: { beatOffset: 900, timeOffset: 0 },
+          scroll: { scrollSpeed: 20 },
+          judgment: { mode: "v2", offset: 0, showZones: false },
+          layout: { stageOffset: 100, judgmentLineY: 900 },
         }}
       />
 
@@ -163,18 +160,15 @@ export const RemotionRoot: React.FC = () => {
         fps={fps}
         width={1920}
         height={1080}
-        defaultProps={{
-          beatmap,
-        }}
       />
 
       {/* Replay cursor only (falling key press bars) */}
       <Composition
         id="ManiaReplayCursorOnly"
-        component={({ scrollSpeed = 20 }: ManiaRenderProps) => (
+        component={({ scroll }: ManiaRenderProps) => (
           <AbsoluteFill style={{ backgroundColor: "transparent" }}>
             <Audio src={staticFile("audio.mp3")} />
-            <ReplayCursorLayer scrollSpeed={scrollSpeed} />
+            <ReplayCursorLayer scrollSpeed={scroll?.scrollSpeed ?? 20} />
           </AbsoluteFill>
         )}
         durationInFrames={durationInFrames}
