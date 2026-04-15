@@ -35,6 +35,44 @@ function getBeatOffset(): number {
 
 // Each <Composition> is an entry in the sidebar!
 
+// ManiaStageOnly component with defaultProps for proper Remotion integration
+const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = ({
+  scrollSpeed = 20,
+  showJudgmentZones = false,
+  stageOffset = 0,
+  judgmentLineY = 900,
+  beatOffset: bo = 900,
+}) => {
+  // Debug: log received props
+  if (typeof window !== 'undefined') {
+    console.log("ManiaStageOnly received:", { stageOffset, judgmentLineY });
+  }
+  return (
+    <AbsoluteFill style={{ backgroundColor: "transparent" }}>
+      <Audio src={staticFile("audio.mp3")} />
+      <ManiaStageLayer
+        beatmap={beatmap}
+        scrollSpeed={scrollSpeed}
+        beatOffset={bo}
+        showJudgmentZones={showJudgmentZones}
+        stageOffset={stageOffset}
+        judgmentLineY={judgmentLineY}
+      />
+    </AbsoluteFill>
+  );
+};
+
+ManiaStageOnlyComponent.defaultProps = {
+  scrollSpeed: 20,
+  timeOffset: 0,
+  beatOffset: 900,
+  judgmentMode: "v2" as const,
+  judgmentOffset: 0,
+  showJudgmentZones: false,
+  stageOffset: 0,
+  judgmentLineY: 900,
+};
+
 export const RemotionRoot: React.FC = () => {
   const beatOffset = getBeatOffset();
   const baseDuration = getBeatmapDuration(beatmap);
@@ -48,7 +86,7 @@ export const RemotionRoot: React.FC = () => {
     beatOffset,
     judgmentMode: "v2",
     judgmentOffset: 0,
-    showJudgmentZones: true,
+    showJudgmentZones: false,
     stageOffset: 0,
     judgmentLineY: 900,
   };
@@ -64,7 +102,16 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         schema={maniaRenderSchema}
-        defaultProps={defaultProps}
+        defaultProps={{
+          scrollSpeed: 20,
+          timeOffset: 0,
+          beatOffset: 900,
+          judgmentMode: "v2" as const,
+          judgmentOffset: 0,
+          showJudgmentZones: false,
+          stageOffset: 150,
+          judgmentLineY: 900,
+        }}
       />
 
       {/* Background layer (bg + audio) */}
@@ -85,25 +132,22 @@ export const RemotionRoot: React.FC = () => {
       {/* Stage layer (beat lines, notes, key presses, hit effects + audio) */}
       <Composition
         id="ManiaStageOnly"
-        component={({ scrollSpeed = 20, showJudgmentZones = false, stageOffset = 0, judgmentLineY = 900 }: ManiaRenderProps) => (
-          <AbsoluteFill style={{ backgroundColor: "transparent" }}>
-            <Audio src={staticFile("audio.mp3")} />
-            <ManiaStageLayer
-              beatmap={beatmap}
-              scrollSpeed={scrollSpeed}
-              beatOffset={beatOffset}
-              showJudgmentZones={showJudgmentZones}
-              stageOffset={stageOffset}
-              judgmentLineY={judgmentLineY}
-            />
-          </AbsoluteFill>
-        )}
+        component={ManiaStageOnlyComponent}
         durationInFrames={durationInFrames}
         fps={fps}
         width={1920}
         height={1080}
         schema={maniaRenderSchema}
-        defaultProps={defaultProps}
+        defaultProps={{
+          scrollSpeed: 20,
+          timeOffset: 0,
+          beatOffset: 900,
+          judgmentMode: "v2" as const,
+          judgmentOffset: 0,
+          showJudgmentZones: false,
+          stageOffset: 100,
+          judgmentLineY: 900,
+        }}
       />
 
       {/* Overlay only (info display: metadata, score, PP) */}

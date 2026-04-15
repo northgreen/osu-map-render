@@ -83,11 +83,16 @@ function getKeyIntervals(): { start: number; end: number; column: number }[] {
 export const ReplayCursor: React.FC<ReplayCursorProps> = ({
   scrollSpeed = DEFAULT_SCROLL_SPEED,
   stageOffset = 0,
-  judgmentLineY = judgmentLineY,
+  judgmentLineY: jy = JUDGMENT_LINE_Y,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTime = (frame / fps) * 1000;
+
+  // Debug: log props at frame 0
+  if (frame === 0) {
+    console.log("ReplayCursor props:", { stageOffset, judgmentLineY: jy, scrollSpeed });
+  }
 
   const VISIBLE_TIME = getVisibleTime(scrollSpeed);
 
@@ -126,8 +131,8 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
     const clampedStartProgress = Math.max(0, Math.min(1, startProgress));
     const clampedEndProgress = Math.max(0, Math.min(1, endProgress));
 
-    const startY = interpolate(clampedStartProgress, [0, 1], [-NOTE_HEIGHT, judgmentLineY]);
-    const endY = interpolate(clampedEndProgress, [0, 1], [-NOTE_HEIGHT, judgmentLineY]);
+    const startY = interpolate(clampedStartProgress, [0, 1], [-NOTE_HEIGHT, jy]);
+    const endY = interpolate(clampedEndProgress, [0, 1], [-NOTE_HEIGHT, jy]);
 
     // Skip if the rendered height would be negative or too small
     const height = Math.abs(startY - endY);

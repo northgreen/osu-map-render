@@ -11,7 +11,8 @@ import {
 
 interface ManiaNoteProps {
   note: HitObject;
-  jy?: number;
+  scrollSpeed?: number;
+  judgmentLineY?: number;
   stageOffset?: number;
 }
 
@@ -24,7 +25,7 @@ function getVisibleTime(scrollSpeed: number): number {
 export const ManiaNote: React.FC<ManiaNoteProps> = ({
   note,
   scrollSpeed = SCROLL_SPEED,
-  jy: jy = JUDGMENT_LINE_Y,
+  judgmentLineY: jy = JUDGMENT_LINE_Y,
   stageOffset = 0,
 }) => {
   const frame = useCurrentFrame();

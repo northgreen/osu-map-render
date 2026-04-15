@@ -25,7 +25,7 @@ export const JUDGMENT_LINE_Y = 900;
 export const COLUMN_COLORS = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4"];
 
 // Hit effect duration (in milliseconds)
-export const HIT_EFFECT_DURATION = 300;
+export const HIT_EFFECT_DURATION = 30;
 
 // LN body opacity
 export const LN_BODY_OPACITY = 0.4;
