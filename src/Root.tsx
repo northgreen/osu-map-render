@@ -9,7 +9,12 @@ import { ManiaOverlay } from "./ManiaOverlay";
 import { ReplayCursorLayer } from "./ReplayCursorLayer";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
 import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
+import { setKeyCount } from "./config";
 import "./lib/replay"; // Force import replay.json
+
+// Set key count from beatmap on module load
+const keyCountFromBeatmap = beatmap?.difficulty?.circleSize || 4;
+setKeyCount(keyCountFromBeatmap);
 
 // ============================================
 // Nested Props Schema
