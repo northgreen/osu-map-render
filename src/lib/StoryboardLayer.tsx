@@ -420,7 +420,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
           top: OFFSET_Y,
           width: SB_BASE_WIDTH,
           height: SB_BASE_HEIGHT,
-          transform: `scale(${SCALE})`,
+          // transform: `scale(${SCALE})`,
           transformOrigin: "0 0",
         }}
       >
