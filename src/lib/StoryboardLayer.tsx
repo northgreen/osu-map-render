@@ -88,57 +88,44 @@ function getLoopCommandValue(loops: SbLoop[], cmdType: string, currentTime: numb
     // Check if current time is within this loop's active range
     if (currentTime < loop.startTime) continue;
 
-    // Determine if command times are relative or absolute
-    // Relative: cmd.startTime < loopDuration (like particle: 0, 391, 1955 vs duration 1955)
-    // Absolute: cmd.startTime >= loopDuration (like med_distort: 98400 vs duration 337)
-    const hasRelativeTimes = loop.commands.some(cmd => cmd.startTime < loop.loopDuration);
+    // Find minimum command start time in this loop (commands may not start at iteration 0)
+    const minCmdStart = Math.min(...loop.commands.map(c => c.startTime));
 
-    // For both cases, find the iteration that contains currentTime
-    // Then calculate the command's absolute time in that iteration
-    const timeSinceStart = currentTime - loop.startTime;
+    // Calculate which iteration we're in, accounting for minCmdStart offset
+    // Commands start at loop.startTime + minCmdStart in the first iteration
+    const timeSinceFirstCmd = currentTime - loop.startTime - minCmdStart;
+    if (timeSinceFirstCmd < 0) continue;
+
+    const iteration = Math.floor(timeSinceFirstCmd / loop.loopDuration);
+    // L,startTime,repeatCount 执行 repeatCount + 1 次（第一次 + repeatCount 次重复）
+    // 所以最大有效 iteration = repeatCount
+    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
 
     for (const cmd of loop.commands) {
       if (cmd.type !== cmdType) continue;
 
-      // Find which iteration this currentTime falls into
-      // For relative times: check if currentTime is in iteration range
-      // For absolute times: check if currentTime is near any iteration's command time
+      // Calculate command time in this iteration
+      // cmdStartAbs = loop.startTime + cmd.startTime + iteration * loopDuration
+      const cmdStartAbs = loop.startTime + cmd.startTime + iteration * loop.loopDuration;
 
-      let cmdStartAbs: number = 0;
-      let cmdEndAbs: number = Number.MAX_SAFE_INTEGER;
-
-      if (hasRelativeTimes) {
-        // Relative: calculate iteration based on time since loop start
-        const iteration = Math.floor(timeSinceStart / loop.loopDuration);
-        if (loop.repeatCount > 0 && iteration >= loop.repeatCount) continue;
-
-        cmdStartAbs = loop.startTime + cmd.startTime + iteration * loop.loopDuration;
-        cmdEndAbs = cmd.endTime === Number.MAX_SAFE_INTEGER
-          ? Number.MAX_SAFE_INTEGER
-          : loop.startTime + cmd.endTime + iteration * loop.loopDuration;
-      } else {
-        // Absolute: iterate through all possible iterations to find matching one
-        // The command runs at cmd.startTime + n * loopDuration for each iteration n
-        let foundIteration = -1;
-
-        for (let iter = 0; iter <= loop.repeatCount; iter++) {
-          const thisCmdStart = cmd.startTime + iter * loop.loopDuration;
-          const thisCmdEnd = cmd.endTime === Number.MAX_SAFE_INTEGER
-            ? Number.MAX_SAFE_INTEGER
-            : cmd.endTime + iter * loop.loopDuration;
-
-          if (currentTime >= thisCmdStart && currentTime <= thisCmdEnd) {
-            cmdStartAbs = thisCmdStart;
-            cmdEndAbs = thisCmdEnd;
-            foundIteration = iter;
-            break;
-          }
+      // If endTime is infinite, command lasts until the next command in this iteration starts
+      // Or until the end of this iteration
+      let cmdEndAbs: number;
+      if (cmd.endTime === Number.MAX_SAFE_INTEGER) {
+        // Find the next command's start time in this iteration
+        const nextCmd = loop.commands.find(c => c.startTime > cmd.startTime && c.type === cmdType);
+        if (nextCmd) {
+          // Ends when next command starts (within this iteration)
+          cmdEndAbs = loop.startTime + nextCmd.startTime + iteration * loop.loopDuration;
+        } else {
+          // No next command, ends at end of iteration
+          cmdEndAbs = loop.startTime + cmd.startTime + (iteration + 1) * loop.loopDuration;
         }
-
-        if (foundIteration < 0) continue;
+      } else {
+        cmdEndAbs = loop.startTime + cmd.endTime + iteration * loop.loopDuration;
       }
 
-      const cmdDuration = cmdEndAbs === Number.MAX_SAFE_INTEGER ? 0 : cmdEndAbs - cmdStartAbs;
+      const cmdDuration = cmdEndAbs - cmdStartAbs;
 
       if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
         if (cmdDuration <= 0) continue;
@@ -152,14 +139,9 @@ function getLoopCommandValue(loops: SbLoop[], cmdType: string, currentTime: numb
         const iterStartValue = cmd.params[paramIndex];
         const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
 
-        // For absolute times, we need to calculate iteration for value accumulation
-        const iteration = hasRelativeTimes ? Math.floor(timeSinceStart / loop.loopDuration) :
-          Math.floor((currentTime - cmd.startTime) / loop.loopDuration);
-        const delta = iterEndValue - iterStartValue;
-        const accumulatedDelta = delta * Math.max(0, iteration);
-
+        // Calculate value for this iteration only (no accumulation between iterations)
         const easedT = applyEasing(t, cmd.easing);
-        return iterStartValue + accumulatedDelta + (iterEndValue - iterStartValue) * easedT;
+        return iterStartValue + (iterEndValue - iterStartValue) * easedT;
       }
     }
   }
@@ -237,8 +219,15 @@ function getPosition(commands: SbCommand[], loops: SbLoop[], currentTime: number
       // 命令已结束，或者没有结束时间（infinite）
       const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
       if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
-        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
-        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+        // 如果没有结束时间（infinite），使用开始坐标
+        // 否则使用结束坐标
+        if (isInfinite) {
+          if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
+          if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
+        } else {
+          if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
+          if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+        }
       } else if (currentTime >= cmd.startTime) {
         // 命令进行中
         if (cmd.type === "M" || cmd.type === "MX") x = getCommandValue(cmd, currentTime, 0);
@@ -381,6 +370,7 @@ function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: nu
   let latestEndTime = -Infinity;
   let earliestStartTime = Infinity;
 
+  // Regular commands
   for (const cmd of commands) {
     if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
     // Ignore infinite end times (like S command with no end time)
@@ -389,24 +379,20 @@ function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: nu
     }
   }
 
-  // Also check loops for time ranges
+  // Loop commands - calculate actual command execution time
   for (const loop of loops) {
-    // Check loop start time
-    if (loop.startTime < earliestStartTime) earliestStartTime = loop.startTime;
-
-    // For each command in loop, calculate the last iteration's end time
     for (const cmd of loop.commands) {
-      // The command runs at: cmd.startTime + n * loopDuration for each iteration
-      // The last iteration is at repeatCount
-      const lastIterationEnd = cmd.endTime === Number.MAX_SAFE_INTEGER
+      // First iteration command start time = loop.startTime + cmd.startTime
+      const firstCmdStart = loop.startTime + cmd.startTime;
+      if (firstCmdStart < earliestStartTime) earliestStartTime = firstCmdStart;
+
+      // Last iteration command end time
+      const lastCmdEnd = cmd.endTime === Number.MAX_SAFE_INTEGER
         ? Number.MAX_SAFE_INTEGER
         : cmd.endTime + loop.repeatCount * loop.loopDuration;
 
-      // Check loop end time: startTime + (repeatCount + 1) * loopDuration
-      const loopEndTime = loop.startTime + (loop.repeatCount + 1) * loop.loopDuration;
-
-      if (loopEndTime > latestEndTime && loopEndTime !== Number.MAX_SAFE_INTEGER) {
-        latestEndTime = loopEndTime;
+      if (lastCmdEnd !== Number.MAX_SAFE_INTEGER && lastCmdEnd > latestEndTime) {
+        latestEndTime = lastCmdEnd;
       }
     }
   }

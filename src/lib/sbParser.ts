@@ -165,7 +165,10 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       ];
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
-      endTime = parseInt(parts[3]) || startTime;
+      // If endTime is empty/omitted, treat as "indefinite" (same as osu! behavior)
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
       params = [
         parseFloat(parts[4]) || 0,
         parseFloat(parts[5]) || 0,
@@ -174,14 +177,18 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       ];
       break;
     case "MX": // MoveX: type,easing,start,end,x1,x2
-      endTime = parseInt(parts[3]) || startTime;
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
       params = [
         parseFloat(parts[4]) || 0,
         (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
       ];
       break;
     case "MY": // MoveY: type,easing,start,end,y1,y2
-      endTime = parseInt(parts[3]) || startTime;
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
       params = [
         parseFloat(parts[4]) || 0,
         (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
