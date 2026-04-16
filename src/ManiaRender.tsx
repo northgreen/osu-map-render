@@ -25,7 +25,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
 
   // Merge with defaults from schema
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
-  const { trackHeight, replayCursor, sessionLine, columnhigHlights } = contentsWithDefaults;
+  const { trackHeight, replayCursor, sessionLine, columnhigHlights, storyboardEnabled } = contentsWithDefaults;
 
   // Set judgment mode and custom windows
   setJudgmentMode(mode);
@@ -36,7 +36,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
 
   return (
     <AbsoluteFill style={{
-      backgroundColor: "#1a1a2e",
+      backgroundColor: storyboardEnabled ? "#000000" : "#1a1a2e",
       "--stage-x": `${STAGE_X}px`,
       "--stage-width": `${config.stageWidth}px`,
     } as React.CSSProperties}>
@@ -44,7 +44,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       <Audio src={staticFile("audio.mp3")} />
 
       {/* Layer 1: Background */}
-      <ManiaBackground />
+      <ManiaBackground storyboardEnabled={storyboardEnabled} />
 
       {/* Layer 2: Stage (notes, judgment line, key presses, hit effects) */}
       <ManiaStageLayer

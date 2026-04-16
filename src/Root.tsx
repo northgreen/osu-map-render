@@ -26,6 +26,7 @@ export const maniaRenderContentsSchema = z.object({
   columnhigHlights: z.boolean().default(true),
   replayCursor: z.boolean().default(true),
   sessionLine: z.boolean().default(true),
+  storyboardEnabled: z.boolean().default(false),
 })
 
 export const maniaRenderSchema = z.object({
@@ -58,6 +59,7 @@ export const maniaRenderSchema = z.object({
       columnhigHlights: true,
       replayCursor: true,
       sessionLine: true,
+      storyboardEnabled: false,
     }
   ),
 });
@@ -168,6 +170,7 @@ export const RemotionRoot: React.FC = () => {
             columnhigHlights: true,
             replayCursor: true,
             sessionLine: true,
+            storyboardEnabled: false,
           },
         }}
       />
@@ -175,16 +178,27 @@ export const RemotionRoot: React.FC = () => {
       {/* Background layer (bg + audio) */}
       <Composition
         id="ManiaBackground"
-        component={() => (
-          <AbsoluteFill>
-            <Audio src={staticFile("audio.mp3")} />
-            <ManiaBackground />
-          </AbsoluteFill>
-        )}
+        component={({ contents }: { contents?: z.infer<typeof maniaRenderContentsSchema> }) => {
+          const parsed = maniaRenderContentsSchema.parse(contents ?? {});
+          return (
+            <AbsoluteFill>
+              <Audio src={staticFile("audio.mp3")} />
+              <ManiaBackground storyboardEnabled={parsed.storyboardEnabled} />
+            </AbsoluteFill>
+          );
+        }}
         durationInFrames={durationInFrames}
         fps={fps}
         width={1920}
         height={1080}
+        schema={maniaRenderSchema}
+        defaultProps={{
+          time: { beatOffset: 900, timeOffset: 0 },
+          scroll: { scrollSpeed: 20 },
+          judgment: { mode: "v2" as const, offset: 0, showZones: false },
+          layout: { stageOffset: 0, judgmentLineY: 900 },
+          contents: { storyboardEnabled: true },
+        }}
       />
 
       {/* Stage layer (beat lines, notes, key presses, hit effects + audio) */}
@@ -206,6 +220,7 @@ export const RemotionRoot: React.FC = () => {
             columnhigHlights: false,
             replayCursor: true,
             sessionLine: true,
+            storyboardEnabled: false,
           },
         }}
       />
@@ -258,6 +273,7 @@ export const RemotionRoot: React.FC = () => {
             columnhigHlights: true,
             replayCursor: true,
             sessionLine: true,
+            storyboardEnabled: false,
           },
         }}
       />

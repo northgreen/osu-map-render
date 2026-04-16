@@ -6,23 +6,29 @@ import { StoryboardLayer, storyboard } from "./lib/StoryboardLayer";
 interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
   isFailing?: boolean; // Controls Pass/Fail storyboard layer visibility
+  storyboardEnabled?: boolean; // When true, hide background image and use black fill
 }
 
 export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
   beatmap = importedBeatmap,
   isFailing = false,
+  storyboardEnabled = false,
 }) => {
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
 
+  // When storyboard is enabled, use black background and hide background image
+  const bgColor = storyboardEnabled ? "#000000" : "#1a1a2e";
+  const showBackgroundImage = !storyboardEnabled && bgFileName;
+
   return (
     <AbsoluteFill style={{
-      backgroundColor: "#1a1a2e",
+      backgroundColor: bgColor,
       "--stage-x": `${STAGE_X}px`,
       "--stage-width": `${config.stageWidth}px`,
     } as React.CSSProperties}>
       {/* Background image - rendered FIRST, behind everything */}
-      {bgFileName && (
+      {showBackgroundImage && (
         <div
           style={{
             position: "absolute",
