@@ -253,11 +253,10 @@ const SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
 const SCALE_X = SCALE;
 const SCALE_Y = SCALE;
 
-// osu! places the 640x480 storyboard centered in the screen
-// Scaled size: 640*2.25=1440, 480*2.25=1080
-// Center offset: (1920-1440)/2 = 240, (1080-1080)/2 = 0
-const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2; // 240
-const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2; // 0
+// Offset to center the 640x480 storyboard in the 1920x1080 screen
+// No SCALE applied to container anymore
+const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH) / 2; // 640
+const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT) / 2; // 300
 
 // SbSprite: inside scaled container, uses 640x480 coordinates
 const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
