@@ -1,6 +1,6 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile, Audio } from "remotion";
 import { useMemo, useState, useRef } from "react";
-import { SbObject, SbCommand } from "./sbParser";
+import { SbObject, SbCommand, SbSample } from "./sbParser";
 import storyboardData from "./storyboard.json";
 
 // Easing interpolation functions (osu! supports 0-34)
@@ -84,7 +84,9 @@ function bounceOut(t: number): number {
 function interpolate(startTime: number, endTime: number, startValue: number, endValue: number, currentTime: number, easing: number): number {
   if (currentTime <= startTime) return startValue;
   if (currentTime >= endTime) return endValue;
-  const t = (currentTime - startTime) / (endTime - startTime);
+  const duration = endTime - startTime;
+  if (duration === 0) return startValue; // Handle instant commands
+  const t = (currentTime - startTime) / duration;
   return startValue + (endValue - startValue) * applyEasing(t, easing);
 }
 
@@ -246,6 +248,7 @@ interface SbSpriteProps {
 
 const SB_BASE_WIDTH = 640;
 const SB_BASE_HEIGHT = 480;
+
 const RENDER_WIDTH = 1920;
 const RENDER_HEIGHT = 1080;
 // osu! logic: global SCALE = screen height / 480 = 2.25
@@ -253,10 +256,9 @@ const SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
 const SCALE_X = SCALE;
 const SCALE_Y = SCALE;
 
-// Offset to center the 640x480 storyboard in the 1920x1080 screen
-// No SCALE applied to container anymore
-const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH) / 2; // 640
-const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT) / 2; // 300
+// Offset to center storyboard (320,240) at screen center (960, 540)
+const OFFSET_X = RENDER_WIDTH / 2 - SB_BASE_WIDTH / 2; // 960 - 320 = 640
+const OFFSET_Y = RENDER_HEIGHT / 2 - SB_BASE_HEIGHT / 2; // 540 - 240 = 300
 
 // SbSprite: inside scaled container, uses 640x480 coordinates
 const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
@@ -265,6 +267,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
   // Position in 640x480 space (container space)
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
+  // Position directly in container space - wrapper handles the offset
   const x = rawPos.x;
   const y = rawPos.y;
   let opacity = getOpacity(object.commands, currentTime);
@@ -321,17 +324,15 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Container: actual image dimensions (for origin offset calculation)
-  // Position is in 640x480 space, but origin offset should be based on actual image size
-  const imgWidth = imageSize?.width ?? 640;
-  const imgHeight = imageSize?.height ?? 480;
-  const baseWidth = imgWidth;
-  const baseHeight = imgHeight;
+  // Get image dimensions (in 640x480 space, before global scale)
+  // If image hasn't loaded yet, use a reasonable default
+  const baseWidth = imageSize?.width ?? 100;
+  const baseHeight = imageSize?.height ?? 100;
 
-  // Calculate position with origin offset applied
-  // x, y are in 640x480 space, origin offset is based on actual image size
-  const finalX = x - originFactor.x * baseWidth;
-  const finalY = y - originFactor.y * baseHeight;
+  // Position: x,y is the origin point in 640x480 space
+  // Need to offset by origin factor to get top-left corner
+  const finalX = x - baseWidth * originFactor.x;
+  const finalY = y - baseHeight * originFactor.y;
 
   // Build transform: S command only (global SCALE handled by wrapper)
   const transforms: string[] = [];
@@ -408,20 +409,21 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
     });
   }, [storyboard, layer, isFailing]);
 
-  // Wrap all sprites in a container that applies global SCALE (like osu!'s DrawScale)
-  // Inside: 640x480 coordinates, container size 640x480
-  // After transform: screen space (1440x1080), then OFFSET positions it in 1920x1080
+  // Wrap all sprites in a container - storyboard uses 640x480 coordinates
+  // Scaled to fill screen height (2.25x = 1440x1080), centered on 1920x1080 screen
+  // center: left = (1920 - 1440) / 2 = 240
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div
         style={{
           position: "absolute",
-          left: OFFSET_X,
-          top: OFFSET_Y,
+          left: (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2,
+          top: (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2,
           width: SB_BASE_WIDTH,
           height: SB_BASE_HEIGHT,
-          // transform: `scale(${SCALE})`,
+          transform: `scale(${SCALE})`,
           transformOrigin: "0 0",
+          overflow: "visible",
         }}
       >
         {layerObjects.map((obj) => (<SbSprite key={obj.id} object={obj} currentTime={currentTime} />))}
@@ -432,3 +434,35 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
 
 export const storyboard = storyboardData.objects as SbObject[];
 export const storyboardDuration = storyboardData.duration;
+export const storyboardSamples = (storyboardData as any).samples as SbSample[] || [];
+
+// StoryboardAudioLayer: plays storyboard sound effects
+interface StoryboardAudioLayerProps {
+  samples?: SbSample[];
+}
+
+export const StoryboardAudioLayer: React.FC<StoryboardAudioLayerProps> = ({ samples = [] }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const currentTime = (frame / fps) * 1000;
+
+  // Find samples that should play at current time (within 50ms tolerance)
+  const activeSamples = useMemo(() => {
+    return samples.filter(sample =>
+      Math.abs(sample.time - currentTime) < 50
+    );
+  }, [samples, currentTime]);
+
+  return (
+    <>
+      {activeSamples.map((sample, index) => (
+        <Audio
+          key={`${sample.id}-${index}`}
+          src={staticFile(sample.path)}
+          volume={sample.volume / 100}
+          startFrom={0}
+        />
+      ))}
+    </>
+  );
+};

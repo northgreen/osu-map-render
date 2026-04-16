@@ -77,8 +77,17 @@ export interface SbObject {
   additive?: boolean;
 }
 
+export interface SbSample {
+  id: string;
+  time: number;
+  layer: Layer;
+  path: string;
+  volume: number;
+}
+
 export interface ParsedStoryboard {
   objects: SbObject[];
+  samples: SbSample[];
   variables: Record<string, string>;
   duration: number;
 }
@@ -119,10 +128,10 @@ function parseOrigin(value: string | number): Origin {
   return (origins[parseInt(value)] as Origin) || "Centre";
 }
 
-function parseCommand(line: string): SbCommand | null {
+function parseCommand(line: string, variables: Record<string, string> = {}): SbCommand | null {
   // Remove leading underscore if present
   const cleanLine = line.replace(/^_/, "");
-  const parts = cleanLine.split(",");
+  const parts = cleanLine.split(",").map(p => substituteVariables(p.trim(), variables));
 
   if (parts.length < 3) return null;
 
@@ -215,6 +224,13 @@ function parseCommand(line: string): SbCommand | null {
   };
 }
 
+// Helper function to substitute variables in strings
+function substituteVariables(text: string, variables: Record<string, string>): string {
+  return text.replace(/\$(\w+)/g, (match, varName) => {
+    return variables[varName] !== undefined ? variables[varName] : match;
+  });
+}
+
 // ============================================
 // Main Parser
 // ============================================
@@ -222,6 +238,7 @@ function parseCommand(line: string): SbCommand | null {
 export function parseStoryboard(content: string): ParsedStoryboard {
   const lines = content.split("\n");
   const objects: SbObject[] = [];
+  const samples: SbSample[] = [];
   const variables: Record<string, string> = {};
   let currentObject: SbObject | null = null;
   let maxTime = 0;
@@ -258,6 +275,23 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       continue;
     }
 
+    // Parse Sample (audio)
+    if (line.startsWith("Sample,")) {
+      const parts = line.replace(/^"/, "").replace(/"$/g, "").split(",");
+      if (parts.length >= 4) {
+        samples.push({
+          id: `sample_${samples.length}`,
+          time: parseInt(parts[1]) || 0,
+          layer: parseLayer(parts[2]),
+          path: substituteVariables(parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"), variables),
+          volume: parseInt(parts[4]) || 100,
+        });
+        const sampleTime = parseInt(parts[1]) || 0;
+        if (sampleTime > maxTime) maxTime = sampleTime + 5000; // Add 5s buffer for audio
+      }
+      continue;
+    }
+
     // Parse Sprite
     if (line.startsWith("Sprite,")) {
       // Save previous object
@@ -281,7 +315,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           type: "sprite",
           layer: parseLayer(parts[1]),
           origin: parseOrigin(parts[2]),
-          path: parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"),
+          path: substituteVariables(parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"), variables),
           x: parseInt(parts[4]) || 0,
           y: parseInt(parts[5]) || 0,
           commands: [],
@@ -313,7 +347,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           type: "animation",
           layer: parseLayer(parts[1]),
           origin: parseOrigin(parts[2]),
-          path: parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"),
+          path: substituteVariables(parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"), variables),
           x: parseInt(parts[4]) || 0,
           y: parseInt(parts[5]) || 0,
           frameCount: parseInt(parts[6]) || 1,
@@ -384,7 +418,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         line.startsWith("__C") || line.startsWith("__P") || line.startsWith("__MX") ||
         line.startsWith("__MY"))) {
       const childLine = line.replace(/^__/, "_");
-      const cmd = parseCommand(childLine);
+      const cmd = parseCommand(childLine, variables);
       if (cmd) {
         if (currentLoop) {
           currentLoop.childCommands.push(cmd);
@@ -424,8 +458,8 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     }
 
     // Parse regular Commands for current object
-    if (currentObject && line.match(/^[FMCPSR]/) || line.match(/^_[FMCPSR]/)) {
-      const cmd = parseCommand(line);
+    if (currentObject && (line.match(/^[FMCPSR]/) || line.match(/^_[FMCPSR]/))) {
+      const cmd = parseCommand(line, variables);
       if (cmd) {
         currentObject.commands.push(cmd);
         if (cmd.endTime > maxTime) {
@@ -472,6 +506,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
 
   return {
     objects,
+    samples,
     variables,
     duration: maxTime + 1000, // Add 1 second buffer
   };
