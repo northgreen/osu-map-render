@@ -59,6 +59,13 @@ export interface SbCommand {
   params: number[];
 }
 
+export interface SbLoop {
+  startTime: number;
+  repeatCount: number;
+  commands: SbCommand[];
+  loopDuration: number;
+}
+
 export interface SbObject {
   id: string;
   type: "sprite" | "animation";
@@ -71,6 +78,7 @@ export interface SbObject {
   frameDelay?: number;
   loopType?: "LoopForever" | "LoopOnce";
   commands: SbCommand[];
+  loops: SbLoop[];
   // P command parameters
   flipH?: boolean;
   flipV?: boolean;
@@ -247,7 +255,7 @@ function substituteVariables(text: string, variables: Record<string, string>): s
 // ============================================
 
 export function parseStoryboard(content: string): ParsedStoryboard {
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/);
   const objects: SbObject[] = [];
   const samples: SbSample[] = [];
   const variables: Record<string, string> = {};
@@ -272,10 +280,24 @@ export function parseStoryboard(content: string): ParsedStoryboard {
   let currentTrigger: TriggerContext | null = null;
 
   for (let i = 0; i < lines.length; i++) {
+    const originalLine = lines[i];
     const line = lines[i].trim();
 
     // Skip empty lines and comments
     if (!line || line.startsWith("//")) continue;
+
+    // Calculate depth: count leading spaces and underscores (same as osu! stable)
+    let depth = 0;
+    for (let j = 0; j < originalLine.length; j++) {
+      if (originalLine[j] === ' ' || originalLine[j] === '_') {
+        depth++;
+      } else {
+        break;
+      }
+    }
+
+    // Check if line is inside a loop (depth >= 2 per osu! stable)
+    // depth 0 = Sprite/Animation, depth 1 = regular command, depth >= 2 = inside loop
 
     // Parse Variables section
     if (line.startsWith("$")) {
@@ -307,9 +329,32 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     if (line.startsWith("Sprite,")) {
       // Save previous object
       if (currentObject) {
-        // Flush any pending loop/trigger commands before saving
+        // Flush any pending loop to loops array before saving
         if (currentLoop && currentLoop.childCommands.length > 0) {
-          currentObject.commands.push(...currentLoop.childCommands);
+          // Calculate loop duration from the span of command times (not filtering)
+          // For relative loops: times are relative to loop start (e.g., 0, 391, 1955)
+          // For absolute loops: times are absolute (e.g., 106490, 106827)
+          // In both cases, loop duration = max(endTime) - min(startTime)
+          let minStart = Infinity;
+          let maxEnd = -Infinity;
+          for (const cmd of currentLoop.childCommands) {
+            if (cmd.startTime < minStart) minStart = cmd.startTime;
+            if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+              maxEnd = cmd.endTime;
+            }
+          }
+          let loopDuration = maxEnd - minStart;
+          // If all commands have infinite end time or duration is 0, use a reasonable default
+          if (loopDuration <= 0) loopDuration = 1000;
+          currentLoop.loopDuration = loopDuration;
+          // Keep command times as-is (relative to loop start)
+          // Runtime will calculate absolute times based on iteration
+          currentObject.loops.push({
+            startTime: currentLoop.startTime,
+            repeatCount: currentLoop.repeatCount,
+            commands: currentLoop.childCommands,
+            loopDuration: currentLoop.loopDuration,
+          });
           currentLoop = null;
         }
         if (currentTrigger && currentTrigger.childCommands.length > 0) {
@@ -330,6 +375,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           x: parseInt(parts[4]) || 0,
           y: parseInt(parts[5]) || 0,
           commands: [],
+          loops: [],
         };
       }
       continue;
@@ -339,9 +385,32 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     if (line.startsWith("Animation,")) {
       // Save previous object
       if (currentObject) {
-        // Flush any pending loop/trigger commands before saving
+        // Flush any pending loop to loops array before saving
         if (currentLoop && currentLoop.childCommands.length > 0) {
-          currentObject.commands.push(...currentLoop.childCommands);
+          // Calculate loop duration from the span of command times (not filtering)
+          // For relative loops: times are relative to loop start (e.g., 0, 391, 1955)
+          // For absolute loops: times are absolute (e.g., 106490, 106827)
+          // In both cases, loop duration = max(endTime) - min(startTime)
+          let minStart = Infinity;
+          let maxEnd = -Infinity;
+          for (const cmd of currentLoop.childCommands) {
+            if (cmd.startTime < minStart) minStart = cmd.startTime;
+            if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+              maxEnd = cmd.endTime;
+            }
+          }
+          let loopDuration = maxEnd - minStart;
+          // If all commands have infinite end time or duration is 0, use a reasonable default
+          if (loopDuration <= 0) loopDuration = 1000;
+          currentLoop.loopDuration = loopDuration;
+          // Keep command times as-is (relative to loop start)
+          // Runtime will calculate absolute times based on iteration
+          currentObject.loops.push({
+            startTime: currentLoop.startTime,
+            repeatCount: currentLoop.repeatCount,
+            commands: currentLoop.childCommands,
+            loopDuration: currentLoop.loopDuration,
+          });
           currentLoop = null;
         }
         if (currentTrigger && currentTrigger.childCommands.length > 0) {
@@ -365,6 +434,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           frameDelay: parseInt(parts[7]) || 100,
           loopType: (parts[8] as "LoopForever" | "LoopOnce") || "LoopForever",
           commands: [],
+          loops: [],
         };
       }
       continue;
@@ -372,21 +442,28 @@ export function parseStoryboard(content: string): ParsedStoryboard {
 
     // Parse L (Loop) command
     if (currentObject && (line.startsWith("L,") || line.startsWith("_L,"))) {
-      // Flush previous loop if any
+      // Save previous loop to loops array (don't expand)
       if (currentLoop && currentLoop.childCommands.length > 0) {
-        // Calculate loop duration from the last command
-        const lastCmd = currentLoop.childCommands[currentLoop.childCommands.length - 1];
-        currentLoop.loopDuration = lastCmd.endTime - lastCmd.startTime;
-        // Expand the loop commands
-        for (let iter = 0; iter < currentLoop.repeatCount; iter++) {
-          for (const cmd of currentLoop.childCommands) {
-            currentObject.commands.push({
-              ...cmd,
-              startTime: currentLoop.startTime + iter * currentLoop.loopDuration + (cmd.startTime % currentLoop.loopDuration),
-              endTime: currentLoop.startTime + iter * currentLoop.loopDuration + (cmd.endTime % currentLoop.loopDuration),
-            });
+        // Calculate loop duration from the span of command times
+        let minStart = Infinity;
+        let maxEnd = -Infinity;
+        for (const cmd of currentLoop.childCommands) {
+          if (cmd.startTime < minStart) minStart = cmd.startTime;
+          if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+            maxEnd = cmd.endTime;
           }
         }
+        let loopDuration = maxEnd - minStart;
+        if (loopDuration <= 0) loopDuration = 1000;
+        currentLoop.loopDuration = loopDuration;
+
+        // Save to loops array instead of expanding
+        currentObject.loops.push({
+          startTime: currentLoop.startTime,
+          repeatCount: currentLoop.repeatCount,
+          commands: currentLoop.childCommands,
+          loopDuration: currentLoop.loopDuration,
+        });
         currentLoop = null;
       }
 
@@ -395,7 +472,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       const repeatCount = parseInt(parts[2]) || 1;
       currentLoop = {
         startTime: loopStart,
-        repeatCount: Math.max(0, repeatCount - 1), // osu! uses repeat count, we need iterations
+        repeatCount: repeatCount, // osu! L,start,repeatCount means repeatCount+1 total plays
         childCommands: [],
         loopDuration: 0,
       };
@@ -472,9 +549,15 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     if (currentObject && (line.match(/^[FMCPSR]/) || line.match(/^_[FMCPSR]/))) {
       const cmd = parseCommand(line, variables);
       if (cmd) {
-        currentObject.commands.push(cmd);
-        if (cmd.endTime > maxTime) {
-          maxTime = cmd.endTime;
+        // Only add to loop if line has loop-level indentation (3+ spaces)
+        // This distinguishes commands inside L blocks from regular commands
+        if (currentLoop && depth >= 2) {
+          currentLoop.childCommands.push(cmd);
+        } else {
+          currentObject.commands.push(cmd);
+          if (cmd.endTime > maxTime) {
+            maxTime = cmd.endTime;
+          }
         }
       }
     }
@@ -482,24 +565,31 @@ export function parseStoryboard(content: string): ParsedStoryboard {
 
   // Push last object
   if (currentObject) {
-    // Flush any pending loop/trigger commands before saving
+    // Flush any pending loop to loops array before saving
     if (currentLoop && currentLoop.childCommands.length > 0) {
-      const lastCmd = currentLoop.childCommands[currentLoop.childCommands.length - 1];
-      currentLoop.loopDuration = lastCmd.endTime - lastCmd.startTime;
-      // Expand the loop commands
-      for (let iter = 0; iter <= currentLoop.repeatCount; iter++) {
-        for (const cmd of currentLoop.childCommands) {
-          const adjustedStart = currentLoop.startTime + iter * currentLoop.loopDuration + (cmd.startTime % currentLoop.loopDuration);
-          const adjustedEnd = currentLoop.startTime + iter * currentLoop.loopDuration + (cmd.endTime % currentLoop.loopDuration);
-          currentObject.commands.push({
-            ...cmd,
-            startTime: adjustedStart,
-            endTime: adjustedEnd,
-          });
-          if (adjustedEnd > maxTime) {
-            maxTime = adjustedEnd;
-          }
+      // Calculate loop duration from the span of command times
+      let minStart = Infinity;
+      let maxEnd = -Infinity;
+      for (const cmd of currentLoop.childCommands) {
+        if (cmd.startTime < minStart) minStart = cmd.startTime;
+        if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+          maxEnd = cmd.endTime;
         }
+      }
+      let loopDuration = maxEnd - minStart;
+      if (loopDuration <= 0) loopDuration = 1000;
+      currentLoop.loopDuration = loopDuration;
+      // Save to loops array instead of expanding
+      currentObject.loops.push({
+        startTime: currentLoop.startTime,
+        repeatCount: currentLoop.repeatCount,
+        commands: currentLoop.childCommands,
+        loopDuration: currentLoop.loopDuration,
+      });
+      // Calculate max time from loop iterations
+      const loopEndTime = currentLoop.startTime + (currentLoop.repeatCount + 1) * currentLoop.loopDuration;
+      if (loopEndTime > maxTime) {
+        maxTime = loopEndTime;
       }
       currentLoop = null;
     }

@@ -1,6 +1,6 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile, Audio } from "remotion";
 import { useMemo, useState, useRef } from "react";
-import { SbObject, SbCommand, SbSample } from "./sbParser";
+import { SbObject, SbCommand, SbSample, SbLoop } from "./sbParser";
 import storyboardData from "./storyboard.json";
 
 // Easing interpolation functions (osu! supports 0-34)
@@ -81,6 +81,91 @@ function bounceOut(t: number): number {
   return n1 * (t - 2.625 / d1) * t + 0.984375;
 }
 
+// Get command value within loops - handles iteration timing
+// Each iteration continues from where the previous one ended (continuous animation)
+function getLoopCommandValue(loops: SbLoop[], cmdType: string, currentTime: number, paramIndex: number): number | null {
+  for (const loop of loops) {
+    // Check if current time is within this loop's active range
+    if (currentTime < loop.startTime) continue;
+
+    // Determine if command times are relative or absolute
+    // Relative: cmd.startTime < loopDuration (like particle: 0, 391, 1955 vs duration 1955)
+    // Absolute: cmd.startTime >= loopDuration (like med_distort: 98400 vs duration 337)
+    const hasRelativeTimes = loop.commands.some(cmd => cmd.startTime < loop.loopDuration);
+
+    // For both cases, find the iteration that contains currentTime
+    // Then calculate the command's absolute time in that iteration
+    const timeSinceStart = currentTime - loop.startTime;
+
+    for (const cmd of loop.commands) {
+      if (cmd.type !== cmdType) continue;
+
+      // Find which iteration this currentTime falls into
+      // For relative times: check if currentTime is in iteration range
+      // For absolute times: check if currentTime is near any iteration's command time
+
+      let cmdStartAbs: number = 0;
+      let cmdEndAbs: number = Number.MAX_SAFE_INTEGER;
+
+      if (hasRelativeTimes) {
+        // Relative: calculate iteration based on time since loop start
+        const iteration = Math.floor(timeSinceStart / loop.loopDuration);
+        if (loop.repeatCount > 0 && iteration >= loop.repeatCount) continue;
+
+        cmdStartAbs = loop.startTime + cmd.startTime + iteration * loop.loopDuration;
+        cmdEndAbs = cmd.endTime === Number.MAX_SAFE_INTEGER
+          ? Number.MAX_SAFE_INTEGER
+          : loop.startTime + cmd.endTime + iteration * loop.loopDuration;
+      } else {
+        // Absolute: iterate through all possible iterations to find matching one
+        // The command runs at cmd.startTime + n * loopDuration for each iteration n
+        let foundIteration = -1;
+
+        for (let iter = 0; iter <= loop.repeatCount; iter++) {
+          const thisCmdStart = cmd.startTime + iter * loop.loopDuration;
+          const thisCmdEnd = cmd.endTime === Number.MAX_SAFE_INTEGER
+            ? Number.MAX_SAFE_INTEGER
+            : cmd.endTime + iter * loop.loopDuration;
+
+          if (currentTime >= thisCmdStart && currentTime <= thisCmdEnd) {
+            cmdStartAbs = thisCmdStart;
+            cmdEndAbs = thisCmdEnd;
+            foundIteration = iter;
+            break;
+          }
+        }
+
+        if (foundIteration < 0) continue;
+      }
+
+      const cmdDuration = cmdEndAbs === Number.MAX_SAFE_INTEGER ? 0 : cmdEndAbs - cmdStartAbs;
+
+      if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
+        if (cmdDuration <= 0) continue;
+
+        const relTimeInCmd = currentTime - cmdStartAbs;
+        const t = relTimeInCmd / cmdDuration;
+
+        const endIndex = cmdType === "M" || cmdType === "MX" || cmdType === "MY" || cmdType === "V"
+          ? paramIndex + 2
+          : paramIndex + 1;
+        const iterStartValue = cmd.params[paramIndex];
+        const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
+
+        // For absolute times, we need to calculate iteration for value accumulation
+        const iteration = hasRelativeTimes ? Math.floor(timeSinceStart / loop.loopDuration) :
+          Math.floor((currentTime - cmd.startTime) / loop.loopDuration);
+        const delta = iterEndValue - iterStartValue;
+        const accumulatedDelta = delta * Math.max(0, iteration);
+
+        const easedT = applyEasing(t, cmd.easing);
+        return iterStartValue + accumulatedDelta + (iterEndValue - iterStartValue) * easedT;
+      }
+    }
+  }
+  return null;
+}
+
 function interpolate(startTime: number, endTime: number, startValue: number, endValue: number, currentTime: number, easing: number): number {
   if (currentTime <= startTime) return startValue;
   if (currentTime >= endTime) return endValue;
@@ -117,12 +202,13 @@ function getCommandValue(cmd: SbCommand, currentTime: number, paramIndex: number
   return interpolate(cmd.startTime, cmd.endTime, startValue, endValue, currentTime, cmd.easing);
 }
 
-function getOpacity(commands: SbCommand[], currentTime: number): number {
+function getOpacity(commands: SbCommand[], loops: SbLoop[], currentTime: number): number {
   let opacity = 1;
   for (const cmd of commands) {
     if (cmd.type === "F") {
-      // 命令已结束，锁定为结束值
-      if (currentTime >= cmd.endTime) {
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      // 命令已结束，或者没有结束时间（infinite）
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         opacity = cmd.params[1] ?? cmd.params[0] ?? 1;
       } else if (currentTime >= cmd.startTime) {
         // 命令进行中，计算插值
@@ -134,15 +220,23 @@ function getOpacity(commands: SbCommand[], currentTime: number): number {
       // currentTime < cmd.startTime -> 忽略，保持上一个命令的状态
     }
   }
+
+  // Also check loops for opacity values
+  if (loops.length > 0) {
+    const loopOpacity = getLoopCommandValue(loops, "F", currentTime, 0);
+    if (loopOpacity !== null) opacity = loopOpacity;
+  }
+
   return opacity;
 }
 
-function getPosition(commands: SbCommand[], currentTime: number, defaultX: number, defaultY: number): { x: number; y: number } {
+function getPosition(commands: SbCommand[], loops: SbLoop[], currentTime: number, defaultX: number, defaultY: number): { x: number; y: number } {
   let x = defaultX, y = defaultY;
   for (const cmd of commands) {
     if (cmd.type === "M" || cmd.type === "MX" || cmd.type === "MY") {
-      // 命令已结束
-      if (currentTime >= cmd.endTime) {
+      // 命令已结束，或者没有结束时间（infinite）
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
         if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
       } else if (currentTime >= cmd.startTime) {
@@ -157,14 +251,24 @@ function getPosition(commands: SbCommand[], currentTime: number, defaultX: numbe
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
+
+  // Also check loops for position values
+  if (loops.length > 0) {
+    const loopX = getLoopCommandValue(loops, "M", currentTime, 0);
+    const loopY = getLoopCommandValue(loops, "M", currentTime, 1);
+    if (loopX !== null) x = loopX;
+    if (loopY !== null) y = loopY;
+  }
+
   return { x, y };
 }
 
-function getScale(commands: SbCommand[], currentTime: number): number {
+function getScale(commands: SbCommand[], loops: SbLoop[], currentTime: number): number {
   let scale = 1;
   for (const cmd of commands) {
     if (cmd.type === "S") {
-      if (currentTime >= cmd.endTime) {
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         scale = cmd.params[1] ?? cmd.params[0] ?? 1;
       } else if (currentTime >= cmd.startTime) {
         scale = getCommandValue(cmd, currentTime, 0);
@@ -175,13 +279,21 @@ function getScale(commands: SbCommand[], currentTime: number): number {
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
+
+  // Also check loops for scale values
+  if (loops.length > 0) {
+    const loopScale = getLoopCommandValue(loops, "S", currentTime, 0);
+    if (loopScale !== null) scale = loopScale;
+  }
+
   return scale;
 }
 
-function getVectorScale(commands: SbCommand[], currentTime: number): { x: number; y: number } | null {
+function getVectorScale(commands: SbCommand[], loops: SbLoop[], currentTime: number): { x: number; y: number } | null {
   for (const cmd of commands) {
     if (cmd.type === "V") {
-      if (currentTime >= cmd.endTime) {
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         return { x: cmd.params[2] ?? cmd.params[0] ?? 1, y: cmd.params[3] ?? cmd.params[1] ?? 1 };
       } else if (currentTime >= cmd.startTime) {
         return { x: getCommandValue(cmd, currentTime, 0), y: getCommandValue(cmd, currentTime, 1) };
@@ -189,14 +301,25 @@ function getVectorScale(commands: SbCommand[], currentTime: number): { x: number
       // currentTime < cmd.startTime -> 继续检查后面的命令
     }
   }
+
+  // Also check loops for vector scale values
+  if (loops.length > 0) {
+    const loopX = getLoopCommandValue(loops, "V", currentTime, 0);
+    const loopY = getLoopCommandValue(loops, "V", currentTime, 1);
+    if (loopX !== null && loopY !== null) {
+      return { x: loopX, y: loopY };
+    }
+  }
+
   return null;
 }
 
-function getRotation(commands: SbCommand[], currentTime: number): number {
+function getRotation(commands: SbCommand[], loops: SbLoop[], currentTime: number): number {
   let rotation = 0;
   for (const cmd of commands) {
     if (cmd.type === "R") {
-      if (currentTime >= cmd.endTime) {
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
       } else if (currentTime >= cmd.startTime) {
         rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
@@ -207,13 +330,21 @@ function getRotation(commands: SbCommand[], currentTime: number): number {
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
+
+  // Also check loops for rotation values
+  if (loops.length > 0) {
+    const loopRotation = getLoopCommandValue(loops, "R", currentTime, 0);
+    if (loopRotation !== null) rotation = loopRotation * (180 / Math.PI);
+  }
+
   return rotation;
 }
 
-function getColor(commands: SbCommand[], currentTime: number): { r: number; g: number; b: number } | null {
+function getColor(commands: SbCommand[], loops: SbLoop[], currentTime: number): { r: number; g: number; b: number } | null {
   for (const cmd of commands) {
     if (cmd.type === "C") {
-      if (currentTime >= cmd.endTime) {
+      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
         return {
           r: (cmd.params[3] ?? cmd.params[0]) / 255,
           g: (cmd.params[4] ?? cmd.params[1]) / 255,
@@ -229,18 +360,55 @@ function getColor(commands: SbCommand[], currentTime: number): { r: number; g: n
       // currentTime < cmd.startTime -> 继续寻找之前的颜色命令
     }
   }
+
+  // Also check loops for color values
+  if (loops.length > 0) {
+    const loopR = getLoopCommandValue(loops, "C", currentTime, 0);
+    const loopG = getLoopCommandValue(loops, "C", currentTime, 1);
+    const loopB = getLoopCommandValue(loops, "C", currentTime, 2);
+    if (loopR !== null && loopG !== null && loopB !== null) {
+      return { r: loopR / 255, g: loopG / 255, b: loopB / 255 };
+    }
+  }
+
   return null;
 }
 
-function isObjectVisible(commands: SbCommand[], currentTime: number): boolean {
-  if (commands.length === 0) return false;
+function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: number): boolean {
+  if (commands.length === 0 && loops.length === 0) return false;
 
-  // Find the time range of all commands
+  // Find the time range of all commands (ignore infinite end times)
   let latestEndTime = -Infinity;
   let earliestStartTime = Infinity;
+
   for (const cmd of commands) {
     if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
-    if (cmd.endTime > latestEndTime) latestEndTime = cmd.endTime;
+    // Ignore infinite end times (like S command with no end time)
+    if (cmd.endTime !== Number.MAX_SAFE_INTEGER && cmd.endTime > latestEndTime) {
+      latestEndTime = cmd.endTime;
+    }
+  }
+
+  // Also check loops for time ranges
+  for (const loop of loops) {
+    // Check loop start time
+    if (loop.startTime < earliestStartTime) earliestStartTime = loop.startTime;
+
+    // For each command in loop, calculate the last iteration's end time
+    for (const cmd of loop.commands) {
+      // The command runs at: cmd.startTime + n * loopDuration for each iteration
+      // The last iteration is at repeatCount
+      const lastIterationEnd = cmd.endTime === Number.MAX_SAFE_INTEGER
+        ? Number.MAX_SAFE_INTEGER
+        : cmd.endTime + loop.repeatCount * loop.loopDuration;
+
+      // Check loop end time: startTime + (repeatCount + 1) * loopDuration
+      const loopEndTime = loop.startTime + (loop.repeatCount + 1) * loop.loopDuration;
+
+      if (loopEndTime > latestEndTime && loopEndTime !== Number.MAX_SAFE_INTEGER) {
+        latestEndTime = loopEndTime;
+      }
+    }
   }
 
   // Object is not visible before first command starts
@@ -249,6 +417,7 @@ function isObjectVisible(commands: SbCommand[], currentTime: number): boolean {
   if (earliestStartTime >= 0 && currentTime < earliestStartTime) return false;
 
   // Object is not visible after last command ends (only for positive end times)
+  // If latestEndTime is still -Infinity, all commands have infinite duration
   if (latestEndTime > 0 && currentTime > latestEndTime) return false;
 
   return true;
@@ -276,23 +445,25 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  const loops = object.loops || [];
+
   // Position in 640x480 space - convert to render space
   // Storyboard (320,240) should map to screen center (960,540)
-  const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
+  const rawPos = getPosition(object.commands, loops, currentTime, object.x, object.y);
   const x = (rawPos.x - SB_BASE_WIDTH / 2) * STORYBOARD_SCALE + RENDER_WIDTH / 2;
   const y = (rawPos.y - SB_BASE_HEIGHT / 2) * STORYBOARD_SCALE + RENDER_HEIGHT / 2;
 
   // Position: x,y is the origin point in render space
-  let opacity = getOpacity(object.commands, currentTime);
+  let opacity = getOpacity(object.commands, loops, currentTime);
 
-  const vectorScale = getVectorScale(object.commands, currentTime);
-  const rawScale = vectorScale ? null : getScale(object.commands, currentTime);
+  const vectorScale = getVectorScale(object.commands, loops, currentTime);
+  const rawScale = vectorScale ? null : getScale(object.commands, loops, currentTime);
 
-  const rotation = getRotation(object.commands, currentTime);
-  const color = getColor(object.commands, currentTime);
+  const rotation = getRotation(object.commands, loops, currentTime);
+  const color = getColor(object.commands, loops, currentTime);
 
   if (opacity > 1) opacity = opacity % 1;
-  if (!isObjectVisible(object.commands, currentTime)) return null;
+  if (!isObjectVisible(object.commands, loops, currentTime)) return null;
 
   let src = object.path;
   if (object.type === "animation" && object.frameCount && object.frameDelay) {
@@ -344,14 +515,16 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // Build transform: S/V commands include STORYBOARD_SCALE
+  // Build transform: S/V commands
   const transforms: string[] = [];
-  // Apply command scale (from S/V commands) - already includes STORYBOARD_SCALE
-  // CSS transform scale is relative to element's original size, so use raw scale value
+  // osu! storyboard S command scale is relative to the storyboard coordinate space (640x480)
+  // So we need to multiply by STORYBOARD_SCALE to get render space scale
   const rawScaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
-  const rawScaleY = vectorScale ? vectorScale.y : rawScale;
-  if (rawScaleX !== 1 || (rawScaleY !== undefined && rawScaleY !== 1)) {
-    transforms.push(`scale(${rawScaleX}, ${rawScaleY !== undefined ? rawScaleY : 1})`);
+  const rawScaleY = vectorScale ? vectorScale.y : (rawScale ?? 1);
+  const scaleX = rawScaleX * STORYBOARD_SCALE;
+  const scaleY = rawScaleY !== 1 ? rawScaleY * STORYBOARD_SCALE : undefined;
+  if (scaleX !== STORYBOARD_SCALE || (scaleY !== undefined && scaleY !== STORYBOARD_SCALE)) {
+    transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
   }
 
   // Flip (P command H/V)
