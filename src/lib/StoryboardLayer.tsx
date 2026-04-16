@@ -246,37 +246,32 @@ interface SbSpriteProps {
   currentTime: number;
 }
 
-const SB_BASE_WIDTH = 640;
 const SB_BASE_HEIGHT = 480;
 
 const RENDER_WIDTH = 1920;
 const RENDER_HEIGHT = 1080;
-// osu! logic: global SCALE = screen height / 480 = 2.25
-const SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
-const SCALE_X = SCALE;
-const SCALE_Y = SCALE;
 
-// Offset to center storyboard (320,240) at screen center (960, 540)
-const OFFSET_X = RENDER_WIDTH / 2 - SB_BASE_WIDTH / 2; // 960 - 320 = 640
-const OFFSET_Y = RENDER_HEIGHT / 2 - SB_BASE_HEIGHT / 2; // 540 - 240 = 300
+// 故事板 640x480 坐标到渲染分辨率的缩放
+// osu! 内置故事板使用 640x480，游戏窗口会缩放到实际分辨率
+// 但 S 命令的 scale 是相对于原图像素，不是相对于 640x480
+const STORYBOARD_SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
 
 // SbSprite: inside scaled container, uses 640x480 coordinates
+// 但 S 命令的 scale 是相对于原图，不应该被全局缩放
 const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // Position in 640x480 space (container space)
+  // Position in 640x480 space - convert to render space
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
-  // Position directly in container space - wrapper handles the offset
-  const x = rawPos.x;
-  const y = rawPos.y;
+  const x = rawPos.x * STORYBOARD_SCALE;
+  const y = rawPos.y * STORYBOARD_SCALE;
+
+  // Position: x,y is the origin point in render space
   let opacity = getOpacity(object.commands, currentTime);
 
   const vectorScale = getVectorScale(object.commands, currentTime);
   const rawScale = vectorScale ? null : getScale(object.commands, currentTime);
-  // S command value (e.g., 0.445 means 44.5% of original size)
-  const scaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
-  const scaleY = vectorScale ? vectorScale.y : undefined;
 
   const rotation = getRotation(object.commands, currentTime);
   const color = getColor(object.commands, currentTime);
@@ -329,16 +324,19 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const baseWidth = imageSize?.width ?? 100;
   const baseHeight = imageSize?.height ?? 100;
 
-  // Position: x,y is the origin point in 640x480 space
+  // Position: x,y is the origin point in render space
   // Need to offset by origin factor to get top-left corner
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // Build transform: S command only (global SCALE handled by wrapper)
+  // Build transform: S/V commands include STORYBOARD_SCALE
   const transforms: string[] = [];
-  // Apply command scale (from S/V commands) - relative to original image
-  if (scaleX !== 1 || (scaleY !== undefined && scaleY !== 1)) {
-    transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
+  // Apply command scale (from S/V commands) - already includes STORYBOARD_SCALE
+  // CSS transform scale is relative to element's original size, so use raw scale value
+  const rawScaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
+  const rawScaleY = vectorScale ? vectorScale.y : rawScale;
+  if (rawScaleX !== 1 || (rawScaleY !== undefined && rawScaleY !== 1)) {
+    transforms.push(`scale(${rawScaleX}, ${rawScaleY !== undefined ? rawScaleY : 1})`);
   }
 
   // Flip (P command H/V)
@@ -409,20 +407,17 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
     });
   }, [storyboard, layer, isFailing]);
 
-  // Wrap all sprites in a container - storyboard uses 640x480 coordinates
-  // Scaled to fill screen height (2.25x = 1440x1080), centered on 1920x1080 screen
-  // center: left = (1920 - 1440) / 2 = 240
+  // SbSprite now handles STORYBOARD_SCALE internally, so we don't need wrapper scaling
+  // Position directly uses render coordinates (1920x1080)
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div
         style={{
           position: "absolute",
-          left: (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2,
-          top: (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2,
-          width: SB_BASE_WIDTH,
-          height: SB_BASE_HEIGHT,
-          transform: `scale(${SCALE})`,
-          transformOrigin: "0 0",
+          left: 0,
+          top: 0,
+          width: RENDER_WIDTH,
+          height: RENDER_HEIGHT,
           overflow: "visible",
         }}
       >
