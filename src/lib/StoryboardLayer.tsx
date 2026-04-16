@@ -322,13 +322,14 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
   // Container: actual image dimensions (for origin offset calculation)
-  // Position is still in 640x480 space, will be offset by wrapper
+  // Position is in 640x480 space, but origin offset should be based on actual image size
   const imgWidth = imageSize?.width ?? 640;
   const imgHeight = imageSize?.height ?? 480;
   const baseWidth = imgWidth;
   const baseHeight = imgHeight;
 
-  // Calculate position with origin offset applied (in 640x480 space)
+  // Calculate position with origin offset applied
+  // x, y are in 640x480 space, origin offset is based on actual image size
   const finalX = x - originFactor.x * baseWidth;
   const finalY = y - originFactor.y * baseHeight;
 
