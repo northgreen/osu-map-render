@@ -248,15 +248,16 @@ const SB_BASE_WIDTH = 640;
 const SB_BASE_HEIGHT = 480;
 const RENDER_WIDTH = 1920;
 const RENDER_HEIGHT = 1080;
-// Cover scale to fill 1920x1080 - applied per sprite
-const SCALE = Math.max(RENDER_WIDTH / SB_BASE_WIDTH, RENDER_HEIGHT / SB_BASE_HEIGHT); // 3.0
+// Use osu! logic: global SCALE = screen height / 480 = 2.25
+const SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
 const SCALE_X = SCALE;
 const SCALE_Y = SCALE;
 
-// 计算居中偏移，使 640x480 storyboard 居中于 1920x1080
-// 缩放后: 1920x1440, 需要上下各裁剪 180px
-const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2; // 0
-const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2; // -180
+// Offset to center the 640x480 storyboard (scaled) in the 1920x1080 screen
+// Scaled storyboard: 640*2.25=1440, 480*2.25=1080
+// Offset = (1920 - 1440) / 2 = 240
+const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2; // 240
+const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2; // 0
 
 // SbSprite receives raw storyboard coordinates (640x480 space)
 // Applies global cover scale (3x) to fill 1920x1080
@@ -264,15 +265,15 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // Use raw storyboard coordinates (640x480 space)
+  // Position in screen space (640x480 -> 1920x1080)
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
-  // Apply global cover scale + centering offset to position
   const x = rawPos.x * SCALE_X + OFFSET_X;
   const y = rawPos.y * SCALE_Y + OFFSET_Y;
   let opacity = getOpacity(object.commands, currentTime);
 
   const vectorScale = getVectorScale(object.commands, currentTime);
   const rawScale = vectorScale ? null : getScale(object.commands, currentTime);
+  // S command value (e.g., 0.445 means 44.5% of original size)
   const scaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
   const scaleY = vectorScale ? vectorScale.y : undefined;
 
@@ -322,27 +323,29 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Use actual image dimensions (S command output is already in screen space)
+  // Container: original image dimensions (NOT scaled - scale applied in transform)
   const imgWidth = imageSize?.width ?? 640;
   const imgHeight = imageSize?.height ?? 480;
   const baseWidth = imgWidth;
   const baseHeight = imgHeight;
 
   // Calculate position with origin offset applied
-  // x, y are already in render coordinates (includes OFFSET_X)
+  // x, y are in screen space (includes SCALE)
   const finalX = x - originFactor.x * baseWidth;
   const finalY = y - originFactor.y * baseHeight;
 
-  // Build transform: command scale only (global SCALE already in position and container)
+  // Build transform: global SCALE + S command (applied to original image size)
   const transforms: string[] = [];
-  // Apply command scale (from S/V commands)
+  // Apply command scale (from S/V commands) - relative to original image
   if (scaleX !== 1 || (scaleY !== undefined && scaleY !== 1)) {
     transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
   }
+
   // Flip (P command H/V)
   if (effectiveFlipH && effectiveFlipV) transforms.push(`scale(-1, -1)`);
   else if (effectiveFlipH) transforms.push(`scale(-1, 1)`);
   else if (effectiveFlipV) transforms.push(`scale(1, -1)`);
+
   // Rotation
   if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
 
@@ -380,7 +383,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
   // Render sprites directly without container scaling
   // Each SbSprite handles its own global SCALE + command scale
   return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
+    <AbsoluteFill style={{ pointerEvents: "none",animation: "none",transition: "none" }}>
       {layerObjects.map((obj) => (<SbSprite key={obj.id} object={obj} currentTime={currentTime} />))}
     </AbsoluteFill>
   );
