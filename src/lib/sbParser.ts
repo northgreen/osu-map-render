@@ -157,71 +157,148 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      const fStart = parseFloat(parts[4]);
-      const fEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : fStart;
-      params = [
-        isNaN(fStart) ? 0 : fStart,
-        isNaN(fEnd) ? fStart : fEnd,
-      ];
+      // Single value means fade from 0 to that value (osu! behavior)
+      // Two values means fade from startVal to endVal
+      if (parts[5] === undefined || parts[5] === "") {
+        // Only one value: fade from 0 to this value
+        const fEnd = parseFloat(parts[4]);
+        params = [
+          isNaN(fEnd) ? 0 : 0, // start from 0
+          isNaN(fEnd) ? 0 : fEnd,
+        ];
+      } else {
+        // Two values: fade from startVal to endVal
+        const fStart = parseFloat(parts[4]);
+        const fEnd = parseFloat(parts[5]);
+        params = [
+          isNaN(fStart) ? 0 : fStart,
+          isNaN(fEnd) ? (isNaN(fStart) ? 0 : fStart) : fEnd,
+        ];
+      }
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
       // If endTime is empty/omitted, treat as "indefinite" (same as osu! behavior)
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      params = [
-        parseFloat(parts[4]) || 0,
-        parseFloat(parts[5]) || 0,
-        (parseFloat(parts[6]) ?? parseFloat(parts[4])) || 0,
-        (parseFloat(parts[7]) ?? parseFloat(parts[5])) || 0,
-      ];
+      // Check if x2,y2 are provided (4-param) or only x1,y1 (2-param, no animation)
+      if (parts[6] !== undefined && parts[6] !== "") {
+        // 4-param: animate from (x1,y1) to (x2,y2)
+        params = [
+          parseFloat(parts[4]) || 0,
+          parseFloat(parts[5]) || 0,
+          parseFloat(parts[6]) || 0,
+          parseFloat(parts[7]) || 0,
+        ];
+      } else {
+        // 2-param: just set position, no animation
+        params = [
+          parseFloat(parts[4]) || 0,
+          parseFloat(parts[5]) || 0,
+        ];
+      }
       break;
-    case "MX": // MoveX: type,easing,start,end,x1,x2
+    case "MX": // MoveX: type,easing,start,end,x1
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      params = [
-        parseFloat(parts[4]) || 0,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
-      ];
+      // Single param (x1) means just set position, no animation
+      if (parts[5] === undefined || parts[5] === "") {
+        params = [parseFloat(parts[4]) || 0];
+      } else {
+        // Two params: animate from x1 to x2
+        params = [
+          parseFloat(parts[4]) || 0,
+          parseFloat(parts[5]) || 0,
+        ];
+      }
       break;
-    case "MY": // MoveY: type,easing,start,end,y1,y2
+    case "MY": // MoveY: type,easing,start,end,y1
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      params = [
-        parseFloat(parts[4]) || 0,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
-      ];
+      // Single param (y1) means just set position, no animation
+      if (parts[5] === undefined || parts[5] === "") {
+        params = [parseFloat(parts[4]) || 0];
+      } else {
+        // Two params: animate from y1 to y2
+        params = [
+          parseFloat(parts[4]) || 0,
+          parseFloat(parts[5]) || 0,
+        ];
+      }
       break;
     case "S": // Scale: type,easing,start,end,startScale,endScale
       // If endTime is empty/omitted, treat as "indefinite" (very large number)
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      // Single param means same start and end value
-      const sStart = parseFloat(parts[4]);
-      const sEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : sStart;
-      params = [
-        isNaN(sStart) ? 1 : sStart,
-        isNaN(sEnd) ? sStart : sEnd,
-      ];
+      // Single param means scale from 1 to that value (osu! behavior)
+      if (parts[5] === undefined || parts[5] === "") {
+        const sEnd = parseFloat(parts[4]);
+        params = [
+          isNaN(sEnd) ? 1 : 1, // start from scale 1
+          isNaN(sEnd) ? 1 : sEnd,
+        ];
+      } else {
+        // Two params: scale from startScale to endScale
+        const sStart = parseFloat(parts[4]);
+        const sEnd = parseFloat(parts[5]);
+        params = [
+          isNaN(sStart) ? 1 : sStart,
+          isNaN(sEnd) ? (isNaN(sStart) ? 1 : sStart) : sEnd,
+        ];
+      }
       break;
     case "V": // Vector Scale: type,easing,start,end,sx1,sy1,sx2,sy2
-      endTime = parseInt(parts[3]) || startTime;
-      params = [
-        parseFloat(parts[4]) || 1,
-        parseFloat(parts[5]) || 1,
-        (parseFloat(parts[6]) ?? parseFloat(parts[4])) || 1,
-        (parseFloat(parts[7]) ?? parseFloat(parts[5])) || 1,
-      ];
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
+      if (parts[6] === undefined || parts[6] === "") {
+        // Only x1,y1: scale from (1,1) to (x1,y1)
+        const vx = parseFloat(parts[4]);
+        const vy = parseFloat(parts[5]);
+        params = [
+          isNaN(vx) ? 1 : 1, // start from 1
+          isNaN(vy) ? 1 : 1,
+          isNaN(vx) ? 1 : vx,
+          isNaN(vy) ? 1 : vy,
+        ];
+      } else {
+        // Four params: scale from (x1,y1) to (x2,y2)
+        const vx1 = parseFloat(parts[4]);
+        const vy1 = parseFloat(parts[5]);
+        const vx2 = parseFloat(parts[6]);
+        const vy2 = parseFloat(parts[7]);
+        params = [
+          isNaN(vx1) ? 1 : vx1,
+          isNaN(vy1) ? 1 : vy1,
+          isNaN(vx2) ? (isNaN(vx1) ? 1 : vx1) : vx2,
+          isNaN(vy2) ? (isNaN(vy1) ? 1 : vy1) : vy2,
+        ];
+      }
       break;
     case "R": // Rotate: type,easing,start,end,startRad,endRad
-      endTime = parseInt(parts[3]) || startTime;
-      params = [
-        parseFloat(parts[4]) || 0,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
-      ];
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Single param means rotate from 0 to that value
+      if (parts[5] === undefined || parts[5] === "") {
+        const rEnd = parseFloat(parts[4]);
+        params = [
+          isNaN(rEnd) ? 0 : 0, // start from 0
+          isNaN(rEnd) ? 0 : rEnd,
+        ];
+      } else {
+        // Two params: rotate from startRad to endRad
+        const rStart = parseFloat(parts[4]);
+        const rEnd = parseFloat(parts[5]);
+        params = [
+          isNaN(rStart) ? 0 : rStart,
+          isNaN(rEnd) ? (isNaN(rStart) ? 0 : rStart) : rEnd,
+        ];
+      }
       break;
     case "C": // Color: type,easing,start,end,r1,g1,b1,r2,g2,b2
       endTime = parseInt(parts[3]) || startTime;

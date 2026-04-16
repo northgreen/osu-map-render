@@ -167,10 +167,12 @@ function getCommandValue(cmd: SbCommand, currentTime: number, paramIndex: number
   let endIndex: number;
   switch (cmd.type) {
     case "M": // Move: x1, y1, x2, y2 (paramIndex 0->2, 1->3)
-    case "MX":
-    case "MY":
     case "V": // Vector Scale: x1, y1, x2, y2 (同 Move)
       endIndex = paramIndex + 2;
+      break;
+    case "MX": // MoveX: x1, x2 (paramIndex 0->1)
+    case "MY": // MoveY: y1, y2 (paramIndex 0->1)
+      endIndex = paramIndex + 1;
       break;
     case "C": // Color: r1, g1, b1, r2, g2, b2 (paramIndex 0->3, 1->4, 2->5)
       endIndex = paramIndex + 3;
@@ -188,18 +190,21 @@ function getOpacity(commands: SbCommand[], loops: SbLoop[], currentTime: number)
   let opacity = 1;
   for (const cmd of commands) {
     if (cmd.type === "F") {
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      // 命令已结束，或者没有结束时间（infinite）
-      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
-        opacity = cmd.params[1] ?? cmd.params[0] ?? 1;
-      } else if (currentTime >= cmd.startTime) {
+      // 优先检查命令是否正在进行中
+      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
         // 命令进行中，计算插值
+        opacity = getCommandValue(cmd, currentTime, 0);
+      } else if (currentTime > cmd.endTime && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        // 命令已结束（非无限），使用结束值
+        opacity = cmd.params[1] ?? cmd.params[0] ?? 1;
+      } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
+        // 无限命令进行中，使用当前值
         opacity = getCommandValue(cmd, currentTime, 0);
       } else if (currentTime < cmd.startTime && opacity === 1) {
         // currentTime 在第一条命令之前，使用该命令的 startValue
         opacity = cmd.params[0] ?? 1;
       }
-      // currentTime < cmd.startTime -> 忽略，保持上一个命令的状态
+      // currentTime < cmd.startTime 且 opacity != 1 -> 忽略，保持上一个命令的状态
     }
   }
 
@@ -216,28 +221,26 @@ function getPosition(commands: SbCommand[], loops: SbLoop[], currentTime: number
   let x = defaultX, y = defaultY;
   for (const cmd of commands) {
     if (cmd.type === "M" || cmd.type === "MX" || cmd.type === "MY") {
-      // 命令已结束，或者没有结束时间（infinite）
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
-        // 如果没有结束时间（infinite），使用开始坐标
-        // 否则使用结束坐标
-        if (isInfinite) {
-          if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-          if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
-        } else {
-          if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
-          if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
-        }
-      } else if (currentTime >= cmd.startTime) {
-        // 命令进行中
+      // 优先检查命令是否正在进行中（currentTime 在 startTime 和 endTime 之间）
+      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+        // 命令进行中，优先使用插值
+        // M 命令: x 用 params[0,2], y 用 params[1,3]; MX 用 params[0,1]; MY 用 params[0,1]
         if (cmd.type === "M" || cmd.type === "MX") x = getCommandValue(cmd, currentTime, 0);
-        if (cmd.type === "M" || cmd.type === "MY") y = getCommandValue(cmd, currentTime, 1);
+        if (cmd.type === "M" || cmd.type === "MY") y = getCommandValue(cmd, currentTime, 0);
+      } else if (currentTime > cmd.endTime && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        // 命令已结束（非无限），使用结束坐标
+        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
+        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+      } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
+        // 无限命令进行中，使用开始坐标
+        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
+        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
       } else if (currentTime < cmd.startTime && (x === defaultX && y === defaultY)) {
         // currentTime 在第一条命令之前，使用该命令的 startValue
         if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
         if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
       }
-      // currentTime < cmd.startTime -> 忽略，保持之前的值
+      // currentTime < cmd.startTime 且已有值 -> 忽略，保持之前的值
     }
   }
 
@@ -256,16 +259,20 @@ function getScale(commands: SbCommand[], loops: SbLoop[], currentTime: number): 
   let scale = 1;
   for (const cmd of commands) {
     if (cmd.type === "S") {
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
-        scale = cmd.params[1] ?? cmd.params[0] ?? 1;
-      } else if (currentTime >= cmd.startTime) {
+      // 优先检查命令是否正在进行中
+      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
         scale = getCommandValue(cmd, currentTime, 0);
+      } else if (currentTime > cmd.endTime && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        // 命令已结束（非无限），使用结束值
+        scale = cmd.params[1] ?? cmd.params[0] ?? 1;
+      } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
+        // 无限命令进行中，使用开始值
+        scale = cmd.params[0] ?? 1;
       } else if (currentTime < cmd.startTime && scale === 1) {
         // currentTime 在第一条命令之前，使用该命令的 startValue
         scale = cmd.params[0] ?? 1;
       }
-      // currentTime < cmd.startTime -> 忽略，保持之前的值
+      // currentTime < cmd.startTime 且 scale != 1 -> 忽略，保持之前的值
     }
   }
 
@@ -307,16 +314,20 @@ function getRotation(commands: SbCommand[], loops: SbLoop[], currentTime: number
   let rotation = 0;
   for (const cmd of commands) {
     if (cmd.type === "R") {
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
-        rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
-      } else if (currentTime >= cmd.startTime) {
+      // 优先检查命令是否正在进行中
+      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
         rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
+      } else if (currentTime > cmd.endTime && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        // 命令已结束（非无限），使用结束值
+        rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
+      } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
+        // 无限命令进行中，使用开始值
+        rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
       } else if (currentTime < cmd.startTime && rotation === 0) {
         // currentTime 在第一条命令之前，使用该命令的 startValue
         rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
       }
-      // currentTime < cmd.startTime -> 忽略，保持之前的值
+      // currentTime < cmd.startTime 且 rotation != 0 -> 忽略，保持之前的值
     }
   }
 
@@ -332,14 +343,22 @@ function getRotation(commands: SbCommand[], loops: SbLoop[], currentTime: number
 function getColor(commands: SbCommand[], loops: SbLoop[], currentTime: number): { r: number; g: number; b: number } | null {
   for (const cmd of commands) {
     if (cmd.type === "C") {
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      if ((currentTime >= cmd.endTime) || (isInfinite && currentTime >= cmd.startTime)) {
+      // 优先检查命令是否正在进行中
+      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+        return {
+          r: getCommandValue(cmd, currentTime, 0) / 255,
+          g: getCommandValue(cmd, currentTime, 1) / 255,
+          b: getCommandValue(cmd, currentTime, 2) / 255
+        };
+      } else if (currentTime > cmd.endTime && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        // 命令已结束（非无限）
         return {
           r: (cmd.params[3] ?? cmd.params[0]) / 255,
           g: (cmd.params[4] ?? cmd.params[1]) / 255,
           b: (cmd.params[5] ?? cmd.params[2]) / 255
         };
-      } else if (currentTime >= cmd.startTime) {
+      } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
+        // 无限命令进行中
         return {
           r: getCommandValue(cmd, currentTime, 0) / 255,
           g: getCommandValue(cmd, currentTime, 1) / 255,
