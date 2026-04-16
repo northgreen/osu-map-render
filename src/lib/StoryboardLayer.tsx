@@ -1,6 +1,6 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile } from "remotion";
-import { useMemo, useState, useRef,useEffect } from "react";
-import { SbObject, SbCommand, EASING_NAMES } from "./sbParser";
+import { useMemo, useState, useRef } from "react";
+import { SbObject, SbCommand } from "./sbParser";
 import storyboardData from "./storyboard.json";
 
 // Easing interpolation functions (osu! supports 0-34)
@@ -91,8 +91,27 @@ function interpolate(startTime: number, endTime: number, startValue: number, end
 function getCommandValue(cmd: SbCommand, currentTime: number, paramIndex: number): number {
   if (cmd.params.length === 0) return 0;
   if (cmd.params.length === 1) return cmd.params[0];
+
   const startValue = cmd.params[paramIndex];
-  const endValue = cmd.params[paramIndex + 2] ?? startValue;
+
+  // 根据命令类型确定结束值的索引
+  let endIndex: number;
+  switch (cmd.type) {
+    case "M": // Move: x1, y1, x2, y2 (paramIndex 0->2, 1->3)
+    case "MX":
+    case "MY":
+    case "V": // Vector Scale: x1, y1, x2, y2 (同 Move)
+      endIndex = paramIndex + 2;
+      break;
+    case "C": // Color: r1, g1, b1, r2, g2, b2 (paramIndex 0->3, 1->4, 2->5)
+      endIndex = paramIndex + 3;
+      break;
+    default: // F, S, R 等: start, end (paramIndex 0->1)
+      endIndex = paramIndex + 1;
+      break;
+  }
+
+  const endValue = cmd.params[endIndex] ?? startValue;
   return interpolate(cmd.startTime, cmd.endTime, startValue, endValue, currentTime, cmd.easing);
 }
 
@@ -100,13 +119,14 @@ function getOpacity(commands: SbCommand[], currentTime: number): number {
   let opacity = 1;
   for (const cmd of commands) {
     if (cmd.type === "F") {
-      if (currentTime < cmd.startTime) {
-        opacity = cmd.params[0] ?? 1;
-      } else if (currentTime <= cmd.endTime) {
-        opacity = getCommandValue(cmd, currentTime, 0);
-      } else if (currentTime > cmd.endTime) {
+      // 命令已结束，锁定为结束值
+      if (currentTime >= cmd.endTime) {
         opacity = cmd.params[1] ?? cmd.params[0] ?? 1;
+      } else if (currentTime >= cmd.startTime) {
+        // 命令进行中，计算插值
+        opacity = getCommandValue(cmd, currentTime, 0);
       }
+      // currentTime < cmd.startTime -> 忽略，保持上一个命令的状态
     }
   }
   return opacity;
@@ -116,16 +136,16 @@ function getPosition(commands: SbCommand[], currentTime: number, defaultX: numbe
   let x = defaultX, y = defaultY;
   for (const cmd of commands) {
     if (cmd.type === "M" || cmd.type === "MX" || cmd.type === "MY") {
-      if (currentTime < cmd.startTime) {
-        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
-      } else if (currentTime <= cmd.endTime) {
-        if (cmd.type === "M" || cmd.type === "MX") x = getCommandValue(cmd, currentTime, 0);
-        if (cmd.type === "M" || cmd.type === "MY") y = getCommandValue(cmd, currentTime, 1);
-      } else if (currentTime > cmd.endTime) {
+      // 命令已结束
+      if (currentTime >= cmd.endTime) {
         if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
         if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+      } else if (currentTime >= cmd.startTime) {
+        // 命令进行中
+        if (cmd.type === "M" || cmd.type === "MX") x = getCommandValue(cmd, currentTime, 0);
+        if (cmd.type === "M" || cmd.type === "MY") y = getCommandValue(cmd, currentTime, 1);
       }
+      // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
   return { x, y };
@@ -135,9 +155,12 @@ function getScale(commands: SbCommand[], currentTime: number): number {
   let scale = 1;
   for (const cmd of commands) {
     if (cmd.type === "S") {
-      if (currentTime < cmd.startTime) scale = cmd.params[0] ?? 1;
-      else if (currentTime <= cmd.endTime) scale = getCommandValue(cmd, currentTime, 0);
-      else if (currentTime > cmd.endTime) scale = cmd.params[1] ?? cmd.params[0] ?? 1;
+      if (currentTime >= cmd.endTime) {
+        scale = cmd.params[1] ?? cmd.params[0] ?? 1;
+      } else if (currentTime >= cmd.startTime) {
+        scale = getCommandValue(cmd, currentTime, 0);
+      }
+      // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
   return scale;
@@ -146,9 +169,12 @@ function getScale(commands: SbCommand[], currentTime: number): number {
 function getVectorScale(commands: SbCommand[], currentTime: number): { x: number; y: number } | null {
   for (const cmd of commands) {
     if (cmd.type === "V") {
-      if (currentTime < cmd.startTime) return { x: cmd.params[0] ?? 1, y: cmd.params[1] ?? 1 };
-      if (currentTime <= cmd.endTime) return { x: getCommandValue(cmd, currentTime, 0), y: getCommandValue(cmd, currentTime, 1) };
-      if (currentTime > cmd.endTime) return { x: cmd.params[2] ?? cmd.params[0] ?? 1, y: cmd.params[3] ?? cmd.params[1] ?? 1 };
+      if (currentTime >= cmd.endTime) {
+        return { x: cmd.params[2] ?? cmd.params[0] ?? 1, y: cmd.params[3] ?? cmd.params[1] ?? 1 };
+      } else if (currentTime >= cmd.startTime) {
+        return { x: getCommandValue(cmd, currentTime, 0), y: getCommandValue(cmd, currentTime, 1) };
+      }
+      // currentTime < cmd.startTime -> 继续检查后面的命令
     }
   }
   return null;
@@ -158,9 +184,12 @@ function getRotation(commands: SbCommand[], currentTime: number): number {
   let rotation = 0;
   for (const cmd of commands) {
     if (cmd.type === "R") {
-      if (currentTime < cmd.startTime) rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
-      else if (currentTime <= cmd.endTime) rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
-      else if (currentTime > cmd.endTime) rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
+      if (currentTime >= cmd.endTime) {
+        rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
+      } else if (currentTime >= cmd.startTime) {
+        rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
+      }
+      // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
   }
   return rotation;
@@ -169,9 +198,20 @@ function getRotation(commands: SbCommand[], currentTime: number): number {
 function getColor(commands: SbCommand[], currentTime: number): { r: number; g: number; b: number } | null {
   for (const cmd of commands) {
     if (cmd.type === "C") {
-      if (currentTime < cmd.startTime) return { r: (cmd.params[0] ?? 255) / 255, g: (cmd.params[1] ?? 255) / 255, b: (cmd.params[2] ?? 255) / 255 };
-      if (currentTime <= cmd.endTime) return { r: getCommandValue(cmd, currentTime, 0) / 255, g: getCommandValue(cmd, currentTime, 1) / 255, b: getCommandValue(cmd, currentTime, 2) / 255 };
-      if (currentTime > cmd.endTime) return { r: (cmd.params[3] ?? cmd.params[0]) / 255, g: (cmd.params[4] ?? cmd.params[1]) / 255, b: (cmd.params[5] ?? cmd.params[2]) / 255 };
+      if (currentTime >= cmd.endTime) {
+        return {
+          r: (cmd.params[3] ?? cmd.params[0]) / 255,
+          g: (cmd.params[4] ?? cmd.params[1]) / 255,
+          b: (cmd.params[5] ?? cmd.params[2]) / 255
+        };
+      } else if (currentTime >= cmd.startTime) {
+        return {
+          r: getCommandValue(cmd, currentTime, 0) / 255,
+          g: getCommandValue(cmd, currentTime, 1) / 255,
+          b: getCommandValue(cmd, currentTime, 2) / 255
+        };
+      }
+      // currentTime < cmd.startTime -> 继续寻找之前的颜色命令
     }
   }
   return null;
@@ -179,16 +219,24 @@ function getColor(commands: SbCommand[], currentTime: number): { r: number; g: n
 
 function isObjectVisible(commands: SbCommand[], currentTime: number): boolean {
   if (commands.length === 0) return false;
-  let latestEndTime = 0;
+
+  // Find the time range of all commands
+  let latestEndTime = -Infinity;
   let earliestStartTime = Infinity;
   for (const cmd of commands) {
     if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
     if (cmd.endTime > latestEndTime) latestEndTime = cmd.endTime;
   }
-  // Object is not visible before first command starts or after last command ends
-  if (currentTime < earliestStartTime) return false;
-  if (currentTime > latestEndTime) return false;
-  return getOpacity(commands, currentTime) > 0;
+
+  // Object is not visible before first command starts
+  // Allow negative start times (like -26) to be visible at time 0
+  if (earliestStartTime < 0 && currentTime < 0) return false;
+  if (earliestStartTime >= 0 && currentTime < earliestStartTime) return false;
+
+  // Object is not visible after last command ends (only for positive end times)
+  if (latestEndTime > 0 && currentTime > latestEndTime) return false;
+
+  return true;
 }
 
 interface SbSpriteProps {
@@ -200,23 +248,27 @@ const SB_BASE_WIDTH = 640;
 const SB_BASE_HEIGHT = 480;
 const RENDER_WIDTH = 1920;
 const RENDER_HEIGHT = 1080;
-// Use uniform scale to contain 640x480 in 1920x1080 (keeps entire storyboard visible)
-// This matches osu! behavior for 4:3 storyboards on 16:9 screens
-const SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
+// Cover scale to fill 1920x1080 - applied per sprite
+const SCALE = Math.max(RENDER_WIDTH / SB_BASE_WIDTH, RENDER_HEIGHT / SB_BASE_HEIGHT); // 3.0
 const SCALE_X = SCALE;
 const SCALE_Y = SCALE;
-const SCALED_WIDTH = SB_BASE_WIDTH * SCALE;  // 1440
-const SCALED_HEIGHT = SB_BASE_HEIGHT * SCALE; // 1080
-const OFFSET_X = (RENDER_WIDTH - SCALED_WIDTH) / 2; // 240 (black bars)
-const OFFSET_Y = (RENDER_HEIGHT - SCALED_HEIGHT) / 2; // 0
 
+// 计算居中偏移，使 640x480 storyboard 居中于 1920x1080
+// 缩放后: 1920x1440, 需要上下各裁剪 180px
+const OFFSET_X = (RENDER_WIDTH - SB_BASE_WIDTH * SCALE) / 2; // 0
+const OFFSET_Y = (RENDER_HEIGHT - SB_BASE_HEIGHT * SCALE) / 2; // -180
+
+// SbSprite receives raw storyboard coordinates (640x480 space)
+// Applies global cover scale (3x) to fill 1920x1080
 const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  // Use raw storyboard coordinates (640x480 space)
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
-  const x = rawPos.x * SCALE_X + OFFSET_X;
-  const y = rawPos.y * SCALE_Y + OFFSET_Y;
+  // Apply centering offset only - SCALE will be applied via CSS transform
+  const x = rawPos.x + OFFSET_X;
+  const y = rawPos.y + OFFSET_Y;
   let opacity = getOpacity(object.commands, currentTime);
 
   const vectorScale = getVectorScale(object.commands, currentTime);
@@ -260,9 +312,11 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   let originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
 
   const flipH = object.flipH, flipV = object.flipV, additive = object.additive;
-  // Flip is independent; scale sign only matters when flip is not set
-  const effectiveFlipH = flipH || (!flipH && scaleX < 0);
-  const effectiveFlipV = flipV || (!flipV && scaleY !== undefined && scaleY < 0);
+
+  // 只使用 P 命令显式指定的 flip，不从负 scale 自动检测
+  // 负的 scale 值已经包含在 scaleX/scaleY 中，会被 scale() 正确处理
+  const effectiveFlipH = flipH;
+  const effectiveFlipV = flipV;
 
   // Adjust origin based on flip (osu! AdjustOrigin logic)
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
@@ -270,35 +324,34 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
   const imgWidth = imageSize?.width ?? 640;
   const imgHeight = imageSize?.height ?? 480;
-  // Width/height includes only global scale, NOT command scale
-  // Command scale will be applied via transform to maintain proper flip/rotation
-  const baseWidth = imgWidth * SCALE_X;
-  const baseHeight = imgHeight * SCALE_Y;
+  // Use actual image dimensions, global SCALE will be applied via transform
+  const baseWidth = imgWidth;
+  const baseHeight = imgHeight;
 
-  const absScaleX = Math.abs(scaleX);
-  const absScaleY = scaleY !== undefined ? Math.abs(scaleY) : undefined;
+  // Calculate position with origin offset applied
+  // x, y are already in render coordinates (includes OFFSET_X)
+  const finalX = x - originFactor.x * baseWidth;
+  const finalY = y - originFactor.y * baseHeight;
 
-  const scaledWidth = baseWidth * absScaleX;
-  const scaledHeight = scaleY !== undefined ? baseHeight * Math.abs(scaleY) : scaledWidth;
-  const offsetX = -originFactor.x * scaledWidth;
-  const offsetY = -originFactor.y * scaledHeight;
-
-  // Build transforms: translate to position, then apply scale, flip, rotation
-  // Note: scale is applied here (not in width/height) to properly handle negative scales
+  // Build transform: command scale, flip, rotate (NO global SCALE in transform)
   const transforms: string[] = [];
-  transforms.push(`translate(${x + offsetX}px, ${y + offsetY}px)`);
-  if (absScaleX !== 1 || (absScaleY !== undefined && scaleY !== 1)) {
+  // Apply command scale (from S/V commands) - this is the scale relative to original image
+  if (scaleX !== 1 || (scaleY !== undefined && scaleY !== 1)) {
     transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
   }
-  // Flip is handled by the P command's flipH/flipV, not by negative scale here
-  // (negative scale handling is done via effectiveFlipH/effectiveFlipV in AdjustOrigin)
+  // Flip (P command H/V)
   if (effectiveFlipH && effectiveFlipV) transforms.push(`scale(-1, -1)`);
   else if (effectiveFlipH) transforms.push(`scale(-1, 1)`);
   else if (effectiveFlipV) transforms.push(`scale(1, -1)`);
+  // Rotation
   if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
 
+  // Convert origin factor to CSS transform-origin
+  const cssOriginX = originFactor.x * 100;
+  const cssOriginY = originFactor.y * 100;
+
   return (
-    <div style={{ position: "absolute", left: 0, top: 0, width: scaledWidth, height: scaledHeight, opacity, transform: transforms.length > 0 ? transforms.join(" ") : undefined, transformOrigin: "0 0", ...(additive ? { mixBlendMode: "screen" } : {}) }}>
+    <div style={{ position: "absolute", left: finalX, top: finalY, width: baseWidth, height: baseHeight, opacity, transform: transforms.length > 0 ? transforms.join(" ") : undefined, transformOrigin: `${cssOriginX}% ${cssOriginY}%`, ...(additive ? { mixBlendMode: "screen" } : {}) }}>
       <Img ref={imgRef} src={staticFile(src)} onLoad={(e) => setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })} style={{ width: "100%", height: "100%", objectFit: "fill", ...(color ? { backgroundColor: `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`, mixBlendMode: "multiply" } : {}) }} />
     </div>
   );
@@ -324,6 +377,8 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
     });
   }, [storyboard, layer, isFailing]);
 
+  // Render sprites directly without container scaling
+  // Each SbSprite handles its own global SCALE + command scale
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       {layerObjects.map((obj) => (<SbSprite key={obj.id} object={obj} currentTime={currentTime} />))}
