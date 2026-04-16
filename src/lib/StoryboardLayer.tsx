@@ -85,7 +85,7 @@ function interpolate(startTime: number, endTime: number, startValue: number, end
   if (currentTime <= startTime) return startValue;
   if (currentTime >= endTime) return endValue;
   const duration = endTime - startTime;
-  if (duration === 0) return startValue; // Handle instant commands
+  if (duration === 0) return endValue; // Instant change: use endValue (osu! behavior)
   const t = (currentTime - startTime) / duration;
   return startValue + (endValue - startValue) * applyEasing(t, easing);
 }
@@ -127,6 +127,9 @@ function getOpacity(commands: SbCommand[], currentTime: number): number {
       } else if (currentTime >= cmd.startTime) {
         // 命令进行中，计算插值
         opacity = getCommandValue(cmd, currentTime, 0);
+      } else if (currentTime < cmd.startTime && opacity === 1) {
+        // currentTime 在第一条命令之前，使用该命令的 startValue
+        opacity = cmd.params[0] ?? 1;
       }
       // currentTime < cmd.startTime -> 忽略，保持上一个命令的状态
     }
@@ -146,6 +149,10 @@ function getPosition(commands: SbCommand[], currentTime: number, defaultX: numbe
         // 命令进行中
         if (cmd.type === "M" || cmd.type === "MX") x = getCommandValue(cmd, currentTime, 0);
         if (cmd.type === "M" || cmd.type === "MY") y = getCommandValue(cmd, currentTime, 1);
+      } else if (currentTime < cmd.startTime && (x === defaultX && y === defaultY)) {
+        // currentTime 在第一条命令之前，使用该命令的 startValue
+        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
+        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
       }
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
@@ -161,6 +168,9 @@ function getScale(commands: SbCommand[], currentTime: number): number {
         scale = cmd.params[1] ?? cmd.params[0] ?? 1;
       } else if (currentTime >= cmd.startTime) {
         scale = getCommandValue(cmd, currentTime, 0);
+      } else if (currentTime < cmd.startTime && scale === 1) {
+        // currentTime 在第一条命令之前，使用该命令的 startValue
+        scale = cmd.params[0] ?? 1;
       }
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
@@ -190,6 +200,9 @@ function getRotation(commands: SbCommand[], currentTime: number): number {
         rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
       } else if (currentTime >= cmd.startTime) {
         rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
+      } else if (currentTime < cmd.startTime && rotation === 0) {
+        // currentTime 在第一条命令之前，使用该命令的 startValue
+        rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
       }
       // currentTime < cmd.startTime -> 忽略，保持之前的值
     }
@@ -246,6 +259,7 @@ interface SbSpriteProps {
   currentTime: number;
 }
 
+const SB_BASE_WIDTH = 640;
 const SB_BASE_HEIGHT = 480;
 
 const RENDER_WIDTH = 1920;
@@ -263,9 +277,10 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Position in 640x480 space - convert to render space
+  // Storyboard (320,240) should map to screen center (960,540)
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
-  const x = rawPos.x * STORYBOARD_SCALE;
-  const y = rawPos.y * STORYBOARD_SCALE;
+  const x = (rawPos.x - SB_BASE_WIDTH / 2) * STORYBOARD_SCALE + RENDER_WIDTH / 2;
+  const y = (rawPos.y - SB_BASE_HEIGHT / 2) * STORYBOARD_SCALE + RENDER_HEIGHT / 2;
 
   // Position: x,y is the origin point in render space
   let opacity = getOpacity(object.commands, currentTime);
