@@ -157,12 +157,24 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       endTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      const fStart = parseFloat(parts[4]);
-      const fEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : fStart;
-      params = [
-        isNaN(fStart) ? 0 : fStart,
-        isNaN(fEnd) ? fStart : fEnd,
-      ];
+      // If only one value provided (parts[5] is empty):
+      // Fade from 0 to that value (osu! behavior)
+      if (parts[5] === undefined || parts[5] === "") {
+        const fEnd = parseFloat(parts[4]);
+        // Fade from 0 to end value
+        params = [
+          isNaN(fEnd) ? 0 : 0,
+          isNaN(fEnd) ? 0 : fEnd,
+        ];
+      } else {
+        // Two values: fade from startVal to endVal
+        const fStart = parseFloat(parts[4]);
+        const fEnd = parseFloat(parts[5]);
+        params = [
+          isNaN(fStart) ? 0 : fStart,
+          isNaN(fEnd) ? fStart : fEnd,
+        ];
+      }
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
       // If endTime is empty/omitted, treat as "indefinite" (same as osu! behavior)
