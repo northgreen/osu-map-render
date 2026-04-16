@@ -266,9 +266,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
   // Use raw storyboard coordinates (640x480 space)
   const rawPos = getPosition(object.commands, currentTime, object.x, object.y);
-  // Apply centering offset only - SCALE will be applied via CSS transform
-  const x = rawPos.x + OFFSET_X;
-  const y = rawPos.y + OFFSET_Y;
+  // Apply global cover scale + centering offset to position
+  const x = rawPos.x * SCALE_X + OFFSET_X;
+  const y = rawPos.y * SCALE_Y + OFFSET_Y;
   let opacity = getOpacity(object.commands, currentTime);
 
   const vectorScale = getVectorScale(object.commands, currentTime);
@@ -322,9 +322,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
+  // Use actual image dimensions (S command output is already in screen space)
   const imgWidth = imageSize?.width ?? 640;
   const imgHeight = imageSize?.height ?? 480;
-  // Use actual image dimensions, global SCALE will be applied via transform
   const baseWidth = imgWidth;
   const baseHeight = imgHeight;
 
@@ -333,9 +333,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const finalX = x - originFactor.x * baseWidth;
   const finalY = y - originFactor.y * baseHeight;
 
-  // Build transform: command scale, flip, rotate (NO global SCALE in transform)
+  // Build transform: command scale only (global SCALE already in position and container)
   const transforms: string[] = [];
-  // Apply command scale (from S/V commands) - this is the scale relative to original image
+  // Apply command scale (from S/V commands)
   if (scaleX !== 1 || (scaleY !== undefined && scaleY !== 1)) {
     transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
   }
