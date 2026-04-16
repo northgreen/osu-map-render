@@ -321,8 +321,8 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Container: actual image dimensions (in 640x480 space)
-  // Images will be scaled by the wrapper's SCALE and their own S command
+  // Container: actual image dimensions (for origin offset calculation)
+  // Position is still in 640x480 space, will be offset by wrapper
   const imgWidth = imageSize?.width ?? 640;
   const imgHeight = imageSize?.height ?? 480;
   const baseWidth = imgWidth;
