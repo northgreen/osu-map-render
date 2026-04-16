@@ -145,10 +145,15 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
 
   switch (type) {
     case "F": // Fade: type,easing,start,end,startVal,endVal
-      endTime = parseInt(parts[3]) || startTime;
+      // If endTime is empty/omitted, treat as "indefinite"
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      const fStart = parseFloat(parts[4]);
+      const fEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : fStart;
       params = [
-        parseFloat(parts[4]) || 0,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
+        isNaN(fStart) ? 0 : fStart,
+        isNaN(fEnd) ? fStart : fEnd,
       ];
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
@@ -175,10 +180,16 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       ];
       break;
     case "S": // Scale: type,easing,start,end,startScale,endScale
-      endTime = parseInt(parts[3]) || startTime;
+      // If endTime is empty/omitted, treat as "indefinite" (very large number)
+      endTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Single param means same start and end value
+      const sStart = parseFloat(parts[4]);
+      const sEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : sStart;
       params = [
-        parseFloat(parts[4]) || 1,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 1,
+        isNaN(sStart) ? 1 : sStart,
+        isNaN(sEnd) ? sStart : sEnd,
       ];
       break;
     case "V": // Vector Scale: type,easing,start,end,sx1,sy1,sx2,sy2
