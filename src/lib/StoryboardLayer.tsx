@@ -385,15 +385,16 @@ function getColor(commands: SbCommand[], loops: SbLoop[], currentTime: number): 
 function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: number): boolean {
   if (commands.length === 0 && loops.length === 0) return false;
 
-  // Find the time range of all commands (ignore infinite end times)
+  // Find the time range of all commands
   let latestEndTime = -Infinity;
   let earliestStartTime = Infinity;
 
   // Regular commands
   for (const cmd of commands) {
     if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
-    // Ignore infinite end times (like S command with no end time)
-    if (cmd.endTime !== Number.MAX_SAFE_INTEGER && cmd.endTime > latestEndTime) {
+    // Include all end times (including infinite ones for visibility check)
+    // An object with an infinite command is always visible after startTime
+    if (cmd.endTime > latestEndTime) {
       latestEndTime = cmd.endTime;
     }
   }
@@ -410,7 +411,7 @@ function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: nu
         ? Number.MAX_SAFE_INTEGER
         : cmd.endTime + loop.repeatCount * loop.loopDuration;
 
-      if (lastCmdEnd !== Number.MAX_SAFE_INTEGER && lastCmdEnd > latestEndTime) {
+      if (lastCmdEnd > latestEndTime) {
         latestEndTime = lastCmdEnd;
       }
     }
@@ -423,7 +424,7 @@ function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: nu
 
   // Object is not visible after last command ends (only for positive end times)
   // If latestEndTime is still -Infinity, all commands have infinite duration
-  if (latestEndTime > 0 && currentTime > latestEndTime) return false;
+  if (latestEndTime > 0 && latestEndTime !== Number.MAX_SAFE_INTEGER && currentTime > latestEndTime) return false;
 
   return true;
 }
