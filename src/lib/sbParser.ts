@@ -1,10 +1,13 @@
 import * as fs from "fs";
 
+// Use a reasonable "infinite" duration (24 hours in ms) instead of INFINITE_DURATION
+const INFINITE_DURATION = 24 * 60 * 60 * 1000; // 86400000ms
+
 // ============================================
 // Types
 // ============================================
 
-export type Layer = "Background" | "Fail" | "Pass" | "Foreground";
+export type Layer = "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
 export type Origin =
   | "TopLeft" | "Centre" | "CentreLeft" | "TopRight"
   | "BottomCentre" | "TopCentre" | "CentreRight"
@@ -158,7 +161,7 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       // - Has endTime + one value: instant change at startTime (or stay at value during interval)
       if (parts[3] === undefined || parts[3] === "") {
         // No endTime: infinite duration
-        endTime = Number.MAX_SAFE_INTEGER;
+        endTime = INFINITE_DURATION;
         if (parts[5] === undefined || parts[5] === "") {
           // Single value with no endTime: fade from 0 to that value (infinite)
           const fEnd = parseFloat(parts[4]);
@@ -263,7 +266,7 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       // - Has endTime + one value: instant change at startTime
       if (parts[3] === undefined || parts[3] === "") {
         // No endTime: infinite duration
-        endTime = Number.MAX_SAFE_INTEGER;
+        endTime = INFINITE_DURATION;
         if (parts[5] === undefined || parts[5] === "") {
           // Single value with no endTime: scale from 1 to that value (infinite)
           const sValue = parseFloat(parts[4]);
@@ -307,7 +310,7 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       // - Has endTime + one value: instant change at startTime
       if (parts[3] === undefined || parts[3] === "") {
         // No endTime: infinite duration
-        endTime = Number.MAX_SAFE_INTEGER;
+        endTime = INFINITE_DURATION;
         // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
         if (parts[6] === undefined || parts[6] === "") {
           // Only x1,y1 with no endTime: scale from (1,1) to (x1,y1) (infinite)
@@ -367,7 +370,7 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       // - Has endTime + one value: instant change at startTime
       if (parts[3] === undefined || parts[3] === "") {
         // No endTime: infinite duration
-        endTime = Number.MAX_SAFE_INTEGER;
+        endTime = INFINITE_DURATION;
         if (parts[5] === undefined || parts[5] === "") {
           // Single value with no endTime: rotate from 0 to that value (infinite)
           const rValue = parseFloat(parts[4]);
@@ -409,7 +412,7 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       // If endTime is empty/omitted, treat as "indefinite" (very large number)
       const cEndTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
+        : INFINITE_DURATION;
       // Check if end color is provided (6 params) or only start color (3 params)
       if (parts[7] === undefined || parts[7] === "") {
         // Only r1,g1,b1: if endTime provided, stay at that color; if no endTime, instant change
@@ -557,7 +560,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           let maxEnd = -Infinity;
           for (const cmd of currentLoop.childCommands) {
             if (cmd.startTime < minStart) minStart = cmd.startTime;
-            if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+            if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
               maxEnd = cmd.endTime;
             }
           }
@@ -613,7 +616,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           let maxEnd = -Infinity;
           for (const cmd of currentLoop.childCommands) {
             if (cmd.startTime < minStart) minStart = cmd.startTime;
-            if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+            if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
               maxEnd = cmd.endTime;
             }
           }
@@ -667,7 +670,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         let maxEnd = -Infinity;
         for (const cmd of currentLoop.childCommands) {
           if (cmd.startTime < minStart) minStart = cmd.startTime;
-          if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+          if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
             maxEnd = cmd.endTime;
           }
         }
@@ -790,7 +793,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       let maxEnd = -Infinity;
       for (const cmd of currentLoop.childCommands) {
         if (cmd.startTime < minStart) minStart = cmd.startTime;
-        if (cmd.endTime > maxEnd && cmd.endTime !== Number.MAX_SAFE_INTEGER) {
+        if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
           maxEnd = cmd.endTime;
         }
       }

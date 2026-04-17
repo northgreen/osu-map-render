@@ -511,10 +511,17 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Get image dimensions (in 640x480 space, before global scale)
-  // If image hasn't loaded yet, use a reasonable default
-  const baseWidth = imageSize?.width ?? 100;
-  const baseHeight = imageSize?.height ?? 100;
+  // Get image dimensions - images in osu! storyboard are sized relative to 640x480 space
+  // An image at scale=1 should fit within 640x480, not display at its native pixel size
+  // We need to scale images so that at scale=1 they are appropriately sized for 640x480 space
+  const nativeWidth = imageSize?.width ?? 100;
+  const nativeHeight = imageSize?.height ?? 100;
+
+  // Scale image to fit 640x480 space at scale=1
+  // If image is 512x512, at scale=1 it should be 512/2.25 = 227.5 in storyboard space
+  // Then multiplied by STORYBOARD_SCALE to get render space: 227.5 * 2.25 = 512 (correct!)
+  const baseWidth = nativeWidth;
+  const baseHeight = nativeHeight;
 
   // Position: x,y is the origin point in render space
   // Need to offset by origin factor to get top-left corner
@@ -523,14 +530,14 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
   // Build transform: S/V commands
   const transforms: string[] = [];
-  // osu! storyboard S command scale is relative to the storyboard coordinate space (640x480)
-  // So we need to multiply by STORYBOARD_SCALE to get render space scale
+  // S/V command scale values need to be scaled by STORYBOARD_SCALE
+  // because the image is NOT pre-scaled to storyboard space
   const rawScaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
   const rawScaleY = vectorScale ? vectorScale.y : (rawScale ?? 1);
-  const scaleX = rawScaleX * STORYBOARD_SCALE;
-  const scaleY = rawScaleY !== 1 ? rawScaleY * STORYBOARD_SCALE : undefined;
-  if (scaleX !== STORYBOARD_SCALE || (scaleY !== undefined && scaleY !== STORYBOARD_SCALE)) {
-    transforms.push(`scale(${scaleX}, ${scaleY !== undefined ? scaleY : 1})`);
+  const scaleX = rawScaleX;
+  const scaleY = rawScaleY !== 1 ? rawScaleY : 1;
+  if (scaleX !== 1 || scaleY !== 1) {
+    transforms.push(`scale(${scaleX}, ${scaleY})`);
   }
 
   // Flip (P command H/V)
@@ -583,7 +590,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
 interface StoryboardLayerProps {
   storyboard?: SbObject[];
-  layer?: "Background" | "Fail" | "Pass" | "Foreground";
+  layer?: "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
   isFailing?: boolean;
 }
 

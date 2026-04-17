@@ -62,6 +62,9 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
 
       {/* Storyboard layer - Foreground (always visible) */}
       <StoryboardLayer storyboard={storyboard} layer="Foreground" />
+
+      {/* Storyboard layer - Overlay (topmost, always visible) */}
+      <StoryboardLayer storyboard={storyboard} layer="Overlay" />
     </AbsoluteFill>
   );
 };

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { listFiles, selectFile, matchFile, getCheartDir } from "./selectFile";
+import { parseStoryboardFile } from "../src/lib/sbParser";
 
 interface BeatmapMetadata {
   title: string;
@@ -54,6 +55,7 @@ interface ParsedBeatmap {
   audioFile: string;
   mode: number;
   backgroundImage?: string;
+  storyboardEvents?: string[]; // Storyboard events from .osu file
 }
 
 function parseSection(content: string, section: string): string[] {
@@ -92,17 +94,33 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     general[key] = value;
   }
 
-  // Parse Events for background
+  // Parse Events for background and storyboard
   const eventsLines = parseSection(content, "Events");
   let backgroundImage: string | undefined;
+  let storyboardEvents: string[] = [];
   for (const line of eventsLines) {
     // Background: 0,0,"filename",x,y
     if (line.startsWith("0,") || line.startsWith("0,")) {
       const match = line.match(/^0,0,"([^"]+)"/);
       if (match) {
         backgroundImage = match[1];
-        break;
+        continue;
       }
+    }
+    // Storyboard events: Sprite, Animation, Sample
+    if (
+      line.startsWith("Sprite,") ||
+      line.startsWith("Animation,") ||
+      line.startsWith("Sample,") ||
+      line.startsWith("Video,")
+    ) {
+      storyboardEvents.push(line);
+      continue;
+    }
+    // Storyboard commands (start with spaces or tabs)
+    if (/^\s+[TCFMSRVPML]/.test(line)) {
+      storyboardEvents.push(line);
+      continue;
     }
   }
 
@@ -248,6 +266,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     audioFile: general["AudioFilename"] || "",
     mode: parseInt(general["Mode"]) || 0,
     backgroundImage,
+    storyboardEvents,
   };
 }
 
@@ -336,11 +355,58 @@ async function main() {
     osbSrc = path.join(cheartDir, baseName);
   }
   const osbDest = path.join(publicDir, "storyboard.osb");
+
+  // Parse storyboard: merge .osu events + .osb events (osb overrides osu for same sprites)
+  let mergedStoryboard = null;
+  let hasOsbEvents = false;
+
+  // Parse .osu storyboard events if exist
+  if (beatmap.storyboardEvents && beatmap.storyboardEvents.length > 0) {
+    const osuSbContent = "osu file format v14\n\n[Events]\n" + beatmap.storyboardEvents.join("\n") + "\n";
+    const osuSbPath = path.join(publicDir, "storyboard_osu.osb");
+    fs.writeFileSync(osuSbPath, osuSbContent);
+    console.log(`Extracted ${beatmap.storyboardEvents.length} storyboard events from .osu file`);
+    const osuSb = parseStoryboardFile(osuSbPath);
+    if (osuSb) {
+      mergedStoryboard = osuSb;
+      console.log(`Parsed .osu storyboard: ${osuSb.objects.length} objects`);
+    }
+    // Delete temp file
+    fs.unlinkSync(osuSbPath);
+  }
+
+  // Parse .osb storyboard if exists
   if (fs.existsSync(osbSrc)) {
     fs.copyFileSync(osbSrc, osbDest);
     console.log(`Copied storyboard: ${path.basename(osbSrc)}`);
-  } else {
-    console.log(`Storyboard file not found: ${osbSrc}`);
+    hasOsbEvents = true;
+
+    const osbSb = parseStoryboardFile(osbDest);
+    if (osbSb) {
+      if (mergedStoryboard) {
+        // osu! behavior: .osb is parsed AFTER .osu, all sprites are added to the same storyboard
+        // Sprites with same path are independent objects (both will render)
+        // Simply concatenate all objects - osu! doesn't do any deduplication
+        mergedStoryboard.objects = [...mergedStoryboard.objects, ...osbSb.objects];
+        // Update duration
+        if (osbSb.duration > mergedStoryboard.duration) {
+          mergedStoryboard.duration = osbSb.duration;
+        }
+        console.log(`Merged storyboard: ${mergedStoryboard.objects.length} objects (.osu: ${mergedStoryboard.objects.length - osbSb.objects.length} + .osb: ${osbSb.objects.length})`);
+      } else {
+        mergedStoryboard = osbSb;
+        console.log(`Parsed .osb storyboard: ${osbSb.objects.length} objects`);
+      }
+    }
+  }
+
+  // Write merged storyboard to JSON
+  if (mergedStoryboard) {
+    const sbOutputPath = path.join(process.cwd(), "src", "lib", "storyboard.json");
+    fs.writeFileSync(sbOutputPath, JSON.stringify(mergedStoryboard, null, 2));
+    console.log(`Final storyboard: ${mergedStoryboard.objects.length} objects, ${mergedStoryboard.duration}ms`);
+  } else if (!hasOsbEvents && (!beatmap.storyboardEvents || beatmap.storyboardEvents.length === 0)) {
+    console.log("No storyboard found in .osu or .osb file");
   }
 
   // Copy all image files referenced in storyboard (including subdirectories)
