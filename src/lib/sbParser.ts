@@ -153,21 +153,21 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
 
   switch (type) {
     case "F": // Fade: type,easing,start,end,startVal,endVal
-      // If endTime is empty/omitted, treat as "indefinite"
-      // But if also only one value, it's instant change (endTime = startTime)
+      // According to osu! docs:
+      // - No endTime + one value: fade from 0 to value (infinite duration)
+      // - Has endTime + one value: instant change at startTime (or stay at value during interval)
       if (parts[3] === undefined || parts[3] === "") {
-        // No endTime specified
+        // No endTime: infinite duration
+        endTime = Number.MAX_SAFE_INTEGER;
         if (parts[5] === undefined || parts[5] === "") {
-          // Single value: instant change at startTime
-          endTime = startTime;
-          const fValue = parseFloat(parts[4]);
+          // Single value with no endTime: fade from 0 to that value (infinite)
+          const fEnd = parseFloat(parts[4]);
           params = [
-            isNaN(fValue) ? 0 : fValue,
-            isNaN(fValue) ? 0 : fValue,
+            isNaN(fEnd) ? 0 : 0,  // start from 0
+            isNaN(fEnd) ? 0 : fEnd,
           ];
         } else {
           // Two values with no endTime: fade from start to end (infinite)
-          endTime = Number.MAX_SAFE_INTEGER;
           const fStart = parseFloat(parts[4]);
           const fEnd = parseFloat(parts[5]);
           params = [
@@ -197,10 +197,13 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
-      // If endTime is empty/omitted, treat as "indefinite" (same as osu! behavior)
-      endTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
+      // If endTime is empty/omitted, treat as instant change (endTime = startTime)
+      // This matches osu! stable behavior
+      if (parts[3] === undefined || parts[3] === "") {
+        endTime = startTime;
+      } else {
+        endTime = parseInt(parts[3]) || startTime;
+      }
       // Check if x2,y2 are provided (4-param) or only x1,y1 (2-param, no animation)
       if (parts[6] !== undefined && parts[6] !== "") {
         // 4-param: animate from (x1,y1) to (x2,y2)
@@ -219,9 +222,12 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       break;
     case "MX": // MoveX: type,easing,start,end,x1
-      endTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
+      // If endTime is empty/omitted, treat as instant change (endTime = startTime)
+      if (parts[3] === undefined || parts[3] === "") {
+        endTime = startTime;
+      } else {
+        endTime = parseInt(parts[3]) || startTime;
+      }
       // Single param (x1) means just set position, no animation
       if (parts[5] === undefined || parts[5] === "") {
         params = [parseFloat(parts[4]) || 0];
@@ -234,9 +240,12 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       break;
     case "MY": // MoveY: type,easing,start,end,y1
-      endTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
+      // If endTime is empty/omitted, treat as instant change (endTime = startTime)
+      if (parts[3] === undefined || parts[3] === "") {
+        endTime = startTime;
+      } else {
+        endTime = parseInt(parts[3]) || startTime;
+      }
       // Single param (y1) means just set position, no animation
       if (parts[5] === undefined || parts[5] === "") {
         params = [parseFloat(parts[4]) || 0];
@@ -249,84 +258,151 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       break;
     case "S": // Scale: type,easing,start,end,startScale,endScale
-      // If endTime is empty/omitted, treat as "indefinite" (very large number)
-      const sEndTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
-      // Single param: if endTime provided, stay at that value; if no endTime, instant change
-      if (parts[5] === undefined || parts[5] === "") {
-        const sValue = parseFloat(parts[4]);
-        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : sEndTime;
-        endTime = finalEndTime;
-        params = [
-          isNaN(sValue) ? 1 : sValue,
-          isNaN(sValue) ? 1 : sValue,
-        ];
+      // According to osu! docs:
+      // - No endTime + one value: scale from 1 to value (infinite duration)
+      // - Has endTime + one value: instant change at startTime
+      if (parts[3] === undefined || parts[3] === "") {
+        // No endTime: infinite duration
+        endTime = Number.MAX_SAFE_INTEGER;
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value with no endTime: scale from 1 to that value (infinite)
+          const sValue = parseFloat(parts[4]);
+          params = [
+            isNaN(sValue) ? 1 : 1,  // start from 1
+            isNaN(sValue) ? 1 : sValue,
+          ];
+        } else {
+          // Two values with no endTime: scale from start to end (infinite)
+          const sStart = parseFloat(parts[4]);
+          const sEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(sStart) ? 1 : sStart,
+            isNaN(sEnd) ? sStart : sEnd,
+          ];
+        }
       } else {
-        const sStart = parseFloat(parts[4]);
-        const sEnd = parseFloat(parts[5]);
-        endTime = sEndTime;
-        params = [
-          isNaN(sStart) ? 1 : sStart,
-          isNaN(sEnd) ? sStart : sEnd,
-        ];
+        // Has endTime
+        endTime = parseInt(parts[3]) || startTime;
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value with endTime: stay at that value
+          const sValue = parseFloat(parts[4]);
+          params = [
+            isNaN(sValue) ? 1 : sValue,
+            isNaN(sValue) ? 1 : sValue,
+          ];
+        } else {
+          // Two values: scale from startVal to endVal
+          const sStart = parseFloat(parts[4]);
+          const sEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(sStart) ? 1 : sStart,
+            isNaN(sEnd) ? sStart : sEnd,
+          ];
+        }
       }
       break;
     case "V": // Vector Scale: type,easing,start,end,sx1,sy1,sx2,sy2
-      // If endTime is empty/omitted, treat as "indefinite" (very large number)
-      const vEndTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
-      // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
-      if (parts[6] === undefined || parts[6] === "") {
-        // Only x1,y1: if endTime provided, stay at that value; if no endTime, instant change
-        const vx = parseFloat(parts[4]);
-        const vy = parseFloat(parts[5]);
-        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : vEndTime;
-        endTime = finalEndTime;
-        params = [
-          isNaN(vx) ? 1 : vx,
-          isNaN(vy) ? 1 : vy,
-          isNaN(vx) ? 1 : vx,
-          isNaN(vy) ? 1 : vy,
-        ];
+      // According to osu! docs:
+      // - No endTime + one value (x1,y1): scale from (1,1) to (x1,y1) (infinite duration)
+      // - Has endTime + one value: instant change at startTime
+      if (parts[3] === undefined || parts[3] === "") {
+        // No endTime: infinite duration
+        endTime = Number.MAX_SAFE_INTEGER;
+        // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
+        if (parts[6] === undefined || parts[6] === "") {
+          // Only x1,y1 with no endTime: scale from (1,1) to (x1,y1) (infinite)
+          const vx = parseFloat(parts[4]);
+          const vy = parseFloat(parts[5]);
+          params = [
+            isNaN(vx) ? 1 : 1,  // start from 1
+            isNaN(vy) ? 1 : 1,
+            isNaN(vx) ? 1 : vx,
+            isNaN(vy) ? 1 : vy,
+          ];
+        } else {
+          // Four params with no endTime: scale from (x1,y1) to (x2,y2) (infinite)
+          const vx1 = parseFloat(parts[4]);
+          const vy1 = parseFloat(parts[5]);
+          const vx2 = parseFloat(parts[6]);
+          const vy2 = parseFloat(parts[7]);
+          params = [
+            isNaN(vx1) ? 1 : vx1,
+            isNaN(vy1) ? 1 : vy1,
+            isNaN(vx2) ? (isNaN(vx1) ? 1 : vx1) : vx2,
+            isNaN(vy2) ? (isNaN(vy1) ? 1 : vy1) : vy2,
+          ];
+        }
       } else {
-        // Four params: scale from (x1,y1) to (x2,y2)
-        const vx1 = parseFloat(parts[4]);
-        const vy1 = parseFloat(parts[5]);
-        const vx2 = parseFloat(parts[6]);
-        const vy2 = parseFloat(parts[7]);
-        endTime = vEndTime;
-        params = [
-          isNaN(vx1) ? 1 : vx1,
-          isNaN(vy1) ? 1 : vy1,
-          isNaN(vx2) ? (isNaN(vx1) ? 1 : vx1) : vx2,
-          isNaN(vy2) ? (isNaN(vy1) ? 1 : vy1) : vy2,
-        ];
+        // Has endTime
+        endTime = parseInt(parts[3]) || startTime;
+        // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
+        if (parts[6] === undefined || parts[6] === "") {
+          // Only x1,y1 with endTime: stay at that value
+          const vx = parseFloat(parts[4]);
+          const vy = parseFloat(parts[5]);
+          params = [
+            isNaN(vx) ? 1 : vx,
+            isNaN(vy) ? 1 : vy,
+            isNaN(vx) ? 1 : vx,
+            isNaN(vy) ? 1 : vy,
+          ];
+        } else {
+          // Four params: scale from (x1,y1) to (x2,y2)
+          const vx1 = parseFloat(parts[4]);
+          const vy1 = parseFloat(parts[5]);
+          const vx2 = parseFloat(parts[6]);
+          const vy2 = parseFloat(parts[7]);
+          params = [
+            isNaN(vx1) ? 1 : vx1,
+            isNaN(vy1) ? 1 : vy1,
+            isNaN(vx2) ? (isNaN(vx1) ? 1 : vx1) : vx2,
+            isNaN(vy2) ? (isNaN(vy1) ? 1 : vy1) : vy2,
+          ];
+        }
       }
       break;
     case "R": // Rotate: type,easing,start,end,startRad,endRad
-      // If endTime is empty/omitted, treat as "indefinite" (very large number)
-      const rEndTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
-      // Single param: if endTime provided, stay at that value; if no endTime, instant change
-      if (parts[5] === undefined || parts[5] === "") {
-        const rValue = parseFloat(parts[4]);
-        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : rEndTime;
-        endTime = finalEndTime;
-        params = [
-          isNaN(rValue) ? 0 : rValue,
-          isNaN(rValue) ? 0 : rValue,
-        ];
+      // According to osu! docs:
+      // - No endTime + one value: rotate from 0 to value (infinite duration)
+      // - Has endTime + one value: instant change at startTime
+      if (parts[3] === undefined || parts[3] === "") {
+        // No endTime: infinite duration
+        endTime = Number.MAX_SAFE_INTEGER;
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value with no endTime: rotate from 0 to that value (infinite)
+          const rValue = parseFloat(parts[4]);
+          params = [
+            isNaN(rValue) ? 0 : 0,  // start from 0
+            isNaN(rValue) ? 0 : rValue,
+          ];
+        } else {
+          // Two values with no endTime: rotate from start to end (infinite)
+          const rStart = parseFloat(parts[4]);
+          const rEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(rStart) ? 0 : rStart,
+            isNaN(rEnd) ? rStart : rEnd,
+          ];
+        }
       } else {
-        const rStart = parseFloat(parts[4]);
-        const rEnd = parseFloat(parts[5]);
-        endTime = rEndTime;
-        params = [
-          isNaN(rStart) ? 0 : rStart,
-          isNaN(rEnd) ? rStart : rEnd,
-        ];
+        // Has endTime
+        endTime = parseInt(parts[3]) || startTime;
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value with endTime: stay at that value
+          const rValue = parseFloat(parts[4]);
+          params = [
+            isNaN(rValue) ? 0 : rValue,
+            isNaN(rValue) ? 0 : rValue,
+          ];
+        } else {
+          // Two values: rotate from startVal to endVal
+          const rStart = parseFloat(parts[4]);
+          const rEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(rStart) ? 0 : rStart,
+            isNaN(rEnd) ? rStart : rEnd,
+          ];
+        }
       }
       break;
     case "C": // Color: type,easing,start,end,r1,g1,b1,r2,g2,b2
@@ -644,9 +720,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
 
     // Parse child commands (with __ prefix) inside loop/trigger
     if (currentObject && (line.startsWith("__F") || line.startsWith("__M") ||
-        line.startsWith("__S") || line.startsWith("__V") || line.startsWith("__R") ||
-        line.startsWith("__C") || line.startsWith("__P") || line.startsWith("__MX") ||
-        line.startsWith("__MY"))) {
+      line.startsWith("__S") || line.startsWith("__V") || line.startsWith("__R") ||
+      line.startsWith("__C") || line.startsWith("__P") || line.startsWith("__MX") ||
+      line.startsWith("__MY"))) {
       const childLine = line.replace(/^__/, "_");
       const cmd = parseCommand(childLine, variables);
       if (cmd) {
