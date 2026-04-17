@@ -539,16 +539,32 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Get image dimensions - osu! uses native pixel dimensions with DrawScale applied to everything
-  // osu! DrawScale = screenHeight / 480 = 1080 / 480 = 2.25 for 1080p
-  // All images and coordinates are scaled by this factor
+  // Get image dimensions - osu! uses a specific scaling behavior for images
   //
-  // Example: 1707x1280 image with S=0.5
-  // - osu!: 1707 * 0.5 * 2.25 = 1920 (fills 1080p screen width)
+  // In osu!, the storyboard coordinate system is 640x480, and this space is scaled
+  // to fill the screen. Images use their native pixel dimensions, but these
+  // dimensions are effectively in the same "space" as the storyboard coordinates.
+  //
+  // The key is that position and size need to be scaled consistently:
+  // - Position: (320, 240) in storyboard space -> (960, 540) in render space
+  // - Size: image dimensions need to be scaled by the same factor
+  //
+  // For a 1920x1080 image at scale 1 to fill a 1920x1080 screen:
+  // - The image should be scaled by STORYBOARD_SCALE (2.25)
+  // - Then S command scale 0.445 makes it ~854px, which fills the screen
+  //
+  // Wait, that's not right. Let me recalculate:
+  // - 1920px image * 2.25 = 4320px render space
+  // - 4320 * 0.445 = 1922px (fills screen!)
+  //
+  // For a 1707x1280 image at scale 0.5:
+  // - 1707 * 2.25 = 3840px render space
+  // - 3840 * 0.5 = 1920px (fills screen width!)
+  //
+  // This calculation is correct for matching osu! behavior.
   const nativeWidth = imageSize?.width ?? 100;
   const nativeHeight = imageSize?.height ?? 100;
 
-  // Scale image dimensions by STORYBOARD_SCALE to match osu!'s DrawScale behavior
   const baseWidth = nativeWidth * STORYBOARD_SCALE;
   const baseHeight = nativeHeight * STORYBOARD_SCALE;
 
