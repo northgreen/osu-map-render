@@ -154,26 +154,46 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
   switch (type) {
     case "F": // Fade: type,easing,start,end,startVal,endVal
       // If endTime is empty/omitted, treat as "indefinite"
-      endTime = parts[3] !== undefined && parts[3] !== ""
-        ? parseInt(parts[3]) || startTime
-        : Number.MAX_SAFE_INTEGER;
-      // If only one value provided (parts[5] is empty):
-      // Fade from 0 to that value (osu! behavior)
-      if (parts[5] === undefined || parts[5] === "") {
-        const fEnd = parseFloat(parts[4]);
-        // Fade from 0 to end value
-        params = [
-          isNaN(fEnd) ? 0 : 0,
-          isNaN(fEnd) ? 0 : fEnd,
-        ];
+      // But if also only one value, it's instant change (endTime = startTime)
+      if (parts[3] === undefined || parts[3] === "") {
+        // No endTime specified
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value: instant change at startTime
+          endTime = startTime;
+          const fValue = parseFloat(parts[4]);
+          params = [
+            isNaN(fValue) ? 0 : fValue,
+            isNaN(fValue) ? 0 : fValue,
+          ];
+        } else {
+          // Two values with no endTime: fade from start to end (infinite)
+          endTime = Number.MAX_SAFE_INTEGER;
+          const fStart = parseFloat(parts[4]);
+          const fEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(fStart) ? 0 : fStart,
+            isNaN(fEnd) ? fStart : fEnd,
+          ];
+        }
       } else {
-        // Two values: fade from startVal to endVal
-        const fStart = parseFloat(parts[4]);
-        const fEnd = parseFloat(parts[5]);
-        params = [
-          isNaN(fStart) ? 0 : fStart,
-          isNaN(fEnd) ? fStart : fEnd,
-        ];
+        // Has endTime
+        endTime = parseInt(parts[3]) || startTime;
+        if (parts[5] === undefined || parts[5] === "") {
+          // Single value with endTime: stay at that value
+          const fValue = parseFloat(parts[4]);
+          params = [
+            isNaN(fValue) ? 0 : fValue,
+            isNaN(fValue) ? 0 : fValue,
+          ];
+        } else {
+          // Two values: fade from startVal to endVal
+          const fStart = parseFloat(parts[4]);
+          const fEnd = parseFloat(parts[5]);
+          params = [
+            isNaN(fStart) ? 0 : fStart,
+            isNaN(fEnd) ? fStart : fEnd,
+          ];
+        }
       }
       break;
     case "M": // Move: type,easing,start,end,x1,y1,x2,y2
@@ -230,43 +250,124 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       break;
     case "S": // Scale: type,easing,start,end,startScale,endScale
       // If endTime is empty/omitted, treat as "indefinite" (very large number)
-      endTime = parts[3] !== undefined && parts[3] !== ""
+      const sEndTime = parts[3] !== undefined && parts[3] !== ""
         ? parseInt(parts[3]) || startTime
         : Number.MAX_SAFE_INTEGER;
-      // Single param means same start and end value
-      const sStart = parseFloat(parts[4]);
-      const sEnd = parts[5] !== undefined && parts[5] !== "" ? parseFloat(parts[5]) : sStart;
-      params = [
-        isNaN(sStart) ? 1 : sStart,
-        isNaN(sEnd) ? sStart : sEnd,
-      ];
+      // Single param: if endTime provided, stay at that value; if no endTime, instant change
+      if (parts[5] === undefined || parts[5] === "") {
+        const sValue = parseFloat(parts[4]);
+        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : sEndTime;
+        endTime = finalEndTime;
+        params = [
+          isNaN(sValue) ? 1 : sValue,
+          isNaN(sValue) ? 1 : sValue,
+        ];
+      } else {
+        const sStart = parseFloat(parts[4]);
+        const sEnd = parseFloat(parts[5]);
+        endTime = sEndTime;
+        params = [
+          isNaN(sStart) ? 1 : sStart,
+          isNaN(sEnd) ? sStart : sEnd,
+        ];
+      }
       break;
     case "V": // Vector Scale: type,easing,start,end,sx1,sy1,sx2,sy2
-      endTime = parseInt(parts[3]) || startTime;
-      params = [
-        parseFloat(parts[4]) || 1,
-        parseFloat(parts[5]) || 1,
-        (parseFloat(parts[6]) ?? parseFloat(parts[4])) || 1,
-        (parseFloat(parts[7]) ?? parseFloat(parts[5])) || 1,
-      ];
+      // If endTime is empty/omitted, treat as "indefinite" (very large number)
+      const vEndTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Check if x2,y2 are provided (4 params) or only x1,y1 (2 params)
+      if (parts[6] === undefined || parts[6] === "") {
+        // Only x1,y1: if endTime provided, stay at that value; if no endTime, instant change
+        const vx = parseFloat(parts[4]);
+        const vy = parseFloat(parts[5]);
+        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : vEndTime;
+        endTime = finalEndTime;
+        params = [
+          isNaN(vx) ? 1 : vx,
+          isNaN(vy) ? 1 : vy,
+          isNaN(vx) ? 1 : vx,
+          isNaN(vy) ? 1 : vy,
+        ];
+      } else {
+        // Four params: scale from (x1,y1) to (x2,y2)
+        const vx1 = parseFloat(parts[4]);
+        const vy1 = parseFloat(parts[5]);
+        const vx2 = parseFloat(parts[6]);
+        const vy2 = parseFloat(parts[7]);
+        endTime = vEndTime;
+        params = [
+          isNaN(vx1) ? 1 : vx1,
+          isNaN(vy1) ? 1 : vy1,
+          isNaN(vx2) ? (isNaN(vx1) ? 1 : vx1) : vx2,
+          isNaN(vy2) ? (isNaN(vy1) ? 1 : vy1) : vy2,
+        ];
+      }
       break;
     case "R": // Rotate: type,easing,start,end,startRad,endRad
-      endTime = parseInt(parts[3]) || startTime;
-      params = [
-        parseFloat(parts[4]) || 0,
-        (parseFloat(parts[5]) ?? parseFloat(parts[4])) || 0,
-      ];
+      // If endTime is empty/omitted, treat as "indefinite" (very large number)
+      const rEndTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Single param: if endTime provided, stay at that value; if no endTime, instant change
+      if (parts[5] === undefined || parts[5] === "") {
+        const rValue = parseFloat(parts[4]);
+        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : rEndTime;
+        endTime = finalEndTime;
+        params = [
+          isNaN(rValue) ? 0 : rValue,
+          isNaN(rValue) ? 0 : rValue,
+        ];
+      } else {
+        const rStart = parseFloat(parts[4]);
+        const rEnd = parseFloat(parts[5]);
+        endTime = rEndTime;
+        params = [
+          isNaN(rStart) ? 0 : rStart,
+          isNaN(rEnd) ? rStart : rEnd,
+        ];
+      }
       break;
     case "C": // Color: type,easing,start,end,r1,g1,b1,r2,g2,b2
-      endTime = parseInt(parts[3]) || startTime;
-      params = [
-        parseFloat(parts[4]) || 255,
-        parseFloat(parts[5]) || 255,
-        parseFloat(parts[6]) || 255,
-        (parseFloat(parts[7]) ?? parseFloat(parts[4])) || 255,
-        (parseFloat(parts[8]) ?? parseFloat(parts[5])) || 255,
-        (parseFloat(parts[9]) ?? parseFloat(parts[6])) || 255,
-      ];
+      // If endTime is empty/omitted, treat as "indefinite" (very large number)
+      const cEndTime = parts[3] !== undefined && parts[3] !== ""
+        ? parseInt(parts[3]) || startTime
+        : Number.MAX_SAFE_INTEGER;
+      // Check if end color is provided (6 params) or only start color (3 params)
+      if (parts[7] === undefined || parts[7] === "") {
+        // Only r1,g1,b1: if endTime provided, stay at that color; if no endTime, instant change
+        const cr = parseFloat(parts[4]);
+        const cg = parseFloat(parts[5]);
+        const cb = parseFloat(parts[6]);
+        const finalEndTime = (parts[3] === undefined || parts[3] === "") ? startTime : cEndTime;
+        endTime = finalEndTime;
+        params = [
+          isNaN(cr) ? 255 : cr,
+          isNaN(cg) ? 255 : cg,
+          isNaN(cb) ? 255 : cb,
+          isNaN(cr) ? 255 : cr,
+          isNaN(cg) ? 255 : cg,
+          isNaN(cb) ? 255 : cb,
+        ];
+      } else {
+        // Six params: color from (r1,g1,b1) to (r2,g2,b2)
+        const cr1 = parseFloat(parts[4]);
+        const cg1 = parseFloat(parts[5]);
+        const cb1 = parseFloat(parts[6]);
+        const cr2 = parseFloat(parts[7]);
+        const cg2 = parseFloat(parts[8]);
+        const cb2 = parseFloat(parts[9]);
+        endTime = cEndTime;
+        params = [
+          isNaN(cr1) ? 255 : cr1,
+          isNaN(cg1) ? 255 : cg1,
+          isNaN(cb1) ? 255 : cb1,
+          isNaN(cr2) ? (isNaN(cr1) ? 255 : cr1) : cr2,
+          isNaN(cg2) ? (isNaN(cg1) ? 255 : cg1) : cg2,
+          isNaN(cb2) ? (isNaN(cb1) ? 255 : cb1) : cb2,
+        ];
+      }
       break;
     case "P": // Parameter: type,easing,start,end,param
       // P command is handled in the main loop, not here
