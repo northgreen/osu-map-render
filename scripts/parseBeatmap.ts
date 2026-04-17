@@ -98,7 +98,18 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
   const eventsLines = parseSection(content, "Events");
   let backgroundImage: string | undefined;
   let storyboardEvents: string[] = [];
-  for (const line of eventsLines) {
+
+  // Also need original lines (with leading spaces) for command parsing
+  const allLines = content.split("\n");
+  const eventsSectionStart = allLines.findIndex((l) => l.trim() === `[Events]`);
+
+  for (let i = eventsSectionStart + 1; i < allLines.length; i++) {
+    const originalLine = allLines[i];
+    const line = originalLine.trim();
+
+    // Check if we've reached the next section
+    if (line.startsWith("[") && line !== `[Events]`) break;
+
     // Background: 0,0,"filename",x,y
     if (line.startsWith("0,") || line.startsWith("0,")) {
       const match = line.match(/^0,0,"([^"]+)"/);
@@ -118,7 +129,8 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       continue;
     }
     // Storyboard commands (start with spaces or tabs)
-    if (/^\s+[TCFMSRVPML]/.test(line)) {
+    // Use originalLine to preserve leading spaces for detection
+    if (/^\s+[TCFMSRVPML]/.test(originalLine)) {
       storyboardEvents.push(line);
       continue;
     }
@@ -272,7 +284,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
 
 // Default beatmap (fallback)
 const DEFAULT_BEATMAP =
-  "Jiang Mi Tiao & Daily Tian Li - Spasmodic (Haocore Mix) (NineSey) [QwertYui345's Extreme].osu";
+  "void (Mournfinale) feat. Hoshikuma Minami - Testify (Akasha-) [Transcend your Limit Fatal End].osu";
 
 async function main() {
   const args = process.argv.slice(2);

@@ -200,11 +200,9 @@ function getOpacity(commands: SbCommand[], loops: SbLoop[], currentTime: number)
       } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
         // 无限命令进行中，使用当前值
         opacity = getCommandValue(cmd, currentTime, 0);
-      } else if (currentTime < cmd.startTime && opacity === 1) {
-        // currentTime 在第一条命令之前，使用该命令的 startValue
-        opacity = cmd.params[0] ?? 1;
       }
-      // currentTime < cmd.startTime 且 opacity != 1 -> 忽略，保持上一个命令的状态
+      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
+      // osu! behavior: don't read command values before the command starts
     }
   }
 
@@ -235,12 +233,9 @@ function getPosition(commands: SbCommand[], loops: SbLoop[], currentTime: number
         // 无限命令进行中，使用开始坐标
         if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
         if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
-      } else if (currentTime < cmd.startTime && (x === defaultX && y === defaultY)) {
-        // currentTime 在第一条命令之前，使用该命令的 startValue
-        if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-        if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
       }
-      // currentTime < cmd.startTime 且已有值 -> 忽略，保持之前的值
+      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
+      // osu! behavior: don't read command values before the command starts
     }
   }
 
@@ -266,13 +261,12 @@ function getScale(commands: SbCommand[], loops: SbLoop[], currentTime: number): 
         // 命令已结束（非无限），使用结束值
         scale = cmd.params[1] ?? cmd.params[0] ?? 1;
       } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
-        // 无限命令进行中，使用开始值
-        scale = cmd.params[0] ?? 1;
-      } else if (currentTime < cmd.startTime && scale === 1) {
-        // currentTime 在第一条命令之前，使用该命令的 startValue
-        scale = cmd.params[0] ?? 1;
+        // 无限命令进行中：osu! behavior - use interpolation even for infinite duration
+        // S command with infinite endTime still interpolates from start to end value
+        scale = getCommandValue(cmd, currentTime, 0);
       }
-      // currentTime < cmd.startTime 且 scale != 1 -> 忽略，保持之前的值
+      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
+      // osu! behavior: don't read command values before the command starts
     }
   }
 
@@ -323,11 +317,9 @@ function getRotation(commands: SbCommand[], loops: SbLoop[], currentTime: number
       } else if (cmd.endTime === Number.MAX_SAFE_INTEGER && currentTime >= cmd.startTime) {
         // 无限命令进行中，使用开始值
         rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
-      } else if (currentTime < cmd.startTime && rotation === 0) {
-        // currentTime 在第一条命令之前，使用该命令的 startValue
-        rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
       }
-      // currentTime < cmd.startTime 且 rotation != 0 -> 忽略，保持之前的值
+      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
+      // osu! behavior: don't read command values before the command starts
     }
   }
 
@@ -380,6 +372,42 @@ function getColor(commands: SbCommand[], loops: SbLoop[], currentTime: number): 
   }
 
   return null;
+}
+
+// Calculate hue rotation angle from RGB color
+function calculateHue(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+
+  if (max === min) {
+    h = 0;
+  } else if (max === r) {
+    h = 60 * ((g - b) / (max - min));
+  } else if (max === g) {
+    h = 60 * ((b - r) / (max - min) + 2);
+  } else {
+    h = 60 * ((r - g) / (max - min) + 4);
+  }
+
+  return h < 0 ? h + 360 : h;
+}
+
+// Calculate saturation percentage from RGB color
+function calculateSaturation(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+
+  if (max === 0) return 0;
+  const s = (max - min) / max;
+  return s * 100;
+}
+
+// Calculate brightness percentage from RGB color (average luminance)
+function calculateBrightness(r: number, g: number, b: number): number {
+  // Use luminance formula: 0.299R + 0.587G + 0.114B
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  return luminance * 100;
 }
 
 function isObjectVisible(commands: SbCommand[], loops: SbLoop[], currentTime: number): boolean {
@@ -511,17 +539,18 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Get image dimensions - images in osu! storyboard are sized relative to 640x480 space
-  // An image at scale=1 should fit within 640x480, not display at its native pixel size
-  // We need to scale images so that at scale=1 they are appropriately sized for 640x480 space
+  // Get image dimensions - osu! uses native pixel dimensions with DrawScale applied to everything
+  // osu! DrawScale = screenHeight / 480 = 1080 / 480 = 2.25 for 1080p
+  // All images and coordinates are scaled by this factor
+  //
+  // Example: 1707x1280 image with S=0.5
+  // - osu!: 1707 * 0.5 * 2.25 = 1920 (fills 1080p screen width)
   const nativeWidth = imageSize?.width ?? 100;
   const nativeHeight = imageSize?.height ?? 100;
 
-  // Scale image to fit 640x480 space at scale=1
-  // If image is 512x512, at scale=1 it should be 512/2.25 = 227.5 in storyboard space
-  // Then multiplied by STORYBOARD_SCALE to get render space: 227.5 * 2.25 = 512 (correct!)
-  const baseWidth = nativeWidth;
-  const baseHeight = nativeHeight;
+  // Scale image dimensions by STORYBOARD_SCALE to match osu!'s DrawScale behavior
+  const baseWidth = nativeWidth * STORYBOARD_SCALE;
+  const baseHeight = nativeHeight * STORYBOARD_SCALE;
 
   // Position: x,y is the origin point in render space
   // Need to offset by origin factor to get top-left corner
@@ -564,26 +593,44 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
       transformOrigin: `${cssOriginX}% ${cssOriginY}%`,
       ...(additive ? { mixBlendMode: "screen" } : {})
     }}>
-
-      <Img
-        ref={imgRef}
-        src={staticFile(src)}
-        onLoad={
-          (e) => setImageSize({
-            width: e.currentTarget.naturalWidth,
-            height: e.currentTarget.naturalHeight
-          })
-        }
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "fill",
-          ...(color ? {
-            backgroundColor: `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, 
-                                  ${Math.round(color.b * 255)})`, mixBlendMode: "multiply"
-          } : {})
-        }}
-      />
+      {color ? (
+        // osu! C command: multiply sprite color by RGB (equivalent to Drawable.Colour in osu!)
+        // Use CSS filter to tint the image while preserving alpha channel
+        <Img
+          ref={imgRef}
+          src={staticFile(src)}
+          onLoad={
+            (e) => setImageSize({
+              width: e.currentTarget.naturalWidth,
+              height: e.currentTarget.naturalHeight
+            })
+          }
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "fill",
+            // Multiply sprite pixels by RGB color (osu! behavior)
+            // brightness(0) removes original color, then we apply the target color
+            filter: `brightness(${calculateBrightness(color.r, color.g, color.b)}%) saturate(${calculateSaturation(color.r, color.g, color.b) * 2}%) hue-rotate(${calculateHue(color.r, color.g, color.b)}deg)`
+          }}
+        />
+      ) : (
+        <Img
+          ref={imgRef}
+          src={staticFile(src)}
+          onLoad={
+            (e) => setImageSize({
+              width: e.currentTarget.naturalWidth,
+              height: e.currentTarget.naturalHeight
+            })
+          }
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "fill"
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -622,7 +669,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
           overflow: "visible",
         }}
       >
-        {layerObjects.map((obj) => (<SbSprite key={obj.id} object={obj} currentTime={currentTime} />))}
+        {layerObjects.map((obj, index) => (<SbSprite key={`${obj.id}-${index}`} object={obj} currentTime={currentTime} />))}
       </div>
     </AbsoluteFill>
   );
