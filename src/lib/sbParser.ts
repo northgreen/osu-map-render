@@ -177,11 +177,12 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       // Parse fade values
       if (parts[5] === undefined || parts[5] === "") {
-        // Single value: fade from 0 to that value (or stay at that value if endTime == startTime)
+        // Single value: maintain the value during [startTime, endTime], then become 0 after
+        // Use -1 as sentinel for params[1] to mark "maintain" mode (opacity is never negative)
         const fValue = parseFloat(parts[4]);
         params = [
           isNaN(fValue) ? 0 : fValue,
-          isNaN(fValue) ? 0 : fValue,
+          -1, // sentinel: maintain params[0] during active period, 0 after
         ];
       } else {
         // Two values: fade from startVal to endVal
