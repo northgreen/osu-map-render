@@ -1,3 +1,4 @@
+import React from "react";
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
 import { getKeyIntervals } from "./lib/judgment";
@@ -38,10 +39,13 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
   }
 
   const keyIntervals = getKeyIntervals();
-  const cursors: JSX.Element[] = [];
+  const cursors: React.JSX.Element[] = [];
 
   // Get judgment results for coloring
-  const judgments = getJudgmentResults(beatmap?.hitObjects || [], beatmap?.difficulty?.overallDifficulty || 7.5);
+  const judgments = getJudgmentResults(
+    beatmap?.hitObjects || [],
+    beatmap?.difficulty?.overallDifficulty || 7.5,
+  );
 
   // Find visible intervals
   const visibleEnd = currentTime + VISIBLE_TIME;
@@ -61,7 +65,11 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
     const clampedStartProgress = Math.max(0, Math.min(1, startProgress));
     const clampedEndProgress = Math.max(0, Math.min(1, endProgress));
 
-    const startY = interpolate(clampedStartProgress, [0, 1], [-NOTE_HEIGHT, jy]);
+    const startY = interpolate(
+      clampedStartProgress,
+      [0, 1],
+      [-NOTE_HEIGHT, jy],
+    );
     const endY = interpolate(clampedEndProgress, [0, 1], [-NOTE_HEIGHT, jy]);
 
     // Skip if the rendered height would be negative or too small
@@ -82,12 +90,20 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
 
     for (const j of judgments) {
       // Head judgment: match by note time and column
-      if (j.column === interval.column && Math.abs(j.noteTime - pressTime) < 50) {
+      if (
+        j.column === interval.column &&
+        Math.abs(j.noteTime - pressTime) < 50
+      ) {
         headJudgmentColor = getJudgmentColor(j.judgment);
         isLN = j.isLongNote;
       }
       // Tail judgment: only for LN, match by end time
-      if (j.column === interval.column && j.isLongNote && j.endTime && Math.abs(j.noteTime - releaseTime) < 50) {
+      if (
+        j.column === interval.column &&
+        j.isLongNote &&
+        j.endTime &&
+        Math.abs(j.noteTime - releaseTime) < 50
+      ) {
         tailJudgmentColor = getJudgmentColor(j.judgment);
       }
     }
@@ -113,7 +129,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
           pointerEvents: "none",
           zIndex: 100,
         }}
-      />
+      />,
     );
 
     // Circle at start (key press) - always show for both single notes and LN
@@ -133,7 +149,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
           pointerEvents: "none",
           zIndex: 101,
         }}
-      />
+      />,
     );
 
     // Circle at end (key release) - only show for LN (long notes)
@@ -154,7 +170,7 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
             pointerEvents: "none",
             zIndex: 101,
           }}
-        />
+        />,
       );
     }
   }

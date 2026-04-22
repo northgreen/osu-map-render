@@ -8,7 +8,11 @@ import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
 import { ReplayCursorLayer } from "./ReplayCursorLayer";
 import { beatmap, getBeatmapDuration } from "./lib/osuParser";
-import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
+import {
+  setJudgmentMode,
+  setJudgmentOffset,
+  setCustomWindows,
+} from "./lib/judgment";
 import { setKeyCount } from "./config";
 import "./lib/replay"; // Force import replay.json
 
@@ -20,14 +24,13 @@ setKeyCount(keyCountFromBeatmap);
 // Nested Props Schema
 // ============================================
 
-
 export const maniaRenderContentsSchema = z.object({
   trackHeight: z.boolean().default(true),
-  columnhigHlights: z.boolean().default(true),
+  columnHighlights: z.boolean().default(true),
   replayCursor: z.boolean().default(true),
   sessionLine: z.boolean().default(true),
   storyboardEnabled: z.boolean().default(false),
-})
+});
 
 export const maniaRenderSchema = z.object({
   time: z.object({
@@ -41,27 +44,27 @@ export const maniaRenderSchema = z.object({
     mode: z.enum(["v1", "v2", "custom"]).default("v2"),
     offset: z.number().default(0),
     showZones: z.boolean().default(false),
-    customWindows: z.object({
-      perfect: z.number().optional(),
-      great: z.number().optional(),
-      good: z.number().optional(),
-      ok: z.number().optional(),
-      meh: z.number().optional(),
-    }).optional(),
+    customWindows: z
+      .object({
+        perfect: z.number().optional(),
+        great: z.number().optional(),
+        good: z.number().optional(),
+        ok: z.number().optional(),
+        meh: z.number().optional(),
+      })
+      .optional(),
   }),
   layout: z.object({
     stageOffset: z.number().default(0),
     judgmentLineY: z.number().min(100).max(1000).default(900),
   }),
-  contents: maniaRenderContentsSchema.default(
-    {
-      trackHeight: true,
-      columnhigHlights: true,
-      replayCursor: true,
-      sessionLine: true,
-      storyboardEnabled: false,
-    }
-  ),
+  contents: maniaRenderContentsSchema.default({
+    trackHeight: true,
+    columnHighlights: true,
+    replayCursor: true,
+    sessionLine: true,
+    storyboardEnabled: false,
+  }),
 });
 
 export type ManiaRenderProps = z.infer<typeof maniaRenderSchema>;
@@ -80,12 +83,14 @@ function getBeatOffset(): number {
 // ManiaStageOnly component with defaultProps for proper Remotion integration
 const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
   const {
+    time = { beatOffset: 900, timeOffset: 0 },
     scroll = { scrollSpeed: 20 },
     judgment = { mode: "v2", offset: 0, showZones: false },
     layout = { stageOffset: 0, judgmentLineY: 900 },
     contents = {},
   } = props;
 
+  const { beatOffset, timeOffset } = time;
   const scrollSpeed = scroll.scrollSpeed;
   const { mode, offset, showZones, customWindows } = judgment;
   const stageOffset = layout.stageOffset;
@@ -100,10 +105,8 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
 
   // Parse contents with defaults
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
-  const { trackHeight, replayCursor, sessionLine, columnhigHlights } = contentsWithDefaults;
-
-  // Debug: log received props
-  console.log("ManiaStageOnly received props:", JSON.stringify(props));
+  const { trackHeight, replayCursor, sessionLine, columnHighlights } =
+    contentsWithDefaults;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "transparent" }}>
@@ -111,14 +114,14 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
       <ManiaStageLayer
         beatmap={beatmap}
         scrollSpeed={scrollSpeed}
-        beatOffset={900}
+        beatOffset={(beatOffset || 900) + (timeOffset || 0)}
         showJudgmentZones={showZones}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}
         showReplayCursor={replayCursor}
         showJudgmentLine={trackHeight}
         showBeatLines={sessionLine}
-        showColumnHighlights={columnhigHlights}
+        showColumnHighlights={columnHighlights}
       />
     </AbsoluteFill>
   );
@@ -136,7 +139,7 @@ export const RemotionRoot: React.FC = () => {
   const baseDuration = getBeatmapDuration(beatmap);
   const totalDuration = baseDuration + beatOffset;
   const fps = 60;
-  const durationInFrames = Math.ceil(totalDuration / 1000 * fps);
+  const durationInFrames = Math.ceil((totalDuration / 1000) * fps);
 
   return (
     <>
@@ -167,7 +170,7 @@ export const RemotionRoot: React.FC = () => {
           layout: { stageOffset: 613, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
-            columnhigHlights: true,
+            columnHighlights: true,
             replayCursor: true,
             sessionLine: true,
             storyboardEnabled: false,
@@ -178,7 +181,11 @@ export const RemotionRoot: React.FC = () => {
       {/* Background layer (bg + audio) */}
       <Composition
         id="ManiaBackground"
-        component={({ contents }: { contents?: z.infer<typeof maniaRenderContentsSchema> }) => {
+        component={({
+          contents,
+        }: {
+          contents?: z.infer<typeof maniaRenderContentsSchema>;
+        }) => {
           const parsed = maniaRenderContentsSchema.parse(contents ?? {});
           return (
             <AbsoluteFill>
@@ -217,7 +224,7 @@ export const RemotionRoot: React.FC = () => {
           layout: { stageOffset: 507, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
-            columnhigHlights: false,
+            columnHighlights: false,
             replayCursor: true,
             sessionLine: true,
             storyboardEnabled: false,
@@ -270,7 +277,7 @@ export const RemotionRoot: React.FC = () => {
           layout: { stageOffset: 499, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
-            columnhigHlights: true,
+            columnHighlights: true,
             replayCursor: true,
             sessionLine: true,
             storyboardEnabled: false,

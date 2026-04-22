@@ -107,17 +107,30 @@ export interface ParsedStoryboard {
 // Parsing Helpers
 // ============================================
 
+const layers: Record<number, Layer> = {
+  0: "Background",
+  1: "Fail",
+  2: "Pass",
+  3: "Foreground",
+  4: "Overlay",
+};
+
 function parseLayer(value: string | number): Layer {
-  const layers: Record<number, Layer> = {
-    0: "Background",
-    1: "Fail",
-    2: "Pass",
-    3: "Foreground",
-  };
-  if (typeof value === "number") {
-    return layers[value] || "Background";
+  // Handle string layer names directly (osu! format)
+  if (typeof value === "string") {
+    const validLayers: Layer[] = ["Background", "Fail", "Pass", "Foreground", "Overlay"];
+    if (validLayers.includes(value as Layer)) {
+      return value as Layer;
+    }
+    // Try parsing as number
+    const numValue = parseInt(value);
+    if (!isNaN(numValue)) {
+      return layers[numValue] || "Background";
+    }
+    return "Background";
   }
-  return (layers[parseInt(value)] as Layer) || "Background";
+  // Handle numeric layer IDs
+  return layers[value] || "Background";
 }
 
 function parseOrigin(value: string | number): Origin {
@@ -251,7 +264,8 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       }
       // Parse scale values
       if (parts[5] === undefined || parts[5] === "") {
-        // Single value: scale from 1 to that value
+        // Single value: startValue = endValue = this value (no interpolation)
+        // Matches osu! behavior: endValue = split.Length > 5 ? ParseFloat(split[5]) : startValue
         const sValue = parseFloat(parts[4]);
         params = [
           isNaN(sValue) ? 1 : sValue,

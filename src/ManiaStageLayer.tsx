@@ -13,6 +13,7 @@ import {
   JUDGMENT_LINE_Y,
   HIT_EFFECT_DURATION,
   config,
+  getKeyCount,
 } from "./config";
 
 interface ManiaStageLayerProps {
@@ -29,11 +30,14 @@ interface ManiaStageLayerProps {
 }
 
 // Generate beat lines based on timing points
-function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): number[] {
+function generateBeatLines(
+  timingPoints: TimingPoint[],
+  durationMs: number,
+): number[] {
   const beatLines: number[] = [];
   if (timingPoints.length === 0) return beatLines;
 
-  const uninheritedPoints = timingPoints.filter(tp => tp.uninherited);
+  const uninheritedPoints = timingPoints.filter((tp) => tp.uninherited);
   if (uninheritedPoints.length === 0) return beatLines;
 
   // Start from the earliest timing point and go backwards to cover the beginning
@@ -54,7 +58,7 @@ function generateBeatLines(timingPoints: TimingPoint[], durationMs: number): num
     const beatLength = Math.abs(tp.beatLength);
 
     for (let time = tp.time; time < endTime; time += beatLength) {
-      if (time > firstTp.time) beatLines.push(time);  // Avoid duplicates
+      if (time > firstTp.time) beatLines.push(time); // Avoid duplicates
     }
   }
 
@@ -77,12 +81,17 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   const { fps } = useVideoConfig();
 
   // Handle missing beatmap - return placeholder (all hooks above this line)
-  const { hitObjects, timingPoints } = beatmap || { hitObjects: [], timingPoints: [] };
+  const { hitObjects, timingPoints } = beatmap || {
+    hitObjects: [],
+    timingPoints: [],
+  };
   const currentTime = beatmap ? (frame / fps) * 1000 : 0;
 
-  const durationMs = hitObjects.length > 0
-    ? (hitObjects[hitObjects.length - 1].endTime || hitObjects[hitObjects.length - 1].time) + 5000
-    : 60000;
+  const durationMs =
+    hitObjects.length > 0
+      ? (hitObjects[hitObjects.length - 1].endTime ||
+          hitObjects[hitObjects.length - 1].time) + 5000
+      : 60000;
 
   // Calculate visible time based on AR and scroll speed - use consistent BASE_VISIBLE_TIME
   const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
@@ -98,8 +107,11 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     "--stage-width": `${config.stageWidth}px`,
   } as React.CSSProperties;
 
-  // Generate beat lines
-  const beatLines = generateBeatLines(timingPoints, durationMs);
+  // Generate beat lines (memoized - static data)
+  const beatLines = useMemo(
+    () => generateBeatLines(timingPoints, durationMs),
+    [timingPoints, durationMs],
+  );
 
   // Cache cumulative times array (computed once)
   const cumulativeTimes = useMemo(() => {
@@ -111,43 +123,48 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       times.push(cumulativeTime);
     }
     return times;
-  }, [replay?.replayData]);
+  }, []);
+
+  // Binary search helper: find rightmost index where arr[i] <= value
+  function bisectRight(arr: number[], value: number): number {
+    let lo = 0;
+    let hi = arr.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (arr[mid] <= value) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo - 1;
+  }
 
   // Get pressed keys from replay
   const pressedKeys = useMemo(() => {
-    const pressedColumns: boolean[] = [false, false, false, false];
-    if (!replay?.replayData || cumulativeTimes.length === 0) return pressedColumns;
+    const keyCount = getKeyCount();
+    const pressedColumns = new Array(keyCount).fill(false) as boolean[];
+    if (!replay?.replayData || cumulativeTimes.length === 0)
+      return pressedColumns;
 
-    // Find the last frame at or before currentTime
-    let lastFrameIndex = -1;
-    for (let i = cumulativeTimes.length - 1; i >= 0; i--) {
-      if (cumulativeTimes[i] <= currentTime) {
-        lastFrameIndex = i;
-        break;
-      }
-    }
+    const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
 
     if (lastFrameIndex >= 0) {
       const keys = replay.replayData[lastFrameIndex].x;
-      if (keys >= 0 && keys < 16) {
-        for (let col = 0; col < 4; col++) {
-          if ((keys & (1 << col)) !== 0) {
-            pressedColumns[col] = true;
-          }
+      for (let col = 0; col < keyCount; col++) {
+        if ((keys & (1 << col)) !== 0) {
+          pressedColumns[col] = true;
         }
       }
     }
 
     return pressedColumns;
-  }, [replay?.replayData, cumulativeTimes, currentTime]);
+  }, [cumulativeTimes, currentTime]);
 
   // Get key release times for fade-out effect
   const releaseTimes = useMemo(() => {
-    const times: number[] = [0, 0, 0, 0];
-    if (!replay?.replayData || cumulativeTimes.length === 0) return times;
+    const keyCount = getKeyCount();
+    const result = new Array(keyCount).fill(0) as number[];
+    if (!replay?.replayData || cumulativeTimes.length === 0) return result;
 
-    const keyState = [false, false, false, false];
-    const result = [0, 0, 0, 0];
+    const keyState = new Array(keyCount).fill(false) as boolean[];
 
     for (let i = 0; i < cumulativeTimes.length; i++) {
       const time = cumulativeTimes[i];
@@ -155,7 +172,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
       const keys = replay.replayData[i].x;
 
-      for (let col = 0; col < 4; col++) {
+      for (let col = 0; col < keyCount; col++) {
         const isPressed = (keys & (1 << col)) !== 0;
 
         if (!isPressed && keyState[col]) {
@@ -166,7 +183,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     }
 
     return result;
-  }, [replay?.replayData, cumulativeTimes, currentTime]);
+  }, [cumulativeTimes, currentTime]);
 
   const COLUMN_FADE_DURATION = 150;
 
@@ -183,7 +200,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     if (releaseTime === 0) return 0;
 
     const timeSinceRelease = currentTime - releaseTime;
-    if (timeSinceRelease < 0 || timeSinceRelease > COLUMN_FADE_DURATION) return 0;
+    if (timeSinceRelease < 0 || timeSinceRelease > COLUMN_FADE_DURATION)
+      return 0;
 
     return 0.15 * (1 - timeSinceRelease / COLUMN_FADE_DURATION);
   };
@@ -191,31 +209,32 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   return (
     <AbsoluteFill style={stageStyle}>
       {/* Beat lines */}
-      {showBeatLines && beatLines.map((time) => {
-        // Apply beatOffset so beat lines start appearing at the right time
-        const adjustedTime = time + beatOffset;
-        const timeUntilHit = adjustedTime - currentTime;
+      {showBeatLines &&
+        beatLines.map((time) => {
+          const adjustedTime = time + beatOffset;
+          const timeUntilHit = adjustedTime - currentTime;
 
-        // Only show when above judgment line (add small buffer to prevent flickering)
-        if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
+          if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
 
-        const progress = 1 - timeUntilHit / visibleTime;
-        const y = progress * judgmentY;
-        const beatNumber = 60;
-        const isBarLine = beatNumber % 4 === 0;
+          const progress = 1 - timeUntilHit / visibleTime;
+          const y = progress * judgmentY;
+          const isBarLine =
+            time === 0 ||
+            (timingPoints.length > 0 &&
+              time % (Math.abs(timingPoints[0].beatLength) * 4) === 0);
 
-        return (
-          <div
-            key={`beat-${time}`}
-            className={`beat-line ${isBarLine ? 'bar' : 'normal'}`}
-            style={{
-              left: stageX,
-              top: y,
-              height: isBarLine ? 3 : 1,
-            }}
-          />
-        );
-      })}
+          return (
+            <div
+              key={`beat-${time}`}
+              className={`beat-line ${isBarLine ? "bar" : "normal"}`}
+              style={{
+                left: stageX,
+                top: y,
+                height: isBarLine ? 3 : 1,
+              }}
+            />
+          );
+        })}
 
       {/* Stage background */}
       <div
@@ -239,110 +258,148 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
       {/* Judgment line */}
       {showJudgmentLine && (
-      <div
-        className="judgment-line"
-        style={{
-          left: stageX,
-          top: judgmentY,
-          width: config.stageWidth,
-          height: 4,
-          backgroundColor: "#00ff88",
-          boxShadow: "0 0 15px #00ff88",
-        }}
-      />
+        <div
+          className="judgment-line"
+          style={{
+            left: stageX,
+            top: judgmentY,
+            width: config.stageWidth,
+            height: 4,
+            backgroundColor: "#00ff88",
+            boxShadow: "0 0 15px #00ff88",
+          }}
+        />
       )}
 
       {/* Judgment zones - colored rectangles showing timing windows */}
-      {showJudgmentZones && visibleTime > 0 && hitObjects.map((note, index) => {
-        const timeUntilHit = note.time - currentTime;
-        // Show zones for notes that are about to hit (within visible time)
-        if (timeUntilHit > visibleTime || timeUntilHit < -200) return null;
+      {showJudgmentZones &&
+        visibleTime > 0 &&
+        hitObjects.map((note, index) => {
+          const timeUntilHit = note.time - currentTime;
+          // Show zones for notes that are about to hit (within visible time)
+          if (timeUntilHit > visibleTime || timeUntilHit < -200) return null;
 
-        const od = beatmap.difficulty.overallDifficulty;
-        const windows = getHitWindows(od);
+          const od = beatmap.difficulty.overallDifficulty;
+          const windows = getHitWindows(od);
 
-        // Calculate note position
-        const progress = 1 - timeUntilHit / visibleTime;
-        const noteY = progress * judgmentY;
-        if (isNaN(noteY)) return null;
+          // Calculate note position
+          const progress = 1 - timeUntilHit / visibleTime;
+          const noteY = progress * judgmentY;
+          if (isNaN(noteY)) return null;
 
-        // Judgment zone colors (from center outward)
-        const zoneColors = [
-          { color: "rgba(255, 0, 255, 0.3)", borderColor: "rgba(255, 0, 255, 0.8)", window: windows.perfect },   // Magenta - Perfect
-          { color: "rgba(0, 255, 136, 0.25)", borderColor: "rgba(0, 255, 136, 0.6)", window: windows.great },  // Green - Great
-          { color: "rgba(0, 170, 255, 0.2)", borderColor: "rgba(0, 170, 255, 0.5)", window: windows.good },  // Blue - Good
-          { color: "rgba(255, 170, 0, 0.15)", borderColor: "rgba(255, 170, 0, 0.4)", window: windows.ok },  // Orange - Ok
-          { color: "rgba(255, 68, 68, 0.12)", borderColor: "rgba(255, 68, 68, 0.3)", window: windows.meh },  // Red - Meh
-        ];
+          // Judgment zone colors (from center outward)
+          const zoneColors = [
+            {
+              color: "rgba(255, 0, 255, 0.3)",
+              borderColor: "rgba(255, 0, 255, 0.8)",
+              window: windows.perfect,
+            }, // Magenta - Perfect
+            {
+              color: "rgba(0, 255, 136, 0.25)",
+              borderColor: "rgba(0, 255, 136, 0.6)",
+              window: windows.great,
+            }, // Green - Great
+            {
+              color: "rgba(0, 170, 255, 0.2)",
+              borderColor: "rgba(0, 170, 255, 0.5)",
+              window: windows.good,
+            }, // Blue - Good
+            {
+              color: "rgba(255, 170, 0, 0.15)",
+              borderColor: "rgba(255, 170, 0, 0.4)",
+              window: windows.ok,
+            }, // Orange - Ok
+            {
+              color: "rgba(255, 68, 68, 0.12)",
+              borderColor: "rgba(255, 68, 68, 0.3)",
+              window: windows.meh,
+            }, // Red - Meh
+          ];
 
-        const column = Math.min(note.column, 3);
-        // Use config.columnPositionsNote + stageOffset to match note positioning (same as ManiaNote)
-        const posX = STAGE_X + config.columnPositionsNote[column] + stageOffset;
+          const column = Math.min(
+            note.column,
+            config.columnPositionsNote.length - 1,
+          );
+          // Use config.columnPositionsNote + stageOffset to match note positioning (same as ManiaNote)
+          const posX =
+            STAGE_X + config.columnPositionsNote[column] + stageOffset;
 
-        // Calculate zone heights based on time windows (converted to pixels)
-        const msToPixels = (ms: number) => {
-          if (visibleTime <= 0 || isNaN(ms)) return 0;
-          return (ms / visibleTime) * judgmentY;
-        };
+          // Calculate zone heights based on time windows (converted to pixels)
+          const msToPixels = (ms: number) => {
+            if (visibleTime <= 0 || isNaN(ms)) return 0;
+            return (ms / visibleTime) * judgmentY;
+          };
 
-        // Render zones centered on note - extends both above and below
-        // Zone starts from noteY, extends upward (early) and downward (late)
-        let zoneTop = noteY;
-        return (
-          <div key={`note-zones-${note.time}-${note.column}-${index}`}>
-            {zoneColors.map((zone, zoneIndex) => {
-              const zoneHeight = msToPixels(zone.window);
-              if (zoneHeight <= 0) return null;
+          // Render zones centered on note - extends both above and below
+          // Zone starts from noteY, extends upward (early) and downward (late)
+          let zoneTop = noteY;
+          return (
+            <div key={`note-zones-${note.time}-${note.column}-${index}`}>
+              {zoneColors.map((zone, zoneIndex) => {
+                const zoneHeight = msToPixels(zone.window);
+                if (zoneHeight <= 0) return null;
 
-              // Calculate fade based on screen position
-              const fadeStart = 100;
-              const opacity = Math.min(1, Math.max(0.1, (zoneTop - fadeStart) / fadeStart + 1));
+                // Calculate fade based on screen position
+                const fadeStart = 100;
+                const opacity = Math.min(
+                  1,
+                  Math.max(0.1, (zoneTop - fadeStart) / fadeStart + 1),
+                );
 
-              const currentTop = zoneTop - zoneHeight;
-              zoneTop -= zoneHeight;
+                const currentTop = zoneTop - zoneHeight;
+                zoneTop -= zoneHeight;
 
-              return (
-                <>
-                  {/* Zone extends upward from previous zone (early hit window) */}
+                return (
+                  <>
+                    {/* Zone extends upward from previous zone (early hit window) */}
+                    <div
+                      key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                      className={`judgment-zone zone-${zoneIndex}`}
+                      style={{
+                        left: posX + 2, // posX already includes stageOffset
+                        top: currentTop,
+                        width: NOTE_WIDTH - 4,
+                        height: zoneHeight - 1,
+                        opacity,
+                      }}
+                    />
+                  </>
+                );
+              })}
+              {/* Render late zones below note */}
+              {zoneColors.map((zone, zoneIndex) => {
+                const zoneHeight = msToPixels(zone.window);
+                if (zoneHeight <= 0) return null;
+
+                const startY =
+                  noteY +
+                  msToPixels(
+                    zoneColors
+                      .slice(0, zoneIndex)
+                      .reduce((sum, z) => sum + msToPixels(z.window), 0),
+                  );
+                const opacity = Math.min(
+                  1,
+                  Math.max(0.1, (startY - 100) / 100 + 1),
+                );
+
+                return (
                   <div
-                    key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
+                    key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
                     className={`judgment-zone zone-${zoneIndex}`}
                     style={{
-                      left: posX + 2,  // posX already includes stageOffset
-                      top: currentTop,
+                      left: posX + 2, // posX already includes stageOffset
+                      top: startY,
                       width: NOTE_WIDTH - 4,
                       height: zoneHeight - 1,
                       opacity,
                     }}
                   />
-                </>
-              );
-            })}
-            {/* Render late zones below note */}
-            {zoneColors.map((zone, zoneIndex) => {
-              const zoneHeight = msToPixels(zone.window);
-              if (zoneHeight <= 0) return null;
-
-              const startY = noteY + msToPixels(zoneColors.slice(0, zoneIndex).reduce((sum, z) => sum + msToPixels(z.window), 0));
-              const opacity = Math.min(1, Math.max(0.1, (startY - 100) / 100 + 1));
-
-              return (
-                <div
-                  key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
-                  className={`judgment-zone zone-${zoneIndex}`}
-                  style={{
-                    left: posX + 2,  // posX already includes stageOffset
-                    top: startY,
-                    width: NOTE_WIDTH - 4,
-                    height: zoneHeight - 1,
-                    opacity,
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })}
+                );
+              })}
+            </div>
+          );
+        })}
 
       {/* Notes */}
       {hitObjects.map((note, index) => (
@@ -356,15 +413,42 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       ))}
 
       {/* Replay cursor - shows player key presses falling */}
-      {showReplayCursor && <ReplayCursor scrollSpeed={scrollSpeed} stageOffset={stageOffset} judgmentLineY={judgmentLineY} />}
+      {showReplayCursor && (
+        <ReplayCursor
+          scrollSpeed={scrollSpeed}
+          stageOffset={stageOffset}
+          judgmentLineY={judgmentLineY}
+        />
+      )}
 
       {/* Key press indicators at bottom */}
       {config.columnPositionsStage.map((pos, i) => {
         const isPressed = pressedKeys[i];
+        const keyLabels = [
+          "D",
+          "F",
+          "J",
+          "K",
+          "A",
+          "S",
+          "Z",
+          "X",
+          "C",
+          "V",
+          "B",
+          "N",
+          "M",
+          ",",
+          ".",
+          "/",
+          "'",
+          ";",
+          "L",
+        ];
         return (
           <div
             key={`key-${i}`}
-            className={`key-indicator column-${i} ${isPressed ? 'pressed' : ''}`}
+            className={`key-indicator column-${i} ${isPressed ? "pressed" : ""}`}
             style={{
               left: stageX + pos - config.columnWidth / 2,
               top: judgmentY + 10,
@@ -372,48 +456,58 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
               height: 60,
             }}
           >
-            {["D", "F", "J", "K"][i]}
+            {keyLabels[i] ?? i}
           </div>
         );
       })}
 
       {/* Column highlights when key is pressed (with fade-out) */}
-      {showColumnHighlights && config.columnPositionsStage.map((pos, i) => {
-        const isPressed = pressedKeys[i];
-        const opacity = getColumnOpacity(i, isPressed);
+      {showColumnHighlights &&
+        config.columnPositionsStage.map((pos, i) => {
+          const isPressed = pressedKeys[i];
+          const opacity = getColumnOpacity(i, isPressed);
 
-        if (opacity <= 0) return null;
+          if (opacity <= 0) return null;
 
-        return (
-          <div
-            key={`col-highlight-${i}`}
-            className={`column-highlight column-${i}`}
-            style={{
-              left: stageX + pos - config.columnWidth / 2,
-              width: config.columnWidth,
-              opacity,
-            }}
-          />
-        );
-      })}
+          return (
+            <div
+              key={`col-highlight-${i}`}
+              className={`column-highlight column-${i}`}
+              style={{
+                left: stageX + pos - config.columnWidth / 2,
+                width: config.columnWidth,
+                opacity,
+              }}
+            />
+          );
+        })}
 
       {/* Hit effects - column highlight on note hit */}
       {hitObjects.map((note, index) => {
         const startTime = note.time;
-        const endTime = note.isLongNote && note.endTime ? note.endTime : note.time + HIT_EFFECT_DURATION;
+        const endTime =
+          note.isLongNote && note.endTime
+            ? note.endTime
+            : note.time + HIT_EFFECT_DURATION;
 
         const isActive = note.isLongNote
-          ? (currentTime >= startTime && currentTime <= endTime)
-          : (currentTime >= startTime && currentTime < startTime + HIT_EFFECT_DURATION);
+          ? currentTime >= startTime && currentTime <= endTime
+          : currentTime >= startTime &&
+            currentTime < startTime + HIT_EFFECT_DURATION;
 
         if (!isActive) return null;
 
-        const column = Math.min(note.column, 3);
+        const column = Math.min(
+          note.column,
+          config.columnPositionsStage.length - 1,
+        );
         const posX = config.columnPositionsStage[column];
         const color = config.columnColors[column];
 
         const timeSinceHit = currentTime - startTime;
-        const fadeProgress = note.isLongNote ? 0 : (timeSinceHit / HIT_EFFECT_DURATION);
+        const fadeProgress = note.isLongNote
+          ? 0
+          : timeSinceHit / HIT_EFFECT_DURATION;
         const opacity = note.isLongNote
           ? Math.min(0.1, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.0)
           : 0.1 * (1 - fadeProgress);
@@ -437,14 +531,17 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
       {/* Hit effects - note flash */}
       {hitObjects.map((note, index) => {
-        const column = Math.min(note.column, 3);
+        const column = Math.min(
+          note.column,
+          config.columnPositionsStage.length - 1,
+        );
         const posX = config.columnPositionsStage[column];
-        const colors = ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"];
-        const color = colors[column];
+        const color = config.columnColors[column];
 
-        const flashTimes = note.isLongNote && note.endTime
-          ? [note.time, note.endTime]
-          : [note.time];
+        const flashTimes =
+          note.isLongNote && note.endTime
+            ? [note.time, note.endTime]
+            : [note.time];
 
         return (
           <>

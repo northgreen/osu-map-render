@@ -19,7 +19,10 @@ export interface DifficultyResult {
 // Star Rating Calculation (Density-based)
 // ============================================
 
-function calculateStarRating(hitObjects: HitObject[], totalColumns: number): number {
+function calculateStarRating(
+  hitObjects: HitObject[],
+  totalColumns: number,
+): number {
   if (hitObjects.length === 0) return 0;
 
   const sorted = [...hitObjects].sort((a, b) => a.time - b.time);
@@ -35,14 +38,14 @@ function calculateStarRating(hitObjects: HitObject[], totalColumns: number): num
   const notesPerSecond = avgDelta > 0 ? 1000 / avgDelta : 0;
 
   // LN ratio
-  const lnCount = sorted.filter(n => n.isLongNote).length;
+  const lnCount = sorted.filter((n) => n.isLongNote).length;
   const lnRatio = lnCount / sorted.length;
 
   // Column distribution (balance)
   const colCounts = new Array(totalColumns).fill(0);
-  sorted.forEach(n => colCounts[n.column]++);
+  sorted.forEach((n) => colCounts[n.column]++);
   const maxCol = Math.max(...colCounts);
-  const minCol = Math.min(...colCounts.filter(c => c > 0));
+  const minCol = Math.min(...colCounts.filter((c) => c > 0));
   const balance = maxCol / (minCol || 1);
 
   // Combined formula
@@ -57,33 +60,58 @@ function calculateStarRating(hitObjects: HitObject[], totalColumns: number): num
 // Main API
 // ============================================
 
-export function calculateDifficulty(beatmap: {
+let difficultyCache: DifficultyResult | null = null;
+let lastBeatmapHash: string | null = null;
+
+function hashBeatmap(beatmap: {
   hitObjects: HitObject[];
   difficulty: {
     overallDifficulty: number;
     circleSize: number;
-    approachRate: number;
-    hpDrainRate: number;
+    approachRate?: number;
+    hpDrainRate?: number;
   };
-}, replayData?: { hitResults: number[] }): DifficultyResult {
+}): string {
+  return `${beatmap.hitObjects.length}-${beatmap.difficulty.circleSize}-${beatmap.difficulty.overallDifficulty}`;
+}
+
+export function calculateDifficulty(
+  beatmap: {
+    hitObjects: HitObject[];
+    difficulty: {
+      overallDifficulty: number;
+      circleSize: number;
+      approachRate?: number;
+      hpDrainRate?: number;
+    };
+  },
+  replayData?: { hitResults: number[] },
+): DifficultyResult {
+  const hash = hashBeatmap(beatmap);
+  if (!replayData && difficultyCache && lastBeatmapHash === hash) {
+    return difficultyCache;
+  }
+
   const { hitObjects, difficulty } = beatmap;
   const keyCount = Math.max(4, difficulty.circleSize);
 
-  // Calculate star rating
   const starRating = calculateStarRating(hitObjects, keyCount);
-
-  // Calculate max combo
   const maxCombo = calculateMaxCombo(hitObjects);
-
-  // Calculate PP
   const ppResult = calculatePP(beatmap, maxCombo, starRating, replayData);
 
-  return {
+  const result = {
     stars: Math.round(starRating * 100) / 100,
     maxCombo,
     pp: ppResult.total,
     ppComponents: ppResult.components,
   };
+
+  if (!replayData) {
+    difficultyCache = result;
+    lastBeatmapHash = hash;
+  }
+
+  return result;
 }
 
 function calculateMaxCombo(hitObjects: HitObject[]): number {
@@ -96,11 +124,17 @@ function calculateMaxCombo(hitObjects: HitObject[]): number {
 // ============================================
 
 function calculatePP(
-  beatmap: { hitObjects: HitObject[]; difficulty: { overallDifficulty: number; circleSize: number } },
+  beatmap: {
+    hitObjects: HitObject[];
+    difficulty: { overallDifficulty: number; circleSize: number };
+  },
   maxCombo: number,
   stars: number,
-  replayData?: { hitResults: number[] }
-): { total: number; components: { aim: number; speed: number; accuracy: number } } {
+  replayData?: { hitResults: number[] },
+): {
+  total: number;
+  components: { aim: number; speed: number; accuracy: number };
+} {
   const hitObjects = beatmap.hitObjects;
   const totalNotes = hitObjects.length;
 
@@ -109,12 +143,13 @@ function calculatePP(
   let count50 = 0;
 
   if (replayData?.hitResults) {
-    count300 = replayData.hitResults.filter(r => r === 300).length;
-    count100 = replayData.hitResults.filter(r => r === 100).length;
-    count50 = replayData.hitResults.filter(r => r === 50).length;
+    count300 = replayData.hitResults.filter((r) => r === 300).length;
+    count100 = replayData.hitResults.filter((r) => r === 100).length;
+    count50 = replayData.hitResults.filter((r) => r === 50).length;
   }
 
-  const accuracy = (count300 * 300 + count100 * 100 + count50 * 50) / (totalNotes * 300);
+  const accuracy =
+    (count300 * 300 + count100 * 100 + count50 * 50) / (totalNotes * 300);
 
   const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
   const speedPP = stars * 0.5 * accuracy;
@@ -135,18 +170,34 @@ function calculatePP(
 
 // Real-time PP calculation
 export function calculateRealtimePP(
-  beatmap: { hitObjects: HitObject[]; difficulty: { overallDifficulty: number; circleSize: number } },
+  beatmap: {
+    hitObjects: HitObject[];
+    difficulty: {
+      overallDifficulty: number;
+      circleSize: number;
+      approachRate?: number;
+      hpDrainRate?: number;
+    };
+  },
   currentTime: number,
   currentCombo: number,
-  judgmentCounts: { count300: number; count100: number; count50: number; countMiss: number }
+  judgmentCounts: {
+    count300: number;
+    count100: number;
+    count50: number;
+    countMiss: number;
+  },
 ): number {
   const { hitObjects } = beatmap;
   const stars = calculateDifficulty(beatmap).stars;
 
   const totalNotes = hitObjects.length;
-  const totalScore = judgmentCounts.count300 * 300 + judgmentCounts.count100 * 100 + judgmentCounts.count50 * 50;
+  const totalScore =
+    judgmentCounts.count300 * 300 +
+    judgmentCounts.count100 * 100 +
+    judgmentCounts.count50 * 50;
   const maxPossibleScore = totalNotes * 300;
-  const accuracy = totalScore / maxPossibleScore;
+  const accuracy = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
 
   const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
   const speedPP = stars * 0.5 * accuracy;

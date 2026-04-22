@@ -51,16 +51,14 @@ function parseULEB128(buffer: Buffer, offset: number): [number, number] {
 function parseString(buffer: Buffer, offset: number): [string, number] {
   const prefix = buffer[offset];
 
-  // If first byte is 0x00, string is null
   if (prefix === 0x00) {
     return ["", 1];
   }
 
-  // If first byte is 0x0b, string exists
   if (prefix === 0x0b) {
     const [length, lengthSize] = parseULEB128(buffer, offset + 1);
-    const stringEnd = offset + 1 + lengthSize + length;
-    const string = buffer.toString("utf8", stringEnd, stringEnd + length);
+    const stringStart = offset + 1 + lengthSize;
+    const string = buffer.toString("utf8", stringStart, stringStart + length);
     return [string, 1 + lengthSize + length];
   }
 
@@ -124,13 +122,6 @@ function parseReplayDataString(dataStr: string): ReplayFrame[] {
 
   return frames;
 }
-
-// Key constants (from osu! wiki)
-export const KEY_M1 = 1;
-export const KEY_M2 = 2;
-export const KEY_K1 = 4;
-export const KEY_K2 = 8;
-export const KEY_SMOKE = 16;
 
 // Mod constants
 export const MOD_NOFAIL = 1;
@@ -256,29 +247,4 @@ export function parseOsuReplay(filePath: string): ReplayData | null {
     console.error("Error parsing .osr file:", error);
     return null;
   }
-}
-
-// Get pressed keys from replay frame for osu!mania
-// Returns array of column indices (0-7) that are pressed
-export function getPressedColumns(frame: ReplayFrame, keyCount: number = 4): number[] {
-  const columns: number[] = [];
-
-  // For osu!mania, the Y coordinate indicates the column
-  // Y range is 0-384, divided into keyCount columns
-  const columnHeight = 384 / keyCount;
-  const column = Math.floor(frame.y / columnHeight);
-
-  if (column >= 0 && column < keyCount) {
-    // Check which key is pressed
-    // Standard mania key mapping: K1, K2 for columns 0,1, M1, M2 for columns 2,3
-    // But actual mapping varies - let's use simple position-based
-    if (frame.keys & KEY_K1 || frame.keys & KEY_M1) {
-      columns.push(0);
-    }
-    if (frame.keys & KEY_K2 || frame.keys & KEY_M2) {
-      columns.push(1);
-    }
-  }
-
-  return columns;
 }

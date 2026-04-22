@@ -60,5 +60,7 @@ export const beatmap: ParsedBeatmap = beatmapData as ParsedBeatmap;
 export function getBeatmapDuration(beatmap: ParsedBeatmap): number {
   if (beatmap.hitObjects.length === 0) return 60000;
   const lastNote = beatmap.hitObjects[beatmap.hitObjects.length - 1];
-  return lastNote.time + 5000; // Add 5 seconds after last note
+  const endTime =
+    lastNote.isLongNote && lastNote.endTime ? lastNote.endTime : lastNote.time;
+  return endTime + 5000;
 }

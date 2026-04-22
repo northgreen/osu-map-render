@@ -1,13 +1,20 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { ParsedBeatmap } from "./lib/osuParser";
 import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
-import { getJudgmentResults, getJudgmentColor, JudgmentResult, setJudgmentMode, getJudgmentMode, setJudgmentOffset, clearJudgmentCache } from "./lib/judgment";
+import {
+  getJudgmentResults,
+  getJudgmentColor,
+  JudgmentResult,
+  setJudgmentMode,
+  getJudgmentMode,
+  setJudgmentOffset,
+} from "./lib/judgment";
 import { config, STAGE_X } from "./config";
 
 interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
-  judgmentMode?: "v1" | "v2";
+  judgmentMode?: "v1" | "v2" | "custom";
   judgmentOffset?: number;
   stageOffset?: number;
   judgmentLineY?: number;
@@ -23,16 +30,17 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Sync mode and offset from props
-  useEffect(() => {
-    if (judgmentMode) {
-      setJudgmentMode(judgmentMode);
-    }
-    if (judgmentOffset !== undefined) {
-      setJudgmentOffset(judgmentOffset);
-    }
-    clearJudgmentCache();
-  }, [judgmentMode, judgmentOffset]);
+  // Sync mode and offset from props (synchronous, no useEffect flash)
+  if (judgmentMode) {
+    setJudgmentMode(judgmentMode);
+  }
+  setJudgmentOffset(judgmentOffset);
+
+  // Memoized difficulty calculation (static per beatmap)
+  const difficultyResult = useMemo(
+    () => (beatmap ? calculateDifficulty(beatmap) : null),
+    [beatmap],
+  );
 
   const mode = judgmentMode || getJudgmentMode();
 
@@ -43,50 +51,75 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
   const { metadata, difficulty, hitObjects } = beatmap;
   const currentTime = (frame / fps) * 1000;
 
-  // Calculate difficulty
-  const difficultyResult = calculateDifficulty(beatmap);
+  if (!difficultyResult) return null;
 
   // Get judgment results
-  const judgments = getJudgmentResults(hitObjects, difficulty.overallDifficulty);
+  const judgments = getJudgmentResults(
+    hitObjects,
+    difficulty.overallDifficulty,
+  );
 
   // Calculate cumulative scores (osu!mania: Perfect=320, Great=300, Good=200, Ok=100, Meh=50, Miss=0)
-  let countPerfect = 0, countGreat = 0, countGood = 0, countOk = 0, countMeh = 0, countMiss = 0;
+  let countPerfect = 0,
+    countGreat = 0,
+    countGood = 0,
+    countOk = 0,
+    countMeh = 0,
+    countMiss = 0;
   let lastJudgment: JudgmentResult | null = null;
+  let currentCombo = 0;
+  let maxCombo = 0;
   for (const j of judgments) {
     if (j.hitTime <= currentTime) {
-      if (j.judgment === "Perfect") countPerfect++;
-      else if (j.judgment === "Great") countGreat++;
-      else if (j.judgment === "Good") countGood++;
-      else if (j.judgment === "Ok") countOk++;
-      else if (j.judgment === "Meh") countMeh++;
-      else if (j.judgment === "Miss") countMiss++;
+      if (j.judgment === "Perfect") {
+        countPerfect++;
+        currentCombo++;
+      } else if (j.judgment === "Great") {
+        countGreat++;
+        currentCombo++;
+      } else if (j.judgment === "Good") {
+        countGood++;
+        currentCombo++;
+      } else if (j.judgment === "Ok") {
+        countOk++;
+        currentCombo++;
+      } else if (j.judgment === "Meh") {
+        countMeh++;
+        currentCombo++;
+      } else if (j.judgment === "Miss") {
+        currentCombo = 0;
+        countMiss++;
+      }
+      if (currentCombo > maxCombo) maxCombo = currentCombo;
       lastJudgment = j;
     }
   }
 
   // Calculate score
-  const totalScore = countPerfect * 320 + countGreat * 300 + countGood * 200 +
-                     countOk * 100 + countMeh * 50;
+  const totalScore =
+    countPerfect * 320 +
+    countGreat * 300 +
+    countGood * 200 +
+    countOk * 100 +
+    countMeh * 50;
 
-  // Calculate real-time PP (using actual judgment counts)
-  // Convert new judgment types to old format for PP calculation
-  const realtimePP = calculateRealtimePP(
-    beatmap,
-    currentTime,
-    Math.floor(currentTime / 100),
-    {
-      count300: countPerfect + countGreat,  // Perfect(320) + Great(300) count as 300
-      count100: countGood + countOk,         // Good(200) + Ok(100) count as 100
-      count50: countMeh,                      // Meh(50)
-      countMiss: countMiss
-    }
-  );
+  // Calculate real-time PP (using actual judgment counts and real combo)
+  const realtimePP = calculateRealtimePP(beatmap, currentTime, maxCombo, {
+    count300: countPerfect + countGreat,
+    count100: countGood + countOk,
+    count50: countMeh,
+    countMiss: countMiss,
+  });
 
   return (
-    <AbsoluteFill style={{
-      "--stage-x": `${STAGE_X}px`,
-      "--stage-width": `${config.stageWidth}px`,
-    } as React.CSSProperties}>
+    <AbsoluteFill
+      style={
+        {
+          "--stage-x": `${STAGE_X}px`,
+          "--stage-width": `${config.stageWidth}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* Metadata display - top left */}
       <div
         style={{
@@ -107,9 +140,17 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
           {metadata.creator} [{metadata.version}]
         </div>
         <div style={{ fontSize: 16, color: "#555", marginTop: 8 }}>
-          {difficulty.circleSize}K | AR {difficulty.approachRate} | OD {difficulty.overallDifficulty}
+          {difficulty.circleSize}K | AR {difficulty.approachRate} | OD{" "}
+          {difficulty.overallDifficulty}
         </div>
-        <div style={{ fontSize: 16, color: "#FFD700", marginTop: 8, fontWeight: "bold" }}>
+        <div
+          style={{
+            fontSize: 16,
+            color: "#FFD700",
+            marginTop: 8,
+            fontWeight: "bold",
+          }}
+        >
           ★ {difficultyResult.stars.toFixed(1)}
         </div>
       </div>
@@ -127,7 +168,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
         }}
       >
         <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
-        <div style={{ fontSize: 18, color: "#666" }}>x{Math.floor(currentTime / 100)}</div>
+        <div style={{ fontSize: 18, color: "#666" }}>x{maxCombo}</div>
       </div>
 
       {/* Judgment stats - below score */}
@@ -147,9 +188,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
         <div style={{ color: "#FFAA00" }}>{countOk}x100</div>
         <div style={{ color: "#FF6666" }}>{countMeh}x50</div>
         <div style={{ color: "#888888" }}>{countMiss}xMiss</div>
-        <div style={{ color: "#888", marginTop: 8 }}>
-          Total: {totalScore}
-        </div>
+        <div style={{ color: "#888", marginTop: 8 }}>Total: {totalScore}</div>
 
         {/* Current judgment mode indicator */}
         <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>

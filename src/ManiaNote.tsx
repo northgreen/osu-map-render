@@ -8,6 +8,7 @@ import {
   JUDGMENT_LINE_Y,
   STAGE_X,
   config,
+  getKeyCount,
 } from "./config";
 
 interface ManiaNoteProps {
@@ -37,25 +38,23 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
 
   const { isLongNote, endTime, time: startTime } = note;
   const timeUntilStart = startTime - currentTime;
-  const timeUntilEnd = isLongNote && endTime ? endTime - currentTime : timeUntilStart;
-
-  // Debug: log first few notes
-  if (frame === 0 && note.time < 5000) {
-    console.log(`Note time: ${startTime}, currentTime: ${currentTime}, until: ${timeUntilStart}, visible: ${VISIBLE_TIME}`);
-  }
+  const timeUntilEnd =
+    isLongNote && endTime ? endTime - currentTime : timeUntilStart;
 
   // For LN, visible if either head OR tail is in range
   // For regular note, visible if timeUntilStart is in range
-  const isVisible = isLongNote && endTime
-    ? (timeUntilStart <= VISIBLE_TIME && timeUntilEnd >= -200)
-    : (timeUntilStart <= VISIBLE_TIME && timeUntilStart >= -200);
+  const isVisible =
+    isLongNote && endTime
+      ? timeUntilStart <= VISIBLE_TIME && timeUntilEnd >= -200
+      : timeUntilStart <= VISIBLE_TIME && timeUntilStart >= -200;
 
   if (!isVisible) {
     return null;
   }
 
   // Column position (relative to stage, so add STAGE_X)
-  const column = Math.min(note.column, 3);
+  const keyCount = getKeyCount();
+  const column = Math.min(note.column, keyCount - 1);
   const x = STAGE_X + config.columnPositionsNote[column] + stageOffset;
 
   // Note color based on column
@@ -78,8 +77,8 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
 
     // Body: always connects head bottom to tail top
     // Only visible when both head and tail have appeared
-    const bodyTop = headY + NOTE_HEIGHT;  // Bottom of head note
-    const bodyBottom = tailY;             // Position of tail
+    const bodyTop = headY + NOTE_HEIGHT; // Bottom of head note
+    const bodyBottom = tailY; // Position of tail
     const bodyHeight = Math.abs(bodyTop - bodyBottom);
 
     const headIsHit = Math.abs(timeUntilStart) < 50;
@@ -102,7 +101,6 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
             height: NOTE_HEIGHT,
             backgroundColor: color,
             borderRadius: 4,
-            border: "2px solid white", // Debug border
             opacity: headOpacity,
             boxShadow: headIsHit ? `0 0 20px ${color}` : "none",
           }}
@@ -124,21 +122,21 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
         )}
         {/* Tail - LN release indicator at judgment line */}
         {
-        //   timeUntilEnd < VISIBLE_TIME && timeUntilEnd > -200 && (
-        //   <div
-        //     style={{
-        //       position: "absolute",
-        //       left: x + 5,
-        //       top: tailY,
-        //       width: NOTE_WIDTH - 10,
-        //       height: 20,
-        //       backgroundColor: color,
-        //       clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
-        //       opacity: 0.4,
-        //       boxShadow: tailIsHit ? `0 0 15px ${color}` : `0 0 5px ${color}`,
-        //     }}
-        //   />
-        // )
+          //   timeUntilEnd < VISIBLE_TIME && timeUntilEnd > -200 && (
+          //   <div
+          //     style={{
+          //       position: "absolute",
+          //       left: x + 5,
+          //       top: tailY,
+          //       width: NOTE_WIDTH - 10,
+          //       height: 20,
+          //       backgroundColor: color,
+          //       clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+          //       opacity: 0.4,
+          //       boxShadow: tailIsHit ? `0 0 15px ${color}` : `0 0 5px ${color}`,
+          //     }}
+          //   />
+          // )
         }
       </>
     );
@@ -167,7 +165,6 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
         backgroundColor: color,
         borderRadius: 4,
         opacity,
-        border: "2px solid white", // Debug border
         boxShadow: isHit ? `0 0 20px ${color}` : "none",
       }}
     >

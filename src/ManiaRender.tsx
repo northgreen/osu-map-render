@@ -2,9 +2,16 @@ import { AbsoluteFill, Audio, staticFile } from "remotion";
 import { ManiaBackground } from "./ManiaBackground";
 import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";
-import { beatmap as importedBeatmap, getBeatmapDuration } from "./lib/osuParser";
+import {
+  beatmap as importedBeatmap,
+  getBeatmapDuration,
+} from "./lib/osuParser";
 import { ManiaRenderProps, maniaRenderContentsSchema } from "./Root";
-import { setJudgmentMode, setJudgmentOffset, setCustomWindows } from "./lib/judgment";
+import {
+  setJudgmentMode,
+  setJudgmentOffset,
+  setCustomWindows,
+} from "./lib/judgment";
 import { config, STAGE_X } from "./config";
 import "./lib/replay"; // Force import replay.json
 
@@ -25,7 +32,13 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
 
   // Merge with defaults from schema
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
-  const { trackHeight, replayCursor, sessionLine, columnhigHlights, storyboardEnabled } = contentsWithDefaults;
+  const {
+    trackHeight,
+    replayCursor,
+    sessionLine,
+    columnHighlights,
+    storyboardEnabled,
+  } = contentsWithDefaults;
 
   // Set judgment mode and custom windows
   setJudgmentMode(mode);
@@ -35,11 +48,15 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
   }
 
   return (
-    <AbsoluteFill style={{
-      backgroundColor: storyboardEnabled ? "#000000" : "#1a1a2e",
-      "--stage-x": `${STAGE_X}px`,
-      "--stage-width": `${config.stageWidth}px`,
-    } as React.CSSProperties}>
+    <AbsoluteFill
+      style={
+        {
+          backgroundColor: storyboardEnabled ? "#000000" : "#1a1a2e",
+          "--stage-x": `${STAGE_X}px`,
+          "--stage-width": `${config.stageWidth}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* Audio - shared across all layers */}
       <Audio src={staticFile("audio.mp3")} />
 
@@ -57,7 +74,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
         showReplayCursor={replayCursor}
         showJudgmentLine={trackHeight}
         showBeatLines={sessionLine}
-        showColumnHighlights={columnhigHlights}
+        showColumnHighlights={columnHighlights}
       />
 
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}

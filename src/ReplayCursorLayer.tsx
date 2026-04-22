@@ -1,6 +1,9 @@
 import { AbsoluteFill } from "remotion";
 import { ReplayCursor } from "./ReplayCursor";
-import { SCROLL_SPEED as DEFAULT_SCROLL_SPEED, JUDGMENT_LINE_Y } from "./config";
+import {
+  SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
+  JUDGMENT_LINE_Y,
+} from "./config";
 
 interface ReplayCursorLayerProps {
   scrollSpeed?: number;
@@ -13,7 +16,6 @@ export const ReplayCursorLayer: React.FC<ReplayCursorLayerProps> = ({
   stageOffset = 0,
   judgmentLineY = JUDGMENT_LINE_Y,
 }) => {
-  console.log("ReplayCursorLayer props:", { scrollSpeed, stageOffset, judgmentLineY });
   return (
     <AbsoluteFill style={{ backgroundColor: "transparent" }}>
       <ReplayCursor

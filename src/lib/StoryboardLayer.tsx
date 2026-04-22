@@ -1,4 +1,4 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile, Audio } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, Img, staticFile, Audio, interpolate } from "remotion";
 import { useMemo, useState, useRef } from "react";
 import { SbObject, SbCommand, SbSample, SbLoop } from "./sbParser";
 import storyboardData from "./storyboard.json";
@@ -53,17 +53,20 @@ function applyEasing(t: number, easing: number): number {
         return -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * ((2 * Math.PI) / 4.5))) / 2;
       }
       return (Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * ((2 * Math.PI) / 4.5))) / 2 + 1;
-    case 29:
+    case 29: {
       const c1 = 1.70158;
       return (c1 + 1) * t * t * t - c1 * t * t;
-    case 30:
+    }
+    case 30: {
       const c4 = 1.70158;
       return 1 + c4 * Math.pow(t - 1, 3) + c4 * Math.pow(t - 1, 2);
-    case 31:
+    }
+    case 31: {
       const c5 = 1.70158;
       const c2 = c5 * 1.525;
       if (t < 0.5) return (Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2;
       return (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2;
+    }
     case 32: return 1 - bounceOut(1 - t);
     case 33: return bounceOut(t);
     case 34:
@@ -148,7 +151,7 @@ function getLoopCommandValue(loops: SbLoop[], cmdType: string, currentTime: numb
   return null;
 }
 
-function interpolate(startTime: number, endTime: number, startValue: number, endValue: number, currentTime: number, easing: number): number {
+function interpolateWithEasing(startTime: number, endTime: number, startValue: number, endValue: number, currentTime: number, easing: number): number {
   if (currentTime <= startTime) return startValue;
   if (currentTime >= endTime) return endValue;
   const duration = endTime - startTime;
@@ -183,11 +186,30 @@ function getCommandValue(cmd: SbCommand, currentTime: number, paramIndex: number
   }
 
   const endValue = cmd.params[endIndex] ?? startValue;
-  return interpolate(cmd.startTime, cmd.endTime, startValue, endValue, currentTime, cmd.easing);
+  return interpolateWithEasing(cmd.startTime, cmd.endTime, startValue, endValue, currentTime, cmd.easing);
 }
 
 function getOpacity(commands: SbCommand[], loops: SbLoop[], currentTime: number): number {
-  let opacity = 1;
+  // osu! behavior: sprites default to opacity 1, but F commands control visibility
+  // If a sprite has F commands, the value BEFORE the first F command is the first param of that command
+  // This allows "fade in" effects where sprite starts invisible (F,...,0,1)
+
+  let opacity = 1; // Default if no F commands
+  let firstFStartValue: number | null = null;
+
+  // First pass: find the first F command's start value
+  for (const cmd of commands) {
+    if (cmd.type === "F") {
+      firstFStartValue = cmd.params[0] ?? 1;
+      break;
+    }
+  }
+
+  // If there's an F command, default to its start value (for "fade in" support)
+  if (firstFStartValue !== null) {
+    opacity = firstFStartValue;
+  }
+
   for (const cmd of commands) {
     if (cmd.type === "F") {
       // 优先检查命令是否正在进行中
@@ -201,8 +223,7 @@ function getOpacity(commands: SbCommand[], loops: SbLoop[], currentTime: number)
         // 无限命令进行中，使用当前值
         opacity = getCommandValue(cmd, currentTime, 0);
       }
-      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
-      // osu! behavior: don't read command values before the command starts
+      // currentTime < cmd.startTime: use firstFStartValue (already set as default)
     }
   }
 
@@ -265,7 +286,7 @@ function getScale(commands: SbCommand[], loops: SbLoop[], currentTime: number): 
         // S command with infinite endTime still interpolates from start to end value
         scale = getCommandValue(cmd, currentTime, 0);
       }
-      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
+      // currentTime < cmd.startTime: 忽略，保持之前命令的值或默认值
       // osu! behavior: don't read command values before the command starts
     }
   }
@@ -481,22 +502,30 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
 
   const loops = object.loops || [];
 
-  // Position in 640x480 space - convert to render space
-  // Storyboard (320,240) should map to screen center (960,540)
+  // Position in storyboard space (640x480)
   const rawPos = getPosition(object.commands, loops, currentTime, object.x, object.y);
+
+  // Position in render space (1920x1080)
+  // osu! uses DrawScale = screenHeight / 480 = 2.25 for 1080p
   const x = (rawPos.x - SB_BASE_WIDTH / 2) * STORYBOARD_SCALE + RENDER_WIDTH / 2;
   const y = (rawPos.y - SB_BASE_HEIGHT / 2) * STORYBOARD_SCALE + RENDER_HEIGHT / 2;
 
-  // Position: x,y is the origin point in render space
-  let opacity = getOpacity(object.commands, loops, currentTime);
+  // Use actual image dimensions when loaded, otherwise use a reasonable default
+  // Default to 640x480 to maintain reasonable aspect ratio before image loads
+  const nativeWidth = imageSize?.width ?? 640;
+  const nativeHeight = imageSize?.height ?? 480;
+  const baseWidth = nativeWidth * STORYBOARD_SCALE;
+  const baseHeight = nativeHeight * STORYBOARD_SCALE;
 
   const vectorScale = getVectorScale(object.commands, loops, currentTime);
   const rawScale = vectorScale ? null : getScale(object.commands, loops, currentTime);
 
+  const calculatedOpacity = getOpacity(object.commands, loops, currentTime);
+  let opacity = calculatedOpacity;
+  if (opacity > 1) opacity = opacity % 1;
   const rotation = getRotation(object.commands, loops, currentTime);
   const color = getColor(object.commands, loops, currentTime);
 
-  if (opacity > 1) opacity = opacity % 1;
   if (!isObjectVisible(object.commands, loops, currentTime)) return null;
 
   let src = object.path;
@@ -525,58 +554,19 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
     CentreRight: { x: 1, y: 0.5 }, BottomLeft: { x: 0, y: 1 }, BottomRight: { x: 1, y: 1 },
     Custom: { x: 0, y: 0 },
   };
-  // Create a copy of origin factor to avoid mutating the original
-  let originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
+  const originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
 
   const flipH = object.flipH, flipV = object.flipV, additive = object.additive;
-
-  // 只使用 P 命令显式指定的 flip，不从负 scale 自动检测
-  // 负的 scale 值已经包含在 scaleX/scaleY 中，会被 scale() 正确处理
   const effectiveFlipH = flipH;
   const effectiveFlipV = flipV;
 
-  // Adjust origin based on flip (osu! AdjustOrigin logic)
   if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
   if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
 
-  // Get image dimensions - osu! uses a specific scaling behavior for images
-  //
-  // In osu!, the storyboard coordinate system is 640x480, and this space is scaled
-  // to fill the screen. Images use their native pixel dimensions, but these
-  // dimensions are effectively in the same "space" as the storyboard coordinates.
-  //
-  // The key is that position and size need to be scaled consistently:
-  // - Position: (320, 240) in storyboard space -> (960, 540) in render space
-  // - Size: image dimensions need to be scaled by the same factor
-  //
-  // For a 1920x1080 image at scale 1 to fill a 1920x1080 screen:
-  // - The image should be scaled by STORYBOARD_SCALE (2.25)
-  // - Then S command scale 0.445 makes it ~854px, which fills the screen
-  //
-  // Wait, that's not right. Let me recalculate:
-  // - 1920px image * 2.25 = 4320px render space
-  // - 4320 * 0.445 = 1922px (fills screen!)
-  //
-  // For a 1707x1280 image at scale 0.5:
-  // - 1707 * 2.25 = 3840px render space
-  // - 3840 * 0.5 = 1920px (fills screen width!)
-  //
-  // This calculation is correct for matching osu! behavior.
-  const nativeWidth = imageSize?.width ?? 100;
-  const nativeHeight = imageSize?.height ?? 100;
-
-  const baseWidth = nativeWidth * STORYBOARD_SCALE;
-  const baseHeight = nativeHeight * STORYBOARD_SCALE;
-
-  // Position: x,y is the origin point in render space
-  // Need to offset by origin factor to get top-left corner
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // Build transform: S/V commands
   const transforms: string[] = [];
-  // S/V command scale values need to be scaled by STORYBOARD_SCALE
-  // because the image is NOT pre-scaled to storyboard space
   const rawScaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
   const rawScaleY = vectorScale ? vectorScale.y : (rawScale ?? 1);
   const scaleX = rawScaleX;
@@ -585,15 +575,12 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
     transforms.push(`scale(${scaleX}, ${scaleY})`);
   }
 
-  // Flip (P command H/V)
   if (effectiveFlipH && effectiveFlipV) transforms.push(`scale(-1, -1)`);
   else if (effectiveFlipH) transforms.push(`scale(-1, 1)`);
   else if (effectiveFlipV) transforms.push(`scale(1, -1)`);
 
-  // Rotation
   if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
 
-  // Convert origin factor to CSS transform-origin
   const cssOriginX = originFactor.x * 100;
   const cssOriginY = originFactor.y * 100;
 
@@ -604,49 +591,49 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
       top: finalY,
       width: baseWidth,
       height: baseHeight,
-      opacity,
-      transform: transforms.length > 0 ? transforms.join(" ") : undefined,
-      transformOrigin: `${cssOriginX}% ${cssOriginY}%`,
-      ...(additive ? { mixBlendMode: "screen" } : {})
     }}>
-      {color ? (
-        // osu! C command: multiply sprite color by RGB (equivalent to Drawable.Colour in osu!)
-        // Use CSS filter to tint the image while preserving alpha channel
-        <Img
-          ref={imgRef}
-          src={staticFile(src)}
-          onLoad={
-            (e) => setImageSize({
-              width: e.currentTarget.naturalWidth,
-              height: e.currentTarget.naturalHeight
-            })
-          }
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "fill",
-            // Multiply sprite pixels by RGB color (osu! behavior)
-            // brightness(0) removes original color, then we apply the target color
-            filter: `brightness(${calculateBrightness(color.r, color.g, color.b)}%) saturate(${calculateSaturation(color.r, color.g, color.b) * 2}%) hue-rotate(${calculateHue(color.r, color.g, color.b)}deg)`
-          }}
-        />
-      ) : (
-        <Img
-          ref={imgRef}
-          src={staticFile(src)}
-          onLoad={
-            (e) => setImageSize({
-              width: e.currentTarget.naturalWidth,
-              height: e.currentTarget.naturalHeight
-            })
-          }
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "fill"
-          }}
-        />
-      )}
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        transform: transforms.length > 0 ? transforms.join(" ") : "translateZ(0)",
+        transformOrigin: `${cssOriginX}% ${cssOriginY}%`,
+        ...(additive ? { mixBlendMode: "screen" } : {})
+      }}>
+        {color ? (
+          <Img
+            ref={imgRef}
+            src={staticFile(src)}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              if (img.naturalWidth && img.naturalHeight) {
+                setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+              }
+            }}
+            style={{
+              width: "100%",
+              height: "100%",
+              opacity,
+              filter: `brightness(${calculateBrightness(color.r, color.g, color.b)}%) saturate(${calculateSaturation(color.r, color.g, color.b) * 2}%) hue-rotate(${calculateHue(color.r, color.g, color.b)}deg)`
+            }}
+          />
+        ) : (
+          <Img
+            ref={imgRef}
+            src={staticFile(src)}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              if (img.naturalWidth && img.naturalHeight) {
+                setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+              }
+            }}
+            style={{
+              width: "100%",
+              height: "100%",
+              opacity,
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };
@@ -673,6 +660,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
 
   // SbSprite now handles STORYBOARD_SCALE internally, so we don't need wrapper scaling
   // Position directly uses render coordinates (1920x1080)
+  // Each sprite has its own z-index based on original JSON order
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div
@@ -682,7 +670,9 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
           top: 0,
           width: RENDER_WIDTH,
           height: RENDER_HEIGHT,
-          overflow: "visible",
+          overflow: "hidden", // Match osu!'s Masking = true for Background layer
+          // No z-index to avoid creating stacking context
+          // DOM order determines z-order: later sprites render on top
         }}
       >
         {layerObjects.map((obj, index) => (<SbSprite key={`${obj.id}-${index}`} object={obj} currentTime={currentTime} />))}
@@ -693,7 +683,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({ storyboard = [
 
 export const storyboard = storyboardData.objects as SbObject[];
 export const storyboardDuration = storyboardData.duration;
-export const storyboardSamples = (storyboardData as any).samples as SbSample[] || [];
+export const storyboardSamples = (storyboardData as unknown as { samples?: SbSample[] }).samples || [];
 
 // StoryboardAudioLayer: plays storyboard sound effects
 interface StoryboardAudioLayerProps {
@@ -718,7 +708,7 @@ export const StoryboardAudioLayer: React.FC<StoryboardAudioLayerProps> = ({ samp
         <Audio
           key={`${sample.id}-${index}`}
           src={staticFile(sample.path)}
-          volume={sample.volume / 100}
+          volume={(f) => interpolate(f, [0, 1], [0, sample.volume / 100])}
           startFrom={0}
         />
       ))}
