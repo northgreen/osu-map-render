@@ -6,7 +6,7 @@ import { StoryboardLayer, storyboard } from "./lib/StoryboardLayer";
 interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
   isFailing?: boolean; // Controls Pass/Fail storyboard layer visibility
-  storyboardEnabled?: boolean; // When true, hide background image and use black fill
+  storyboardEnabled?: boolean; // When true, show storyboard with black bg; when false, show bg image only
 }
 
 export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
@@ -17,18 +17,14 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
 
-  // When storyboard is enabled, use black background and hide background image
-  const bgColor = storyboardEnabled ? "#000000" : "#1a1a2e";
-  const showBackgroundImage = !storyboardEnabled && bgFileName;
-
   return (
     <AbsoluteFill style={{
-      backgroundColor: bgColor,
+      backgroundColor: storyboardEnabled ? "#000000" : "#1a1a2e",
       "--stage-x": `${STAGE_X}px`,
       "--stage-width": `${config.stageWidth}px`,
     } as React.CSSProperties}>
-      {/* Background image - rendered FIRST, behind everything */}
-      {showBackgroundImage && (
+      {/* Background image - only shown when storyboard is disabled */}
+      {!storyboardEnabled && bgFileName && (
         <div
           style={{
             position: "absolute",
@@ -51,20 +47,25 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
         </div>
       )}
 
-      {/* Storyboard layers - rendered ON TOP of background image */}
-      <StoryboardLayer storyboard={storyboard} layer="Background" />
+      {/* Storyboard layers - only rendered when storyboardEnabled is true */}
+      {storyboardEnabled && (
+        <>
+          {/* Storyboard layer - Background */}
+          <StoryboardLayer storyboard={storyboard} layer="Background" />
 
-      {/* Storyboard layer - Fail (only when failing) */}
-      <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
+          {/* Storyboard layer - Fail (only when failing) */}
+          <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
 
-      {/* Storyboard layer - Pass (only when passing/not failing) */}
-      <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
+          {/* Storyboard layer - Pass (only when passing/not failing) */}
+          <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
 
-      {/* Storyboard layer - Foreground (always visible) */}
-      <StoryboardLayer storyboard={storyboard} layer="Foreground" />
+          {/* Storyboard layer - Foreground (always visible) */}
+          <StoryboardLayer storyboard={storyboard} layer="Foreground" />
 
-      {/* Storyboard layer - Overlay (topmost, always visible) */}
-      <StoryboardLayer storyboard={storyboard} layer="Overlay" />
+          {/* Storyboard layer - Overlay (topmost, always visible) */}
+          <StoryboardLayer storyboard={storyboard} layer="Overlay" />
+        </>
+      )}
     </AbsoluteFill>
   );
 };

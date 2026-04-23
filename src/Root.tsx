@@ -167,13 +167,13 @@ export const RemotionRoot: React.FC = () => {
               meh: 128.5,
             },
           },
-          layout: { stageOffset: 613, judgmentLineY: 1000 },
+          layout: { stageOffset: 67, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
             columnHighlights: true,
             replayCursor: true,
             sessionLine: true,
-            storyboardEnabled: false,
+            storyboardEnabled: true,
           },
         }}
       />
@@ -204,7 +204,7 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 0, judgmentLineY: 900 },
-          contents: { storyboardEnabled: true },
+          contents: { storyboardEnabled: false },
         }}
       />
 

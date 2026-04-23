@@ -51,7 +51,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     <AbsoluteFill
       style={
         {
-          backgroundColor: storyboardEnabled ? "#000000" : "#1a1a2e",
+          backgroundColor: "#1a1a2e",
           "--stage-x": `${STAGE_X}px`,
           "--stage-width": `${config.stageWidth}px`,
         } as React.CSSProperties
@@ -60,7 +60,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       {/* Audio - shared across all layers */}
       <Audio src={staticFile("audio.mp3")} />
 
-      {/* Layer 1: Background */}
+      {/* Layer 1: Background (handles bg image or black bg + storyboard based on storyboardEnabled) */}
       <ManiaBackground storyboardEnabled={storyboardEnabled} />
 
       {/* Layer 2: Stage (notes, judgment line, key presses, hit effects) */}

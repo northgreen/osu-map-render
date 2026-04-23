@@ -5,7 +5,7 @@
       "type": "sprite",
       "layer": "Background",
       "origin": "Centre",
-      "path": "BG4.jpg",
+      "path": "BG2.jpg",
       "x": 320,
       "y": 240,
       "commands": [
@@ -15,8 +15,8 @@
           "startTime": -1000,
           "endTime": -1000,
           "params": [
-            0.41667,
-            0.41667
+            0.333,
+            0.333
           ]
         },
         {
@@ -35,7 +35,7 @@
     {
       "id": "sprite_1",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "TopCentre",
       "path": "Storyboard/pixel.png",
       "x": 320,
@@ -83,7 +83,7 @@
     {
       "id": "anim_2",
       "type": "animation",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/Testify/Testify.jpg",
       "x": 320,
@@ -118,7 +118,7 @@
           "startTime": 125366,
           "endTime": 125704,
           "params": [
-            0.4,
+            0.5,
             0
           ]
         }
@@ -128,7 +128,7 @@
     {
       "id": "anim_3",
       "type": "animation",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/Testify/Testify.jpg",
       "x": 320,
@@ -174,7 +174,7 @@
     {
       "id": "sprite_4",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/high-distort.jpg",
       "x": 320,
@@ -206,7 +206,7 @@
     {
       "id": "sprite_5",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/Hikari_Fatalis.png",
       "x": 320,
@@ -248,7 +248,7 @@
     {
       "id": "sprite_6",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/Hikari_Fatalis_zoom.png",
       "x": 320,
@@ -290,7 +290,7 @@
     {
       "id": "sprite_7",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/transp_low.png",
       "x": 320,
@@ -322,7 +322,7 @@
     {
       "id": "sprite_8",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/transp_low.png",
       "x": 320,
@@ -354,7 +354,7 @@
     {
       "id": "sprite_9",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/transp_high.png",
       "x": 320,
@@ -386,7 +386,7 @@
     {
       "id": "sprite_10",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -419,7 +419,7 @@
     {
       "id": "sprite_11",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -451,7 +451,7 @@
     {
       "id": "sprite_12",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -484,7 +484,7 @@
     {
       "id": "sprite_13",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/max.jpg",
       "x": 320,
@@ -516,7 +516,7 @@
     {
       "id": "sprite_14",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/max.jpg",
       "x": 320,
@@ -549,7 +549,7 @@
     {
       "id": "sprite_15",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "TopCentre",
       "path": "Storyboard/pixel.png",
       "x": 320,
@@ -597,7 +597,7 @@
     {
       "id": "sprite_16",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "TopCentre",
       "path": "Storyboard/pixel.png",
       "x": 320,
@@ -646,7 +646,7 @@
     {
       "id": "sprite_17",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -689,7 +689,7 @@
     {
       "id": "sprite_18",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -731,7 +731,7 @@
     {
       "id": "sprite_19",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -774,7 +774,7 @@
     {
       "id": "sprite_20",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -806,7 +806,7 @@
     {
       "id": "sprite_21",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -838,7 +838,7 @@
     {
       "id": "sprite_22",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -871,7 +871,7 @@
     {
       "id": "sprite_23",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -904,7 +904,7 @@
     {
       "id": "sprite_24",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -936,7 +936,7 @@
     {
       "id": "sprite_25",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/edge_lens_flare.png",
       "x": 320,
@@ -969,7 +969,7 @@
     {
       "id": "sprite_26",
       "type": "sprite",
-      "layer": "Overlay",
+      "layer": "Foreground",
       "origin": "Centre",
       "path": "Storyboard/vig.png",
       "x": 320,
@@ -174541,223 +174541,468 @@
   "samples": [
     {
       "id": "sample_0",
-      "time": 34861,
+      "time": 34187,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_1",
-      "time": 35198,
+      "time": 34861,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_2",
-      "time": 35872,
+      "time": 35198,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_3",
-      "time": 39580,
+      "time": 35872,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_4",
-      "time": 40928,
+      "time": 36209,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_5",
-      "time": 41939,
+      "time": 36546,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_6",
-      "time": 42614,
+      "time": 36883,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_7",
-      "time": 43288,
+      "time": 37220,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_8",
-      "time": 43962,
+      "time": 37557,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_9",
-      "time": 44299,
+      "time": 37895,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_10",
-      "time": 45310,
+      "time": 38232,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_11",
-      "time": 45563,
+      "time": 38569,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_12",
-      "time": 46237,
+      "time": 38906,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_13",
-      "time": 47670,
+      "time": 39243,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_14",
-      "time": 49692,
+      "time": 39580,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_15",
-      "time": 50029,
+      "time": 39917,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_16",
-      "time": 52052,
+      "time": 40254,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_17",
-      "time": 52389,
+      "time": 40591,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_18",
-      "time": 53400,
+      "time": 40928,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_19",
-      "time": 79439,
+      "time": 41265,
       "layer": "Background",
-      "path": "Tom.wav",
-      "volume": 50
+      "path": "Bass.wav",
+      "volume": 40
     },
     {
       "id": "sample_20",
-      "time": 79692,
+      "time": 41602,
       "layer": "Background",
-      "path": "Tom.wav",
-      "volume": 50
+      "path": "Bass.wav",
+      "volume": 40
     },
     {
       "id": "sample_21",
-      "time": 82136,
+      "time": 41939,
       "layer": "Background",
-      "path": "Tom.wav",
-      "volume": 50
+      "path": "Bass.wav",
+      "volume": 40
     },
     {
       "id": "sample_22",
-      "time": 82473,
+      "time": 42614,
       "layer": "Background",
-      "path": "Tom.wav",
-      "volume": 50
+      "path": "Bass.wav",
+      "volume": 40
     },
     {
       "id": "sample_23",
-      "time": 84159,
+      "time": 42951,
       "layer": "Background",
-      "path": "Tom.wav",
-      "volume": 50
+      "path": "Bass.wav",
+      "volume": 40
     },
     {
       "id": "sample_24",
-      "time": 115086,
+      "time": 43288,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_25",
-      "time": 115423,
+      "time": 43962,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_26",
-      "time": 116434,
+      "time": 44973,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_27",
-      "time": 119468,
+      "time": 45310,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_28",
-      "time": 119805,
+      "time": 45647,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_29",
-      "time": 123513,
+      "time": 45984,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_30",
-      "time": 123850,
+      "time": 46659,
       "layer": "Background",
       "path": "Bass.wav",
       "volume": 40
     },
     {
       "id": "sample_31",
+      "time": 46996,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_32",
+      "time": 47333,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_33",
+      "time": 47670,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_34",
+      "time": 48681,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_35",
+      "time": 49018,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_36",
+      "time": 50029,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_37",
+      "time": 50366,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_38",
+      "time": 51041,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_39",
+      "time": 51378,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_40",
+      "time": 51715,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_41",
+      "time": 52052,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_42",
+      "time": 52389,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_43",
+      "time": 53400,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_44",
+      "time": 79439,
+      "layer": "Background",
+      "path": "Tom.wav",
+      "volume": 50
+    },
+    {
+      "id": "sample_45",
+      "time": 79692,
+      "layer": "Background",
+      "path": "Tom.wav",
+      "volume": 50
+    },
+    {
+      "id": "sample_46",
+      "time": 82473,
+      "layer": "Background",
+      "path": "Tom.wav",
+      "volume": 50
+    },
+    {
+      "id": "sample_47",
+      "time": 83063,
+      "layer": "Background",
+      "path": "Tom.wav",
+      "volume": 50
+    },
+    {
+      "id": "sample_48",
+      "time": 86434,
+      "layer": "Background",
+      "path": "Tom.wav",
+      "volume": 50
+    },
+    {
+      "id": "sample_49",
+      "time": 116771,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_50",
+      "time": 117108,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_51",
+      "time": 117445,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_52",
+      "time": 118119,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_53",
+      "time": 118793,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_54",
+      "time": 119130,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_55",
+      "time": 119468,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_56",
+      "time": 119805,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_57",
+      "time": 120142,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_58",
+      "time": 120479,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_59",
+      "time": 120816,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_60",
+      "time": 121153,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_61",
+      "time": 122838,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_62",
+      "time": 123513,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_63",
+      "time": 123850,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_64",
+      "time": 141125,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_65",
+      "time": 141378,
+      "layer": "Background",
+      "path": "Bass.wav",
+      "volume": 40
+    },
+    {
+      "id": "sample_66",
       "time": 176939,
       "layer": "Background",
       "path": "break.ogg",
