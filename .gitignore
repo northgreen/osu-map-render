@@ -8,6 +8,15 @@ out
 
 # Generated beatmap data
 src/lib/beatmap.json
+src/lib/replay.json
+src/lib/storyboard.json
+
+# Parsed assets from beatmap files
+public/audio.*
+public/background.*
+public/BG*.*
+public/Storyboard/
+
 build
 /.playwright-cli
 /replay/solo-replay-mania_5205935_6395917723.osr

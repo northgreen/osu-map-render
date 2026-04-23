@@ -151,4 +151,30 @@ Three modes: **v1** (Classic), **v2** (ScoreV2), **custom** (user-defined window
 - **Caching**: Judgment results and difficulty calculations are cached; cleared on mode change
 - **CSS variables**: Stage positioning uses `--stage-x` and `--stage-width` CSS custom properties
 - **osu! source code**: Available at `~/Projects/osu/` for reference
-see also: @OSU-SBDOC.md
+
+## Reference Documentation
+
+When unsure about storyboard behavior or osu! specific implementation details:
+
+1. **OSU-SBDOC.md** - Chinese translation of official osu! storyboarding specifications. Contains detailed documentation on:
+   - Sprite/Animation object syntax and parameters
+   - All command types (F/M/S/V/R/C/P) with examples
+   - Easing functions (0-34)
+   - Loop (L) and Trigger (T) commands
+   - Variable substitution
+   - Shorthand syntax rules
+   - Layer priority and rendering order
+
+2. **Original osu! source code** - Available at `~/Projects/osu/` for reference on:
+   - Hit window calculations
+   - Judgment algorithms
+   - ScoreV1/ScoreV2 differences
+   - Replay data format
+   - StoryBoard Logic
+   - and so on
+
+3. **Parsed JSON outputs** - Check `src/lib/storyboard.json` for actual parsed data structure and command sequences
+
+
+
+

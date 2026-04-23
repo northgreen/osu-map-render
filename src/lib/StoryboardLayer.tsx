@@ -482,27 +482,33 @@ function getScale(
   currentTime: number,
 ): number {
   let scale = 1;
-  for (const cmd of commands) {
-    if (cmd.type === "S") {
-      // 优先检查命令是否正在进行中
-      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-        scale = getCommandValue(cmd, currentTime, 0);
-      } else if (
-        currentTime > cmd.endTime &&
-        cmd.endTime !== Number.MAX_SAFE_INTEGER
-      ) {
-        // 命令已结束（非无限），使用结束值
-        scale = cmd.params[1] ?? cmd.params[0] ?? 1;
-      } else if (
-        cmd.endTime === Number.MAX_SAFE_INTEGER &&
-        currentTime >= cmd.startTime
-      ) {
-        // 无限命令进行中：osu! behavior - use interpolation even for infinite duration
-        // S command with infinite endTime still interpolates from start to end value
-        scale = getCommandValue(cmd, currentTime, 0);
-      }
-      // currentTime < cmd.startTime: 忽略，保持之前命令的值或默认值
-      // osu! behavior: don't read command values before the command starts
+  // 按时间排序 S 命令，确保正确处理多个命令
+  const sCommands = commands
+    .filter((cmd) => cmd.type === "S")
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of sCommands) {
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      // 命令正在进行中，使用插值
+      scale = getCommandValue(cmd, currentTime, 0);
+      break;
+    } else if (
+      currentTime > cmd.endTime &&
+      cmd.endTime !== Number.MAX_SAFE_INTEGER
+    ) {
+      // 命令已结束（非无限），使用结束值
+      scale = cmd.params[1] ?? cmd.params[0] ?? 1;
+    } else if (
+      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      currentTime >= cmd.startTime
+    ) {
+      // 无限命令进行中
+      scale = getCommandValue(cmd, currentTime, 0);
+      break;
+    } else if (currentTime < cmd.startTime) {
+      // 命令还没开始，使用开始值（osu! behavior: pre-read command value）
+      scale = cmd.params[0] ?? 1;
+      break;
     }
   }
 
