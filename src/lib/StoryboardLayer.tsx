@@ -7,7 +7,7 @@ import {
   Audio,
   interpolate,
 } from "remotion";
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { SbObject, SbCommand, SbSample, SbLoop } from "./sbParser";
 import storyboardData from "./storyboard.json";
 
@@ -775,7 +775,13 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
     width: number;
     height: number;
   } | null>(null);
+  const [imgError, setImgError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  // osu! behavior: silently skip sprites whose textures can't be loaded
+  const handleError = useCallback(() => {
+    setImgError(true);
+  }, []);
 
   const loops = object.loops || [];
 
@@ -822,6 +828,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const color = getColor(object.commands, loops, currentTime);
 
   if (!isObjectVisible(object.commands, loops, currentTime)) return null;
+
+  // osu! silently skips rendering when a texture can't be loaded
+  if (imgError) return null;
 
   let src = object.path;
   if (object.type === "animation" && object.frameCount && object.frameDelay) {
@@ -928,6 +937,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
                 });
               }
             }}
+            onError={handleError}
             style={{
               width: "100%",
               height: "100%",
@@ -948,6 +958,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
                 });
               }
             }}
+            onError={handleError}
             style={{
               width: "100%",
               height: "100%",
