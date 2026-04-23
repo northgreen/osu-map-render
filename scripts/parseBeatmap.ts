@@ -402,16 +402,22 @@ async function main() {
         // osu! behavior: .osb is parsed AFTER .osu, all sprites are added to the same storyboard
         // Sprites with same path are independent objects (both will render)
         // Simply concatenate all objects - osu! doesn't do any deduplication
+        // But we need to renumber IDs to avoid conflicts
+        const osuObjectCount = mergedStoryboard.objects.length;
+        const renumberedOsbObjects = osbSb.objects.map((obj, index) => ({
+          ...obj,
+          id: obj.type === "sprite" ? `sprite_${osuObjectCount + index}` : `anim_${osuObjectCount + index}`,
+        }));
         mergedStoryboard.objects = [
           ...mergedStoryboard.objects,
-          ...osbSb.objects,
+          ...renumberedOsbObjects,
         ];
         // Update duration
         if (osbSb.duration > mergedStoryboard.duration) {
           mergedStoryboard.duration = osbSb.duration;
         }
         console.log(
-          `Merged storyboard: ${mergedStoryboard.objects.length} objects (.osu: ${mergedStoryboard.objects.length - osbSb.objects.length} + .osb: ${osbSb.objects.length})`,
+          `Merged storyboard: ${mergedStoryboard.objects.length} objects (.osu: ${osuObjectCount} + .osb: ${osbSb.objects.length})`,
         );
       } else {
         mergedStoryboard = osbSb;
