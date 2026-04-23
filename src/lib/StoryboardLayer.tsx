@@ -437,6 +437,7 @@ function getPosition(
 
   for (const cmd of mCommands) {
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      // Command is in progress - use interpolated value
       if (cmd.type === "M" || cmd.type === "MX")
         x = getCommandValue(cmd, currentTime, 0);
       if (cmd.type === "M" || cmd.type === "MY")
@@ -445,20 +446,34 @@ function getPosition(
       currentTime > cmd.endTime &&
       cmd.endTime !== Number.MAX_SAFE_INTEGER
     ) {
-      if (cmd.type === "M" || cmd.type === "MX")
+      // Command has ended - use end value
+      // MX: params = [x1] or [x1, x2], end value is last param
+      // MY: params = [y1] or [y1, y2], end value is last param
+      // M: params = [x1, y1, x2, y2], end value is [2] and [3]
+      if (cmd.type === "M") {
         x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
-      if (cmd.type === "M" || cmd.type === "MY")
         y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+      } else if (cmd.type === "MX") {
+        // For MX, end value is the last param (index 1 if exists, otherwise 0)
+        x = cmd.params[1] ?? cmd.params[0] ?? defaultX;
+      } else if (cmd.type === "MY") {
+        // For MY, end value is the last param (index 1 if exists, otherwise 0)
+        y = cmd.params[1] ?? cmd.params[0] ?? defaultY;
+      }
     } else if (
       cmd.endTime === Number.MAX_SAFE_INTEGER &&
       currentTime >= cmd.startTime
     ) {
+      // Infinite duration command
       if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
+      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[0] ?? defaultY;
     } else if (currentTime < cmd.startTime) {
       // Pre-read: use command start value before it starts (osu! behavior)
+      // Only apply if we haven't already set a value from an active/ended command
+      // Break after first future command to avoid subsequent commands overriding
       if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
+      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[0] ?? defaultY;
+      break; // Stop processing - all remaining commands are also in the future
     }
   }
 
@@ -709,25 +724,18 @@ function isObjectVisible(
   // Regular commands
   for (const cmd of commands) {
     if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
-    // Include all end times (including infinite ones for visibility check)
-    // An object with an infinite command is always visible after startTime
     if (cmd.endTime > latestEndTime) {
       latestEndTime = cmd.endTime;
     }
   }
 
-  // Loop commands - use the time of the first command execution for earliest start.
-  // For relative loops (commands at 0,500): first execution = loop.startTime + 0
-  // For absolute-time loops (commands at 131434): first execution = loop.startTime + 131434
-  // This prevents objects from being considered visible during long periods
-  // before their loop commands actually execute.
+  // Loop commands
   for (const loop of loops) {
     const loopMinCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
     const firstExecution = loop.startTime + loopMinCmdStart;
     if (firstExecution < earliestStartTime) earliestStartTime = firstExecution;
 
     for (const cmd of loop.commands) {
-      // Last iteration command end time
       const lastCmdEnd =
         cmd.endTime === Number.MAX_SAFE_INTEGER
           ? Number.MAX_SAFE_INTEGER
@@ -740,13 +748,10 @@ function isObjectVisible(
   }
 
   // Object is not visible before first command starts
-  // Allow negative start times (like -26) to be visible at time 0
   if (earliestStartTime < 0 && currentTime < 0) return false;
   if (earliestStartTime >= 0 && currentTime < earliestStartTime) return false;
 
   // Object is not visible after last command ends
-  // Handle positive end times, negative end times (expired before storyboard starts),
-  // and infinite end times (MAX_SAFE_INTEGER)
   if (latestEndTime !== Number.MAX_SAFE_INTEGER && currentTime > latestEndTime)
     return false;
 
@@ -795,31 +800,38 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   );
 
   // Position in render space (1920x1080)
-  // osu! uses DrawScale = screenHeight / 480 = 2.25 for 1080p
-  const x =
-    (rawPos.x - SB_BASE_WIDTH / 2) * STORYBOARD_SCALE + RENDER_WIDTH / 2;
-  const y =
-    (rawPos.y - SB_BASE_HEIGHT / 2) * STORYBOARD_SCALE + RENDER_HEIGHT / 2;
+  // osu! storyboard container centered on screen
+  // DrawScale = screenH / 480 = 2.25 for 1080p
+  // Container: 640x480 storyboard space -> 1440x1080 screen space
+  // Container centered: horizontal offset = (1920-1440)/2 = 240
+  // Formula: screenPos = (storyboardPos - centerOffset) * scale + screenCenter
+  // Which simplifies to: screenX = 240 + rawPos.x * 2.25, screenY = rawPos.y * 2.25
+  const x = (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2 + rawPos.x * STORYBOARD_SCALE;
+  const y = rawPos.y * STORYBOARD_SCALE;
+
+  // Image dimensions in render space
+  // V command (vector scale): sets absolute size in storyboard units
+  // S command (scale): multiplier applied to the base size
+  const vectorScale = getVectorScale(object.commands, loops, currentTime);
+  const rawScale = vectorScale
+    ? null  // V command takes precedence, S command is ignored
+    : getScale(object.commands, loops, currentTime);
 
   // Use actual image dimensions when loaded
-  // For Remotion rendering, images are preloaded so imageSize should be available
-  // Default to 640x480 as fallback for osu! standard sprite size
   const nativeWidth = imageSize?.width ?? 640;
   const nativeHeight = imageSize?.height ?? 480;
 
-  // For Background layer images that don't have explicit scale commands at current time,
-  // we need to determine the base size in storyboard space.
-  // osu! uses the image's pixel dimensions directly in the 640x480 storyboard space.
-  // Large images (like 1707x1280) will extend beyond the storyboard boundaries,
-  // which are then clipped by Masking on the Background layer.
-  // We replicate this behavior by using raw pixel dimensions scaled by STORYBOARD_SCALE.
-  const baseWidth = nativeWidth * STORYBOARD_SCALE;
-  const baseHeight = nativeHeight * STORYBOARD_SCALE;
+  // Calculate base size (includes vector scale if present)
+  const vectorScaleX = vectorScale ? vectorScale.x : 1;
+  const vectorScaleY = vectorScale ? vectorScale.y : 1;
+  let baseWidth = nativeWidth * STORYBOARD_SCALE * vectorScaleX;
+  let baseHeight = nativeHeight * STORYBOARD_SCALE * vectorScaleY;
 
-  const vectorScale = getVectorScale(object.commands, loops, currentTime);
-  const rawScale = vectorScale
-    ? null
-    : getScale(object.commands, loops, currentTime);
+  // Apply S command scale to the size (not just as CSS transform)
+  if (rawScale !== null && rawScale !== 1) {
+    baseWidth *= rawScale;
+    baseHeight *= rawScale;
+  }
 
   const calculatedOpacity = getOpacity(object.commands, loops, currentTime);
   let opacity = calculatedOpacity;
@@ -886,14 +898,8 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
+  // CSS transforms for flip and rotation only (scale is already applied to baseWidth/baseHeight)
   const transforms: string[] = [];
-  const rawScaleX = vectorScale ? vectorScale.x : (rawScale ?? 1);
-  const rawScaleY = vectorScale ? vectorScale.y : (rawScale ?? 1);
-  const scaleX = rawScaleX;
-  const scaleY = rawScaleY !== 1 ? rawScaleY : 1;
-  if (scaleX !== 1 || scaleY !== 1) {
-    transforms.push(`scale(${scaleX}, ${scaleY})`);
-  }
 
   if (effectiveFlipH && effectiveFlipV) transforms.push(`scale(-1, -1)`);
   else if (effectiveFlipH) transforms.push(`scale(-1, 1)`);

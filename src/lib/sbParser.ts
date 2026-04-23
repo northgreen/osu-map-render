@@ -713,7 +713,35 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       continue;
     }
 
-    // Parse child commands (with __ prefix) inside loop/trigger
+    // Parse child commands inside loop/trigger (with __ prefix OR depth >= 2)
+    // osu! uses leading spaces for indentation, but some tools use underscores
+    const isChildCommand = depth >= 2 && (line.startsWith("F") || line.startsWith("M") ||
+      line.startsWith("S") || line.startsWith("V") || line.startsWith("R") ||
+      line.startsWith("C") || line.startsWith("P"));
+
+    if (currentObject && isChildCommand) {
+      const cmd = parseCommand(line, variables);
+      if (cmd) {
+        if (currentLoop) {
+          currentLoop.childCommands.push(cmd);
+        } else if (currentTrigger) {
+          // For triggers, adjust time relative to trigger start
+          currentTrigger.childCommands.push({
+            ...cmd,
+            startTime: currentTrigger.startTime + cmd.startTime,
+            endTime: currentTrigger.startTime + cmd.endTime,
+          });
+        } else {
+          currentObject.commands.push(cmd);
+          if (cmd.endTime > maxTime) {
+            maxTime = cmd.endTime;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Also handle __ prefixed commands (legacy format)
     if (currentObject && (line.startsWith("__F") || line.startsWith("__M") ||
       line.startsWith("__S") || line.startsWith("__V") || line.startsWith("__R") ||
       line.startsWith("__C") || line.startsWith("__P") || line.startsWith("__MX") ||

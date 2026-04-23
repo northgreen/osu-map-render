@@ -204,7 +204,7 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 0, judgmentLineY: 900 },
-          contents: { storyboardEnabled: false },
+          contents: { storyboardEnabled: true },
         }}
       />
 

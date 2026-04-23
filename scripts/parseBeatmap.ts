@@ -127,9 +127,9 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       continue;
     }
     // Storyboard commands (start with spaces or tabs)
-    // Use originalLine to preserve leading spaces for detection
+    // Use originalLine to preserve leading spaces for L/T command depth detection
     if (/^\s+[TCFMSRVPML]/.test(originalLine)) {
-      storyboardEvents.push(line);
+      storyboardEvents.push(originalLine.replace(/\r$/, ""));
       continue;
     }
   }
