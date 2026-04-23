@@ -388,8 +388,7 @@ function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
       // Loop has finished, use the final opacity from the last iteration
       const fCommand = loop.commands.find((c) => c.type === "F");
       if (fCommand) {
-        const endValue =
-          fCommand.params[1] ?? fCommand.params[0];
+        const endValue = fCommand.params[1] ?? fCommand.params[0];
         lastLoopOpacity = endValue;
       }
       continue;
@@ -431,37 +430,35 @@ function getPosition(
 ): { x: number; y: number } {
   let x = defaultX,
     y = defaultY;
-  for (const cmd of commands) {
-    if (cmd.type === "M" || cmd.type === "MX" || cmd.type === "MY") {
-      // 优先检查命令是否正在进行中（currentTime 在 startTime 和 endTime 之间）
-      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-        // 命令进行中，优先使用插值
-        // M 命令: x 用 params[0,2], y 用 params[1,3]; MX 用 params[0,1]; MY 用 params[0,1]
-        if (cmd.type === "M" || cmd.type === "MX")
-          x = getCommandValue(cmd, currentTime, 0);
-        if (cmd.type === "M" || cmd.type === "MY")
-          y = getCommandValue(cmd, currentTime, 0);
-      } else if (
-        currentTime > cmd.endTime &&
-        cmd.endTime !== Number.MAX_SAFE_INTEGER
-      ) {
-        // 命令已结束（非无限），使用结束坐标
-        if (cmd.type === "M" || cmd.type === "MX")
-          x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
-        if (cmd.type === "M" || cmd.type === "MY")
-          y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
-      } else if (
-        cmd.endTime === Number.MAX_SAFE_INTEGER &&
-        currentTime >= cmd.startTime
-      ) {
-        // 无限命令进行中，使用开始坐标
-        if (cmd.type === "M" || cmd.type === "MX")
-          x = cmd.params[0] ?? defaultX;
-        if (cmd.type === "M" || cmd.type === "MY")
-          y = cmd.params[1] ?? defaultY;
-      }
-      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
-      // osu! behavior: don't read command values before the command starts
+
+  const mCommands = commands
+    .filter((cmd) => cmd.type === "M" || cmd.type === "MX" || cmd.type === "MY")
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of mCommands) {
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      if (cmd.type === "M" || cmd.type === "MX")
+        x = getCommandValue(cmd, currentTime, 0);
+      if (cmd.type === "M" || cmd.type === "MY")
+        y = getCommandValue(cmd, currentTime, 0);
+    } else if (
+      currentTime > cmd.endTime &&
+      cmd.endTime !== Number.MAX_SAFE_INTEGER
+    ) {
+      if (cmd.type === "M" || cmd.type === "MX")
+        x = cmd.params[2] ?? cmd.params[0] ?? defaultX;
+      if (cmd.type === "M" || cmd.type === "MY")
+        y = cmd.params[3] ?? cmd.params[1] ?? defaultY;
+    } else if (
+      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      currentTime >= cmd.startTime
+    ) {
+      if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
+      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
+    } else if (currentTime < cmd.startTime) {
+      // Pre-read: use command start value before it starts (osu! behavior)
+      if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
+      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[1] ?? defaultY;
     }
   }
 
@@ -526,24 +523,31 @@ function getVectorScale(
   loops: SbLoop[],
   currentTime: number,
 ): { x: number; y: number } | null {
-  for (const cmd of commands) {
-    if (cmd.type === "V") {
-      const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
-      if (
-        currentTime >= cmd.endTime ||
-        (isInfinite && currentTime >= cmd.startTime)
-      ) {
-        return {
-          x: cmd.params[2] ?? cmd.params[0] ?? 1,
-          y: cmd.params[3] ?? cmd.params[1] ?? 1,
-        };
-      } else if (currentTime >= cmd.startTime) {
-        return {
-          x: getCommandValue(cmd, currentTime, 0),
-          y: getCommandValue(cmd, currentTime, 1),
-        };
-      }
-      // currentTime < cmd.startTime -> 继续检查后面的命令
+  const vCommands = commands
+    .filter((cmd) => cmd.type === "V")
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of vCommands) {
+    const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+    if (
+      currentTime >= cmd.endTime ||
+      (isInfinite && currentTime >= cmd.startTime)
+    ) {
+      return {
+        x: cmd.params[2] ?? cmd.params[0] ?? 1,
+        y: cmd.params[3] ?? cmd.params[1] ?? 1,
+      };
+    } else if (currentTime >= cmd.startTime) {
+      return {
+        x: getCommandValue(cmd, currentTime, 0),
+        y: getCommandValue(cmd, currentTime, 1),
+      };
+    } else if (currentTime < cmd.startTime) {
+      // Pre-read: use command start value before it starts (osu! behavior)
+      return {
+        x: cmd.params[0] ?? 1,
+        y: cmd.params[1] ?? 1,
+      };
     }
   }
 
@@ -565,26 +569,27 @@ function getRotation(
   currentTime: number,
 ): number {
   let rotation = 0;
-  for (const cmd of commands) {
-    if (cmd.type === "R") {
-      // 优先检查命令是否正在进行中
-      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-        rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
-      } else if (
-        currentTime > cmd.endTime &&
-        cmd.endTime !== Number.MAX_SAFE_INTEGER
-      ) {
-        // 命令已结束（非无限），使用结束值
-        rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
-      } else if (
-        cmd.endTime === Number.MAX_SAFE_INTEGER &&
-        currentTime >= cmd.startTime
-      ) {
-        // 无限命令进行中，使用开始值
-        rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
-      }
-      // currentTime < cmd.startTime: 忽略，保持默认值或之前命令的值
-      // osu! behavior: don't read command values before the command starts
+
+  const rCommands = commands
+    .filter((cmd) => cmd.type === "R")
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of rCommands) {
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
+    } else if (
+      currentTime > cmd.endTime &&
+      cmd.endTime !== Number.MAX_SAFE_INTEGER
+    ) {
+      rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
+    } else if (
+      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      currentTime >= cmd.startTime
+    ) {
+      rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
+    } else if (currentTime < cmd.startTime) {
+      // Pre-read: use command start value before it starts (osu! behavior)
+      rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
     }
   }
 
@@ -602,37 +607,42 @@ function getColor(
   loops: SbLoop[],
   currentTime: number,
 ): { r: number; g: number; b: number } | null {
-  for (const cmd of commands) {
-    if (cmd.type === "C") {
-      // 优先检查命令是否正在进行中
-      if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-        return {
-          r: getCommandValue(cmd, currentTime, 0) / 255,
-          g: getCommandValue(cmd, currentTime, 1) / 255,
-          b: getCommandValue(cmd, currentTime, 2) / 255,
-        };
-      } else if (
-        currentTime > cmd.endTime &&
-        cmd.endTime !== Number.MAX_SAFE_INTEGER
-      ) {
-        // 命令已结束（非无限）
-        return {
-          r: (cmd.params[3] ?? cmd.params[0]) / 255,
-          g: (cmd.params[4] ?? cmd.params[1]) / 255,
-          b: (cmd.params[5] ?? cmd.params[2]) / 255,
-        };
-      } else if (
-        cmd.endTime === Number.MAX_SAFE_INTEGER &&
-        currentTime >= cmd.startTime
-      ) {
-        // 无限命令进行中
-        return {
-          r: getCommandValue(cmd, currentTime, 0) / 255,
-          g: getCommandValue(cmd, currentTime, 1) / 255,
-          b: getCommandValue(cmd, currentTime, 2) / 255,
-        };
-      }
-      // currentTime < cmd.startTime -> 继续寻找之前的颜色命令
+  const cCommands = commands
+    .filter((cmd) => cmd.type === "C")
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of cCommands) {
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      return {
+        r: getCommandValue(cmd, currentTime, 0) / 255,
+        g: getCommandValue(cmd, currentTime, 1) / 255,
+        b: getCommandValue(cmd, currentTime, 2) / 255,
+      };
+    } else if (
+      currentTime > cmd.endTime &&
+      cmd.endTime !== Number.MAX_SAFE_INTEGER
+    ) {
+      return {
+        r: (cmd.params[3] ?? cmd.params[0]) / 255,
+        g: (cmd.params[4] ?? cmd.params[1]) / 255,
+        b: (cmd.params[5] ?? cmd.params[2]) / 255,
+      };
+    } else if (
+      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      currentTime >= cmd.startTime
+    ) {
+      return {
+        r: getCommandValue(cmd, currentTime, 0) / 255,
+        g: getCommandValue(cmd, currentTime, 1) / 255,
+        b: getCommandValue(cmd, currentTime, 2) / 255,
+      };
+    } else if (currentTime < cmd.startTime) {
+      // Pre-read: use command start value before it starts (osu! behavior)
+      return {
+        r: cmd.params[0] / 255,
+        g: cmd.params[1] / 255,
+        b: cmd.params[2] / 255,
+      };
     }
   }
 
