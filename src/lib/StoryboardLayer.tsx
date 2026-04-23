@@ -471,9 +471,16 @@ function getPosition(
       // Pre-read: use command start value before it starts (osu! behavior)
       // Only apply if no previous command has set the value (i.e., all commands are in the future)
       // This prevents pre-read from overriding active/ended command values
+      // Process all future commands to find first M/MX for x and first M/MY for y
       if (x === defaultX && (cmd.type === "M" || cmd.type === "MX")) x = cmd.params[0] ?? defaultX;
       if (y === defaultY && (cmd.type === "M" || cmd.type === "MY")) y = cmd.params[0] ?? defaultY;
-      break; // Stop processing - all remaining commands are also in the future
+      // Only break if both x and y have been set (or this command could set both)
+      const canSetX = (cmd.type === "M" || cmd.type === "MX");
+      const canSetY = (cmd.type === "M" || cmd.type === "MY");
+      if ((canSetX || x !== defaultX) && (canSetY || y !== defaultY)) {
+        break;
+      }
+      // Otherwise, continue to find commands that can set remaining coordinates
     }
   }
 
