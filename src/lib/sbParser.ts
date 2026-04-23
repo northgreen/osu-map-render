@@ -146,10 +146,32 @@ function parseOrigin(value: string | number): Origin {
     8: "BottomLeft",
     9: "BottomRight",
   };
+
+  // Valid string origin names from .osu/.osb files
+  const originNames: Origin[] = [
+    "TopLeft", "Centre", "CentreLeft", "TopRight",
+    "BottomCentre", "TopCentre", "CentreRight",
+    "BottomLeft", "BottomRight",
+  ];
+
+  // Handle string origin names directly
+  if (typeof value === "string") {
+    // Check if it's a valid origin name
+    if (originNames.includes(value as Origin)) {
+      return value as Origin;
+    }
+    // Fall back to numeric parsing
+    const num = parseInt(value);
+    if (!isNaN(num)) {
+      return origins[num] || "Centre";
+    }
+  }
+
   if (typeof value === "number") {
     return origins[value] || "Centre";
   }
-  return (origins[parseInt(value)] as Origin) || "Centre";
+
+  return "Centre";
 }
 
 function parseCommand(line: string, variables: Record<string, string> = {}): SbCommand | null {
@@ -176,13 +198,14 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
         endTime = parseFloat(parts[3]) || startTime;
       }
       // Parse fade values
+      // osu! behavior: single value means endValue = startValue (maintain during command period)
+      // After endTime, the last value persists (not 0)
       if (parts[5] === undefined || parts[5] === "") {
-        // Single value: maintain the value during [startTime, endTime], then become 0 after
-        // Use -1 as sentinel for params[1] to mark "maintain" mode (opacity is never negative)
+        // Single value: maintain startValue during [startTime, endTime], endValue = startValue
         const fValue = parseFloat(parts[4]);
         params = [
           isNaN(fValue) ? 0 : fValue,
-          -1, // sentinel: maintain params[0] during active period, 0 after
+          isNaN(fValue) ? 0 : fValue, // endValue = startValue
         ];
       } else {
         // Two values: fade from startVal to endVal
@@ -405,6 +428,24 @@ function substituteVariables(text: string, variables: Record<string, string>): s
 // Main Parser
 // ============================================
 
+// Detect and fix absolute-time loops:
+// If commands inside a loop use absolute times (startTime >> loopDuration),
+// the loop iteration formula produces incorrect results after the first iteration.
+// Set repeatCount to 0 so commands execute only once.
+function fixLoopRepeatCount(
+  commands: SbCommand[],
+  startTime: number,
+  repeatCount: number,
+  loopDuration: number
+): number {
+  if (loopDuration <= 0 || repeatCount <= 0) return repeatCount;
+  const minStart = Math.min(...commands.map((c) => c.startTime));
+  // If min command start time is much larger than loop duration,
+  // the commands use absolute times and should only execute once.
+  if (minStart > loopDuration) return 0;
+  return repeatCount;
+}
+
 export function parseStoryboard(content: string): ParsedStoryboard {
   const lines = content.split(/\r?\n/);
   const objects: SbObject[] = [];
@@ -498,11 +539,18 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // If all commands have infinite end time or duration is 0, use a reasonable default
           if (loopDuration <= 0) loopDuration = 1000;
           currentLoop.loopDuration = loopDuration;
+          // Detect absolute-time loops and fix repeat count
+          const fixedRC = fixLoopRepeatCount(
+            currentLoop.childCommands,
+            currentLoop.startTime,
+            currentLoop.repeatCount,
+            currentLoop.loopDuration,
+          );
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
-            repeatCount: currentLoop.repeatCount,
+            repeatCount: fixedRC,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
           });
@@ -554,11 +602,18 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // If all commands have infinite end time or duration is 0, use a reasonable default
           if (loopDuration <= 0) loopDuration = 1000;
           currentLoop.loopDuration = loopDuration;
+          // Detect absolute-time loops and fix repeat count
+          const fixedRC = fixLoopRepeatCount(
+            currentLoop.childCommands,
+            currentLoop.startTime,
+            currentLoop.repeatCount,
+            currentLoop.loopDuration,
+          );
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
-            repeatCount: currentLoop.repeatCount,
+            repeatCount: fixedRC,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
           });
@@ -608,10 +663,17 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         if (loopDuration <= 0) loopDuration = 1000;
         currentLoop.loopDuration = loopDuration;
 
+        // Detect absolute-time loops and fix repeat count
+        const fixedRC = fixLoopRepeatCount(
+          currentLoop.childCommands,
+          currentLoop.startTime,
+          currentLoop.repeatCount,
+          currentLoop.loopDuration,
+        );
         // Save to loops array instead of expanding
         currentObject.loops.push({
           startTime: currentLoop.startTime,
-          repeatCount: currentLoop.repeatCount,
+          repeatCount: fixedRC,
           commands: currentLoop.childCommands,
           loopDuration: currentLoop.loopDuration,
         });
@@ -697,7 +759,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     }
 
     // Parse regular Commands for current object
-    if (currentObject && (line.match(/^[FMCPSR]/) || line.match(/^_[FMCPSR]/))) {
+    if (currentObject && (line.match(/^[FMCPSRV]/) || line.match(/^_[FMCPSRV]/))) {
       const cmd = parseCommand(line, variables);
       if (cmd) {
         // Only add to loop if line has loop-level indentation (3+ spaces)
@@ -730,15 +792,22 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       let loopDuration = maxEnd - minStart;
       if (loopDuration <= 0) loopDuration = 1000;
       currentLoop.loopDuration = loopDuration;
+      // Detect absolute-time loops and fix repeat count
+      const fixedRC = fixLoopRepeatCount(
+        currentLoop.childCommands,
+        currentLoop.startTime,
+        currentLoop.repeatCount,
+        currentLoop.loopDuration,
+      );
       // Save to loops array instead of expanding
       currentObject.loops.push({
         startTime: currentLoop.startTime,
-        repeatCount: currentLoop.repeatCount,
+        repeatCount: fixedRC,
         commands: currentLoop.childCommands,
         loopDuration: currentLoop.loopDuration,
       });
-      // Calculate max time from loop iterations
-      const loopEndTime = currentLoop.startTime + (currentLoop.repeatCount + 1) * currentLoop.loopDuration;
+      // Calculate max time from loop iterations (use fixed repeat count)
+      const loopEndTime = currentLoop.startTime + (fixedRC + 1) * currentLoop.loopDuration;
       if (loopEndTime > maxTime) {
         maxTime = loopEndTime;
       }

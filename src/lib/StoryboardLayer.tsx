@@ -314,7 +314,7 @@ function getOpacity(
 
   // Process commands in time order - later commands override earlier ones
   for (const cmd of fCommands) {
-    const isMaintain = cmd.params[1] === -1;
+    const isMaintain = cmd.params[1] === cmd.params[0]; // endValue = startValue means maintain
 
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
       // Command is active - use interpolated value
@@ -325,10 +325,16 @@ function getOpacity(
       currentTime > cmd.endTime &&
       cmd.endTime !== Number.MAX_SAFE_INTEGER
     ) {
-      // Command has ended - use end value
-      // This becomes the "holding" value until another command takes over
-      // Since we process in time order, later commands will override
-      opacity = isMaintain ? 0 : (cmd.params[1] ?? cmd.params[0] ?? 0);
+      // Command has ended - osu! behavior:
+      // The alpha value persists until another F command overrides it,
+      // BUT when currentTime exceeds the LAST F command's endTime,
+      // the sprite is marked "not alive" and removed (not rendered at all).
+      // This is handled by isObjectVisible, but we also need to ensure
+      // opacity doesn't incorrectly stay at endValue for single-value F commands.
+      // For single-value F commands (params[0] == params[1]), after the command ends,
+      // the sprite should keep that value until another F command changes it.
+      // The "not alive" logic in isObjectVisible will hide it after last command ends.
+      opacity = cmd.params[1] ?? cmd.params[0] ?? 0;
     } else if (
       cmd.endTime === Number.MAX_SAFE_INTEGER &&
       currentTime >= cmd.startTime
@@ -366,7 +372,14 @@ function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
 
     // Calculate which iteration we're in
     const timeSinceFirstCmd = currentTime - loop.startTime - minCmdStart;
-    if (timeSinceFirstCmd < 0) continue;
+
+    // Before loop commands execute, don't override opacity
+    // Object uses default opacity (0 if it has commands, 1 if no F commands)
+    // This prevents objects with absolute-time loop commands from being
+    // visible during the long period before their commands execute
+    if (timeSinceFirstCmd < 0) {
+      continue;
+    }
 
     const iteration = Math.floor(timeSinceFirstCmd / loop.loopDuration);
 
@@ -376,9 +389,7 @@ function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
       const fCommand = loop.commands.find((c) => c.type === "F");
       if (fCommand) {
         const endValue =
-          fCommand.params[1] === -1
-            ? fCommand.params[0]
-            : (fCommand.params[1] ?? fCommand.params[0]);
+          fCommand.params[1] ?? fCommand.params[0];
         lastLoopOpacity = endValue;
       }
       continue;
@@ -689,13 +700,17 @@ function isObjectVisible(
     }
   }
 
-  // Loop commands - calculate actual command execution time
+  // Loop commands - use the time of the first command execution for earliest start.
+  // For relative loops (commands at 0,500): first execution = loop.startTime + 0
+  // For absolute-time loops (commands at 131434): first execution = loop.startTime + 131434
+  // This prevents objects from being considered visible during long periods
+  // before their loop commands actually execute.
   for (const loop of loops) {
-    for (const cmd of loop.commands) {
-      // First iteration command start time = loop.startTime + cmd.startTime
-      const firstCmdStart = loop.startTime + cmd.startTime;
-      if (firstCmdStart < earliestStartTime) earliestStartTime = firstCmdStart;
+    const loopMinCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
+    const firstExecution = loop.startTime + loopMinCmdStart;
+    if (firstExecution < earliestStartTime) earliestStartTime = firstExecution;
 
+    for (const cmd of loop.commands) {
       // Last iteration command end time
       const lastCmdEnd =
         cmd.endTime === Number.MAX_SAFE_INTEGER
@@ -713,13 +728,10 @@ function isObjectVisible(
   if (earliestStartTime < 0 && currentTime < 0) return false;
   if (earliestStartTime >= 0 && currentTime < earliestStartTime) return false;
 
-  // Object is not visible after last command ends (only for positive end times)
-  // If latestEndTime is still -Infinity, all commands have infinite duration
-  if (
-    latestEndTime > 0 &&
-    latestEndTime !== Number.MAX_SAFE_INTEGER &&
-    currentTime > latestEndTime
-  )
+  // Object is not visible after last command ends
+  // Handle positive end times, negative end times (expired before storyboard starts),
+  // and infinite end times (MAX_SAFE_INTEGER)
+  if (latestEndTime !== Number.MAX_SAFE_INTEGER && currentTime > latestEndTime)
     return false;
 
   return true;
