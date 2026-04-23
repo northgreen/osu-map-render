@@ -469,10 +469,10 @@ function getPosition(
       if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[0] ?? defaultY;
     } else if (currentTime < cmd.startTime) {
       // Pre-read: use command start value before it starts (osu! behavior)
-      // Only apply if we haven't already set a value from an active/ended command
-      // Break after first future command to avoid subsequent commands overriding
-      if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[0] ?? defaultY;
+      // Only apply if no previous command has set the value (i.e., all commands are in the future)
+      // This prevents pre-read from overriding active/ended command values
+      if (x === defaultX && (cmd.type === "M" || cmd.type === "MX")) x = cmd.params[0] ?? defaultX;
+      if (y === defaultY && (cmd.type === "M" || cmd.type === "MY")) y = cmd.params[0] ?? defaultY;
       break; // Stop processing - all remaining commands are also in the future
     }
   }
