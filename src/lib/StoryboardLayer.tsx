@@ -151,57 +151,41 @@ function getLoopCommandValue(
   paramIndex: number,
 ): number | null {
   for (const loop of loops) {
-    // Check if current time is within this loop's active range
     if (currentTime < loop.startTime) continue;
 
-    // Find minimum command start time in this loop (commands may not start at iteration 0)
     const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
+    const maxCmdEnd = Math.max(
+      ...loop.commands.map((c) =>
+        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
+      ),
+    );
+    const loopDuration = maxCmdEnd - minCmdStart;
 
-    // Calculate which iteration we're in, accounting for minCmdStart offset
-    // Commands start at loop.startTime + minCmdStart in the first iteration
-    const timeSinceFirstCmd = currentTime - loop.startTime - minCmdStart;
+    if (loopDuration <= 0) continue;
+
+    // Compute iteration relative to when the first command iteration actually starts
+    const firstCmdAbs = loop.startTime + minCmdStart;
+    const timeSinceFirstCmd = currentTime - firstCmdAbs;
     if (timeSinceFirstCmd < 0) continue;
 
-    const iteration = Math.floor(timeSinceFirstCmd / loop.loopDuration);
-    // L,startTime,repeatCount 执行 repeatCount + 1 次（第一次 + repeatCount 次重复）
-    // 所以最大有效 iteration = repeatCount
+    const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
+
     if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
+
+    const iterationStart = firstCmdAbs + iteration * loopDuration;
 
     for (const cmd of loop.commands) {
       if (cmd.type !== cmdType) continue;
 
-      // Calculate command time in this iteration
-      // cmdStartAbs = loop.startTime + cmd.startTime + iteration * loopDuration
-      const cmdStartAbs =
-        loop.startTime + cmd.startTime + iteration * loop.loopDuration;
-
-      // If endTime is infinite, command lasts until the next command in this iteration starts
-      // Or until the end of this iteration
-      let cmdEndAbs: number;
-      if (cmd.endTime === Number.MAX_SAFE_INTEGER) {
-        // Find the next command's start time in this iteration
-        const nextCmd = loop.commands.find(
-          (c) => c.startTime > cmd.startTime && c.type === cmdType,
-        );
-        if (nextCmd) {
-          // Ends when next command starts (within this iteration)
-          cmdEndAbs =
-            loop.startTime + nextCmd.startTime + iteration * loop.loopDuration;
-        } else {
-          // No next command, ends at end of iteration
-          cmdEndAbs =
-            loop.startTime +
-            cmd.startTime +
-            (iteration + 1) * loop.loopDuration;
-        }
-      } else {
-        cmdEndAbs =
-          loop.startTime + cmd.endTime + iteration * loop.loopDuration;
-      }
-
-      const cmdDuration = cmdEndAbs - cmdStartAbs;
+      const cmdEffectiveEnd =
+        cmd.endTime === Number.MAX_SAFE_INTEGER
+          ? cmd.startTime
+          : cmd.endTime;
+      const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
+      const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
       if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
+        const cmdDuration = cmdEndAbs - cmdStartAbs;
         if (cmdDuration <= 0) continue;
 
         const relTimeInCmd = currentTime - cmdStartAbs;
@@ -217,7 +201,6 @@ function getLoopCommandValue(
         const iterStartValue = cmd.params[paramIndex];
         const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
 
-        // Calculate value for this iteration only (no accumulation between iterations)
         const easedT = applyEasing(t, cmd.easing);
         return iterStartValue + (iterEndValue - iterStartValue) * easedT;
       }
@@ -361,54 +344,46 @@ function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
   let lastLoopOpacity: number | null = null;
 
   for (const loop of loops) {
-    // Check if current time is within this loop's active range
     if (currentTime < loop.startTime) continue;
 
-    // Find minimum command start time in this loop
-    const minCmdStart = Math.min(
-      ...loop.commands.filter((c) => c.type === "F").map((c) => c.startTime),
+    const fCommands = loop.commands.filter((c) => c.type === "F");
+    if (fCommands.length === 0) continue;
+
+    const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
+    const maxCmdEnd = Math.max(
+      ...loop.commands.map((c) =>
+        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
+      ),
     );
-    if (minCmdStart === undefined || minCmdStart === Infinity) continue;
+    const loopDuration = maxCmdEnd - minCmdStart;
 
-    // Calculate which iteration we're in
-    const timeSinceFirstCmd = currentTime - loop.startTime - minCmdStart;
+    if (loopDuration <= 0) continue;
 
-    // Before loop commands execute, don't override opacity
-    // Object uses default opacity (0 if it has commands, 1 if no F commands)
-    // This prevents objects with absolute-time loop commands from being
-    // visible during the long period before their commands execute
-    if (timeSinceFirstCmd < 0) {
-      continue;
-    }
+    // Compute iteration relative to when the first command iteration actually starts
+    const firstCmdAbs = loop.startTime + minCmdStart;
+    const timeSinceFirstCmd = currentTime - firstCmdAbs;
+    if (timeSinceFirstCmd < 0) continue;
 
-    const iteration = Math.floor(timeSinceFirstCmd / loop.loopDuration);
+    const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
 
-    // Check if loop is still active
-    if (loop.repeatCount > 0 && iteration > loop.repeatCount) {
-      // Loop has finished, use the final opacity from the last iteration
-      const fCommand = loop.commands.find((c) => c.type === "F");
-      if (fCommand) {
-        const endValue = fCommand.params[1] ?? fCommand.params[0];
-        lastLoopOpacity = endValue;
-      }
-      continue;
-    }
+    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
 
-    // Loop is active, get current opacity
-    for (const cmd of loop.commands) {
-      if (cmd.type !== "F") continue;
+    const iterationStart = firstCmdAbs + iteration * loopDuration;
 
-      const cmdStartAbs =
-        loop.startTime + cmd.startTime + iteration * loop.loopDuration;
-      const cmdEndAbs =
-        loop.startTime + cmd.endTime + iteration * loop.loopDuration;
+    for (const cmd of fCommands) {
+      const cmdEffectiveEnd =
+        cmd.endTime === Number.MAX_SAFE_INTEGER
+          ? cmd.startTime
+          : cmd.endTime;
+      const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
+      const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
       if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
-        const cmdDuration = cmdEndAbs - cmdStartAbs;
-        if (cmdDuration <= 0) continue;
+        const duration = cmdEndAbs - cmdStartAbs;
+        if (duration <= 0) continue;
 
         const relTimeInCmd = currentTime - cmdStartAbs;
-        const t = relTimeInCmd / cmdDuration;
+        const t = relTimeInCmd / duration;
         const iterStartValue = cmd.params[0];
         const iterEndValue = cmd.params[1] ?? iterStartValue;
         lastLoopOpacity =
@@ -738,19 +713,36 @@ function isObjectVisible(
 
   // Loop commands
   for (const loop of loops) {
-    const loopMinCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
-    const firstExecution = loop.startTime + loopMinCmdStart;
-    if (firstExecution < earliestStartTime) earliestStartTime = firstExecution;
+    if (currentTime < loop.startTime) continue;
 
-    for (const cmd of loop.commands) {
-      const lastCmdEnd =
-        cmd.endTime === Number.MAX_SAFE_INTEGER
-          ? Number.MAX_SAFE_INTEGER
-          : cmd.endTime + loop.repeatCount * loop.loopDuration;
+    const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
+    const maxCmdEnd = Math.max(
+      ...loop.commands.map((c) =>
+        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
+      ),
+    );
+    const loopDuration = maxCmdEnd - minCmdStart;
 
-      if (lastCmdEnd > latestEndTime) {
-        latestEndTime = lastCmdEnd;
-      }
+    if (loopDuration <= 0) continue;
+
+    // Compute iteration relative to when the first command iteration actually starts
+    const firstCmdAbs = loop.startTime + minCmdStart;
+    const timeSinceFirstCmd = currentTime - firstCmdAbs;
+    if (timeSinceFirstCmd < 0) continue;
+
+    const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
+
+    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
+
+    // Total visible range: first iteration start to last iteration end
+    const totalIterations = loop.repeatCount + 1;
+    const loopWindowEnd = firstCmdAbs + totalIterations * loopDuration;
+
+    if (firstCmdAbs < earliestStartTime) {
+      earliestStartTime = firstCmdAbs;
+    }
+    if (loopWindowEnd > latestEndTime) {
+      latestEndTime = loopWindowEnd;
     }
   }
 
