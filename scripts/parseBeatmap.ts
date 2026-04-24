@@ -494,11 +494,11 @@ async function main() {
 
   // Write the parsed beatmap to a JSON file for import
   fs.writeFileSync(
-    path.join(process.cwd(), "src", "lib", "beatmap.json"),
+    path.join(process.cwd(), "src", "generated", "beatmap.json"),
     JSON.stringify(beatmap, null, 2),
   );
 
-  console.log("Beatmap parsed and saved to src/lib/beatmap.json");
+  console.log("Beatmap parsed and saved to src/generated/beatmap.json");
   console.log(`Found ${beatmap.hitObjects.length} hit objects`);
   console.log(`Title: ${beatmap.metadata.title}`);
   console.log(`Difficulty: ${beatmap.metadata.version}`);

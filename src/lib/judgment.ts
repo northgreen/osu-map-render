@@ -61,7 +61,7 @@ function difficultyRange(od: number, range: [number, number, number]): number {
   if (od > 5) {
     result = mid + ((max - mid) * (od - 5)) / 5;
   } else if (od < 5) {
-    result = mid + ((mid - min) * od) / 5;
+    result = mid + ((mid - min) * (od - 5)) / 5;
   } else {
     result = mid;
   }

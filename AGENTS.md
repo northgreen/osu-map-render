@@ -8,11 +8,12 @@ Remotion 4.x project for rendering osu!mania beatmap videos. React + TypeScript 
 
 ```bash
 npm install                    # Install deps
-npm run parse                  # Parse .osu beatmap -> src/lib/beatmap.json (copies audio/bg/storyboard to public/)
+npm run parse                  # Parse .osu beatmap -> src/generated/beatmap.json (copies audio/bg/storyboard to public/)
 npm run parse -- "keyword"     # Fuzzy search beatmap by keyword
-npm run parse:replay           # Parse .osr replay -> src/lib/replay.json
+npm run parse:replay           # Parse .osr replay -> src/generated/replay.json
 npm run dev                    # Remotion Studio (live preview)
 npm run lint                   # ESLint + tsc
+npm run test                   # Run vitest unit tests
 npm run build                  # Bundle (runs parse:replay? no - runs `prebuild` which runs parse)
 npx remotion render ManiaRender out/video.mp4  # Full render
 ```
@@ -21,9 +22,9 @@ npx remotion render ManiaRender out/video.mp4  # Full render
 
 ## Generated Files (gitignored)
 
-- `src/lib/beatmap.json` - parsed beatmap data
-- `src/lib/replay.json` - parsed replay data
-- `src/lib/storyboard.json` - parsed storyboard data
+- `src/generated/beatmap.json` - parsed beatmap data
+- `src/generated/replay.json` - parsed replay data
+- `src/generated/storyboard.json` - parsed storyboard data
 - `public/audio.mp3` - audio from beatmap
 - `public/background.jpg` etc. - background images
 - `public/Storyboard/` - storyboard assets
@@ -66,13 +67,15 @@ Props are nested objects: `{ time: { beatOffset, timeOffset }, scroll: { scrollS
 
 ## Key Directories
 
-| Path       | Purpose                                                               |
-| ---------- | --------------------------------------------------------------------- |
-| `cheart/`  | .osu beatmap files (source)                                           |
-| `replay/`  | .osr replay files (source)                                            |
-| `src/lib/` | Parsed JSON data + parsers (osuParser, osrParser, sbParser, judgment) |
-| `scripts/` | CLI parse scripts (parseBeatmap.ts, parseReplay.ts, selectFile.ts)    |
-| `public/`  | Runtime assets (audio, images, storyboard)                            |
+| Path                 | Purpose                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| `cheart/`            | .osu beatmap files (source)                                        |
+| `replay/`            | .osr replay files (source)                                         |
+| `src/lib/`           | Parsers (osuParser, osrParser, sbParser, judgment, difficulty)     |
+| `src/lib/__tests__/` | Unit tests for lib modules                                         |
+| `src/generated/`     | Auto-generated JSON data (beatmap, replay, storyboard)             |
+| `scripts/`           | CLI parse scripts (parseBeatmap.ts, parseReplay.ts, selectFile.ts) |
+| `public/`            | Runtime assets (audio, images, storyboard)                         |
 
 ## Toolchain Notes
 
@@ -80,5 +83,5 @@ Props are nested objects: `{ time: { beatOffset, timeOffset }, scroll: { scrollS
 - **Tailwind v4** via `@remotion/tailwind-v4` in remotion.config.ts
 - **TypeScript**: strict, noEmit, resolves JSON modules (`"resolveJsonModule": true`)
 - **ESLint**: uses `@remotion/eslint-config-flat` (flat config in `eslint.config.mjs`)
-- **No test framework** - no tests exist
+- **Vitest** - test framework for unit tests (`npm run test`)
 - **Prettier**: 2-space, no tabs, bracketSpacing true

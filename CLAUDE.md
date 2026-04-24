@@ -28,20 +28,23 @@ rtk npm run upgrade                      # Upgrade Remotion version
 ## Architecture
 
 ### Render Pipeline
+
 ```
-cheart/*.osu ──parse──▶ src/lib/beatmap.json ──import──▶ Rendering
-replay/*.osr ──parse──▶ src/lib/replay.json  ──import──▶ Rendering
-storyboard.osb ─parse──▶ src/lib/storyboard.json ──import▶ Rendering
+cheart/*.osu ──parse──▶ src/generated/beatmap.json ──import──▶ Rendering
+replay/*.osr ──parse──▶ src/generated/replay.json  ──import──▶ Rendering
+storyboard.osb ─parse──▶ src/generated/storyboard.json ──import▶ Rendering
      └─ also extracted from .osu [Events] section during parse
 ```
 
 ### Layer Structure (back to front)
+
 1. **Background** (`ManiaBackground.tsx`) - Background image + all storyboard layers (Background, Fail, Pass, Foreground, Overlay)
 2. **Stage** (`ManiaStageLayer.tsx`) - Beat lines, notes, judgment line, column dividers, key press indicators, hit effects, column highlights
 3. **Overlay** (`ManiaOverlay.tsx`) - Metadata, score, combo, PP, judgment stats, live judgment indicator
 4. **Replay Cursor** (`ReplayCursor.tsx`) - Falling key press/release bars colored by judgment
 
 ### Composition IDs
+
 - `ManiaRender` - Full render (all layers combined)
 - `ManiaBackground` - Background + storyboard only
 - `ManiaStageOnly` - Stage (notes, judgment line, key presses, hit effects)
@@ -49,35 +52,39 @@ storyboard.osb ─parse──▶ src/lib/storyboard.json ──import▶ Renderi
 - `ManiaReplayCursorOnly` - Replay cursor falling bars only
 
 ### Key Files
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Remotion entry point, registers `<Composition>` definitions |
-| `src/Root.tsx` | Defines all compositions with schemas, defaultProps, duration |
-| `src/ManiaRender.tsx` | Combined render composing all layers |
-| `src/config.ts` | Scroll speed, note dimensions, column positions/colors, dynamic key count |
-| `src/lib/osuParser.ts` | Types for parsed beatmap, exports `beatmap` from beatmap.json |
-| `src/lib/replay.ts` | Types for replay, exports `replay` from replay.json |
-| `src/lib/sbParser.ts` | Full osu! storyboard parser (Sprite, Animation, L/M/S/R/C/F/V/P commands) |
-| `src/lib/StoryboardLayer.tsx` | Renders storyboard objects with all 35 easing functions |
-| `src/lib/judgment.ts` | Hit windows, judgment calculation (v1/v2/custom), LN tail support |
-| `src/lib/difficulty.ts` | Star rating, PP, realtime PP calculation |
-| `scripts/parseBeatmap.ts` | Parses .osu → JSON, copies audio/bg/images, merges storyboard |
-| `scripts/parseReplay.ts` | Parses .osr → replay.json |
-| `scripts/parseStoryboard.ts` | Standalone storyboard parser |
-| `scripts/selectFile.ts` | Interactive file selection helper |
+
+| File                          | Purpose                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `src/index.ts`                | Remotion entry point, registers `<Composition>` definitions               |
+| `src/Root.tsx`                | Defines all compositions with schemas, defaultProps, duration             |
+| `src/ManiaRender.tsx`         | Combined render composing all layers                                      |
+| `src/config.ts`               | Scroll speed, note dimensions, column positions/colors, dynamic key count |
+| `src/lib/osuParser.ts`        | Types for parsed beatmap, exports `beatmap` from beatmap.json             |
+| `src/lib/replay.ts`           | Types for replay, exports `replay` from replay.json                       |
+| `src/lib/sbParser.ts`         | Full osu! storyboard parser (Sprite, Animation, L/M/S/R/C/F/V/P commands) |
+| `src/lib/StoryboardLayer.tsx` | Renders storyboard objects with all 35 easing functions                   |
+| `src/lib/judgment.ts`         | Hit windows, judgment calculation (v1/v2/custom), LN tail support         |
+| `src/lib/difficulty.ts`       | Star rating, PP, realtime PP calculation                                  |
+| `scripts/parseBeatmap.ts`     | Parses .osu → JSON, copies audio/bg/images, merges storyboard             |
+| `scripts/parseReplay.ts`      | Parses .osr → replay.json                                                 |
+| `scripts/parseStoryboard.ts`  | Standalone storyboard parser                                              |
+| `scripts/selectFile.ts`       | Interactive file selection helper                                         |
 
 ### Data Flow
-1. `npm run parse` reads `cheart/*.osu`, outputs `src/lib/beatmap.json`
+
+1. `npm run parse` reads `cheart/*.osu`, outputs `src/generated/beatmap.json`
 2. Beatmap parser also extracts storyboard events from `[Events]` section
 3. If `*.osb` file exists alongside the .osu, it is merged with .osu storyboard events
 4. `parseBeatmap.ts` copies audio, background images, and storyboard assets to `public/`
-5. Components import parsed JSON directly: `import beatmap from "./lib/beatmap.json"`
+5. Components import parsed JSON directly: `import beatmap from "../generated/beatmap.json"`
 6. Same pattern for replay (`replay.json`) and storyboard (`storyboard.json`)
 
 ## Configuration
 
 ### Dynamic Key Count (`src/config.ts`)
+
 The config supports 1K through 18K+ with automatic position/color calculation:
+
 - `setKeyCount(count)` - Updates mutable exports (`KEY_COUNT`, `COLUMN_POSITIONS_STAGE`, etc.)
 - `config` object - Alternative access via getters (e.g., `config.columnColors`)
 - `getColumnColors(k)`, `getColumnPositionsStage(k)`, `getColumnPositionsNote(k)` - Get by key count
@@ -85,6 +92,7 @@ The config supports 1K through 18K+ with automatic position/color calculation:
 - Key count is auto-set from beatmap's `CircleSize` at module load in `Root.tsx`
 
 ### Config Values
+
 - `SCROLL_SPEED` (default: 37) - Note fall speed
 - `BASE_VISIBLE_TIME` (default: 1800ms) - Visible time at scroll speed 10
 - `NOTE_WIDTH` (100), `NOTE_HEIGHT` (40) - Note dimensions
@@ -94,7 +102,9 @@ The config supports 1K through 18K+ with automatic position/color calculation:
 - `LN_BODY_OPACITY` (0.4) - Long note body opacity
 
 ### Composition Props (Zod schemas in `Root.tsx`)
+
 Props are nested objects:
+
 - `time.beatOffset` (default: 900) - Pre-beatmap lead time in ms
 - `time.timeOffset` (default: 0) - Additional time offset
 - `scroll.scrollSpeed` (5-50, default: 20)
@@ -109,6 +119,7 @@ Props are nested objects:
 ## Judgment System (`src/lib/judgment.ts`)
 
 Three modes: **v1** (Classic), **v2** (ScoreV2), **custom** (user-defined windows)
+
 - `setJudgmentMode(mode)`, `setJudgmentOffset(ms)`, `setCustomWindows(windows)` - Setters
 - `getHitWindows(od)` - Returns hit windows based on current mode + OD
 - `calculateJudgment(hitTime, noteTime, od)` - Returns "Perfect" | "Great" | "Good" | "Ok" | "Meh" | "Miss"
@@ -121,6 +132,7 @@ Three modes: **v1** (Classic), **v2** (ScoreV2), **custom** (user-defined window
 ## Storyboard (`src/lib/sbParser.ts` + `src/lib/StoryboardLayer.tsx`)
 
 ### Parser supports:
+
 - Sprite, Animation objects with all 5 layers (Background, Fail, Pass, Foreground, Overlay)
 - Commands: F (Fade), M (Move), MX/MY, S (Scale), V (Vector Scale), R (Rotate), C (Color), P (Param: flipH/flipV/additive)
 - L (Loop), T (Trigger) with nested commands
@@ -129,6 +141,7 @@ Three modes: **v1** (Classic), **v2** (ScoreV2), **custom** (user-defined window
 - Merging .osu `[Events]` storyboard with standalone `.osb` file
 
 ### Rendering:
+
 - 640x480 storyboard space → 1920x1080 render (scale factor: `RENDER_HEIGHT / 480 = 2.25`)
 - Origin points: 9 positions (TopLeft, Centre, CentreLeft, etc.)
 - Color commands use hue/saturation/brightness CSS filters
@@ -151,6 +164,9 @@ Three modes: **v1** (Classic), **v2** (ScoreV2), **custom** (user-defined window
 - **Caching**: Judgment results and difficulty calculations are cached; cleared on mode change
 - **CSS variables**: Stage positioning uses `--stage-x` and `--stage-width` CSS custom properties
 - **osu! source code**: Available at `~/Projects/osu/` for reference
+- **Testing**: Vitest unit tests verify behavior matches osu! (`npm run test`)
+  - Test files: `src/lib/__tests__/*.test.ts`, `scripts/__tests__/*.test.ts`
+  - Tests verify hit windows, storyboard parsing, config calculations against osu! source
 
 ## Reference Documentation
 
@@ -173,8 +189,4 @@ When unsure about storyboard behavior or osu! specific implementation details:
    - StoryBoard Logic
    - and so on
 
-3. **Parsed JSON outputs** - Check `src/lib/storyboard.json` for actual parsed data structure and command sequences
-
-
-
-
+3. **Parsed JSON outputs** - Check `src/generated/storyboard.json` for actual parsed data structure and command sequences

@@ -138,6 +138,10 @@ function calculatePP(
   const hitObjects = beatmap.hitObjects;
   const totalNotes = hitObjects.length;
 
+  if (totalNotes === 0) {
+    return { total: 0, components: { aim: 0, speed: 0, accuracy: 0 } };
+  }
+
   let count300 = totalNotes;
   let count100 = 0;
   let count50 = 0;

@@ -89,11 +89,11 @@ async function main() {
 
     // Write the parsed replay to a JSON file for import
     fs.writeFileSync(
-      path.join(process.cwd(), "src", "lib", "replay.json"),
+      path.join(process.cwd(), "src", "generated", "replay.json"),
       JSON.stringify(replayForJson, null, 2),
     );
 
-    console.log("Replay parsed and saved to src/lib/replay.json");
+    console.log("Replay parsed and saved to src/generated/replay.json");
     console.log(`Player: ${replay.playerName}`);
     console.log(`Mode: ${replay.mode} (0=std, 1=taiko, 2=catch, 3=mania)`);
     console.log(`Mods: ${replay.mods}`);

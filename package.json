@@ -22,13 +22,15 @@
     "eslint": "9.19.0",
     "prettier": "3.8.1",
     "tsx": "^4.21.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^4.1.5"
   },
   "scripts": {
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
+    "test": "vitest run",
     "parse": "tsx scripts/parseBeatmap.ts",
     "parse:replay": "tsx scripts/parseReplay.ts",
     "prebuild": "tsx scripts/parseBeatmap.ts"

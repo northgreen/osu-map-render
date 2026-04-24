@@ -1,4 +1,4 @@
-import replayData from "./replay.json";
+import replayData from "../generated/replay.json";
 
 export interface ReplayFrame {
   timeOffset: number;

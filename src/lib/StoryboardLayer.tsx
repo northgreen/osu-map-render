@@ -9,7 +9,7 @@ import {
 } from "remotion";
 import { useMemo, useState, useRef, useCallback } from "react";
 import { SbObject, SbCommand, SbSample, SbLoop } from "./sbParser";
-import storyboardData from "./storyboard.json";
+import storyboardData from "../generated/storyboard.json";
 
 // Easing interpolation functions (osu! supports 0-34)
 function applyEasing(t: number, easing: number): number {
@@ -178,9 +178,7 @@ function getLoopCommandValue(
       if (cmd.type !== cmdType) continue;
 
       const cmdEffectiveEnd =
-        cmd.endTime === Number.MAX_SAFE_INTEGER
-          ? cmd.startTime
-          : cmd.endTime;
+        cmd.endTime === Number.MAX_SAFE_INTEGER ? cmd.startTime : cmd.endTime;
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
@@ -372,9 +370,7 @@ function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
 
     for (const cmd of fCommands) {
       const cmdEffectiveEnd =
-        cmd.endTime === Number.MAX_SAFE_INTEGER
-          ? cmd.startTime
-          : cmd.endTime;
+        cmd.endTime === Number.MAX_SAFE_INTEGER ? cmd.startTime : cmd.endTime;
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
@@ -447,11 +443,13 @@ function getPosition(
       // Only apply if no previous command has set the value (i.e., all commands are in the future)
       // This prevents pre-read from overriding active/ended command values
       // Process all future commands to find first M/MX for x and first M/MY for y
-      if (x === defaultX && (cmd.type === "M" || cmd.type === "MX")) x = cmd.params[0] ?? defaultX;
-      if (y === defaultY && (cmd.type === "M" || cmd.type === "MY")) y = cmd.params[0] ?? defaultY;
+      if (x === defaultX && (cmd.type === "M" || cmd.type === "MX"))
+        x = cmd.params[0] ?? defaultX;
+      if (y === defaultY && (cmd.type === "M" || cmd.type === "MY"))
+        y = cmd.params[0] ?? defaultY;
       // Only break if both x and y have been set (or this command could set both)
-      const canSetX = (cmd.type === "M" || cmd.type === "MX");
-      const canSetY = (cmd.type === "M" || cmd.type === "MY");
+      const canSetX = cmd.type === "M" || cmd.type === "MX";
+      const canSetY = cmd.type === "M" || cmd.type === "MY";
       if ((canSetX || x !== defaultX) && (canSetY || y !== defaultY)) {
         break;
       }
@@ -805,7 +803,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   // Container centered: horizontal offset = (1920-1440)/2 = 240
   // Formula: screenPos = (storyboardPos - centerOffset) * scale + screenCenter
   // Which simplifies to: screenX = 240 + rawPos.x * 2.25, screenY = rawPos.y * 2.25
-  const x = (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2 + rawPos.x * STORYBOARD_SCALE;
+  const x =
+    (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2 +
+    rawPos.x * STORYBOARD_SCALE;
   const y = rawPos.y * STORYBOARD_SCALE;
 
   // Image dimensions in render space
@@ -813,7 +813,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   // S command (scale): multiplier applied to the base size
   const vectorScale = getVectorScale(object.commands, loops, currentTime);
   const rawScale = vectorScale
-    ? null  // V command takes precedence, S command is ignored
+    ? null // V command takes precedence, S command is ignored
     : getScale(object.commands, loops, currentTime);
 
   // Use actual image dimensions when loaded

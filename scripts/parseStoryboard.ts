@@ -16,7 +16,12 @@ function main() {
   }
 
   // Write parsed storyboard to JSON
-  const outputPath = path.join(process.cwd(), "src", "lib", "storyboard.json");
+  const outputPath = path.join(
+    process.cwd(),
+    "src",
+    "generated",
+    "storyboard.json",
+  );
   fs.writeFileSync(outputPath, JSON.stringify(storyboard, null, 2));
 
   console.log(`Parsed ${storyboard.objects.length} storyboard objects`);

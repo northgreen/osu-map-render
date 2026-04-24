@@ -2,7 +2,7 @@ import * as fs from "fs";
 import { parseStoryboard } from "../src/lib/sbParser";
 
 const storyboardPath = "public/storyboard.osb";
-const outputPath = "src/lib/storyboard.json";
+const outputPath = "src/generated/storyboard.json";
 
 if (!fs.existsSync(storyboardPath)) {
   console.error("Storyboard file not found:", storyboardPath);

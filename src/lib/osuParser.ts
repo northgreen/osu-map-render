@@ -1,4 +1,4 @@
-import beatmapData from "./beatmap.json";
+import beatmapData from "../generated/beatmap.json";
 
 export interface BeatmapMetadata {
   title: string;
