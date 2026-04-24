@@ -348,11 +348,6 @@ export function calculateJudgments(
   const windows = getHitWindows(od);
   const missWindow = windows.miss;
 
-  console.log(`=== Judgment Mode: ${currentJudgmentMode.toUpperCase()} ===`);
-  console.log(
-    `OD: ${od}, Windows: P=${windows.perfect}, G=${windows.great}, Good=${windows.good}, Ok=${windows.ok}, Meh=${windows.meh}, Miss=${missWindow}`,
-  );
-
   // Sort hitObjects by time
   const sortedNotes = [...hitObjects].sort((a, b) => a.time - b.time);
 
@@ -488,24 +483,6 @@ export function calculateJudgments(
 
   // Sort by time
   results.sort((a, b) => a.noteTime - b.noteTime);
-
-  // Debug: print final statistics
-  const counts = { Perfect: 0, Great: 0, Good: 0, Ok: 0, Meh: 0, Miss: 0 };
-  for (const r of results) {
-    if (r.judgment && counts[r.judgment as keyof typeof counts] !== undefined) {
-      counts[r.judgment as keyof typeof counts]++;
-    }
-  }
-  console.log("=== Judgment Stats ===");
-  console.log(`Perfect: ${counts.Perfect}x320`);
-  console.log(`Great: ${counts.Great}x300`);
-  console.log(`Good: ${counts.Good}x200`);
-  console.log(`Ok: ${counts.Ok}x100`);
-  console.log(`Meh: ${counts.Meh}x50`);
-  console.log(`Miss: ${counts.Miss}xMiss`);
-  console.log(
-    `Total: ${counts.Perfect * 320 + counts.Great * 300 + counts.Good * 200 + counts.Ok * 100 + counts.Meh * 50}`,
-  );
 
   return results;
 }

@@ -15,14 +15,14 @@ import {
 import { config, STAGE_X } from "./config";
 import "./lib/replay"; // Force import replay.json
 
-// Create a wrapper component with defaultProps
+// Create a wrapper component with default props handled via destructuring
 const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
   const {
     time = { beatOffset: 900, timeOffset: 0 },
     scroll = { scrollSpeed: 20 },
     judgment = { mode: "v2", offset: 0, showZones: false },
     layout = { stageOffset: 0, judgmentLineY: 900 },
-    contents = {},
+    contents = { trackHeight: true, replayCursor: true, sessionLine: true },
   } = props;
 
   const { beatOffset, timeOffset } = time;
@@ -87,15 +87,6 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       />
     </AbsoluteFill>
   );
-};
-
-// Add defaultProps for Remotion Studio
-ManiaRenderComponent.defaultProps = {
-  time: { beatOffset: 900, timeOffset: 0 },
-  scroll: { scrollSpeed: 20 },
-  judgment: { mode: "v2", offset: 0, showZones: false },
-  layout: { stageOffset: 0, judgmentLineY: 900 },
-  contents: { trackHeight: true, replayCursor: true, sessionLine: true },
 };
 
 export { ManiaRenderComponent as ManiaRender };

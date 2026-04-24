@@ -80,7 +80,7 @@ function getBeatOffset(): number {
 
 // Each <Composition> is an entry in the sidebar!
 
-// ManiaStageOnly component with defaultProps for proper Remotion integration
+// ManiaStageOnly component with default props handled via destructuring
 const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
   const {
     time = { beatOffset: 900, timeOffset: 0 },
@@ -125,13 +125,6 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
       />
     </AbsoluteFill>
   );
-};
-
-ManiaStageOnlyComponent.defaultProps = {
-  time: { beatOffset: 900, timeOffset: 0 },
-  scroll: { scrollSpeed: 20 },
-  judgment: { mode: "v2", offset: 0, showZones: false },
-  layout: { stageOffset: 0, judgmentLineY: 900 },
 };
 
 export const RemotionRoot: React.FC = () => {

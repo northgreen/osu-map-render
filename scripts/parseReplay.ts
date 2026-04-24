@@ -1,7 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { parseOsuReplay } from "../src/lib/osrParser";
-import { listFiles, selectFile, matchFile, getCheartDir, getReplayDir } from "./selectFile";
+import {
+  listFiles,
+  selectFile,
+  matchFile,
+  getCheartDir,
+  getReplayDir,
+} from "./selectFile";
 
 const DEFAULT_REPLAY = "solo-replay-mania_5205935_6395917723.osr";
 
@@ -17,12 +23,14 @@ async function main() {
   // Combine all sources: replay/ > cheart/ > root
   const allOsrFiles = [
     ...osrFiles,
-    ...cheartOsrFiles.filter(f => !osrFiles.includes(f)),
-    ...rootOsrFiles.filter(f => !osrFiles.includes(f) && !cheartOsrFiles.includes(f))
+    ...cheartOsrFiles.filter((f) => !osrFiles.includes(f)),
+    ...rootOsrFiles.filter(
+      (f) => !osrFiles.includes(f) && !cheartOsrFiles.includes(f),
+    ),
   ];
 
   let selectedFile: string | null = null;
-  let replayPath: string;
+  let replayPath: string | null = null;
 
   if (allOsrFiles.length === 0 && !searchTerm) {
     // No .osr files found, try default path
@@ -56,48 +64,60 @@ async function main() {
   }
 
   console.log(`\nLooking for file: ${path.basename(replayPath)}`);
-  console.log(`File exists: ${fs.existsSync(replayPath)}`);
 
-  if (fs.existsSync(replayPath)) {
-    const replay = parseOsuReplay(replayPath);
+  if (!fs.existsSync(replayPath)) {
+    console.error(`Error: Replay file not found: ${replayPath}`);
+    console.log("Place your .osr file in the replay/ folder.");
+    process.exit(1);
+  }
 
-    if (replay) {
-      // Convert BigInt to Number for JSON serialization
-      const replayForJson: Record<string, unknown> = { ...replay };
-      replayForJson.timestamp = Number(replay.timestamp);
-      replayForJson.onlineScoreId = Number(replay.onlineScoreId);
+  let replay;
+  try {
+    replay = parseOsuReplay(replayPath);
+  } catch (error) {
+    console.error(
+      `Error parsing replay: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
 
-      // Write the parsed replay to a JSON file for import
-      fs.writeFileSync(
-        path.join(process.cwd(), "src", "lib", "replay.json"),
-        JSON.stringify(replayForJson, null, 2)
-      );
+  if (replay) {
+    // Convert BigInt to Number for JSON serialization
+    const replayForJson: Record<string, unknown> = { ...replay };
+    replayForJson.timestamp = Number(replay.timestamp);
+    replayForJson.onlineScoreId = Number(replay.onlineScoreId);
 
-      console.log("Replay parsed and saved to src/lib/replay.json");
-      console.log(`Player: ${replay.playerName}`);
-      console.log(`Mode: ${replay.mode} (0=std, 1=taiko, 2=catch, 3=mania)`);
-      console.log(`Mods: ${replay.mods}`);
-      console.log(`Score: ${replay.totalScore}`);
-      console.log(`Max Combo: ${replay.maxCombo}`);
-      console.log(`300: ${replay.count300}, 100: ${replay.count100}, 50: ${replay.count50}, Miss: ${replay.countMiss}`);
-      console.log(`Perfect: ${replay.perfect}`);
-      console.log(`Replay frames: ${replay.replayData.length}`);
+    // Write the parsed replay to a JSON file for import
+    fs.writeFileSync(
+      path.join(process.cwd(), "src", "lib", "replay.json"),
+      JSON.stringify(replayForJson, null, 2),
+    );
 
-      // Show sample frames with keys
-      console.log("\nSample frames with keys:");
-      let t = 0;
-      let count = 0;
-      for (let i = 0; i < replay.replayData.length && count < 20; i++) {
-        t += replay.replayData[i].timeOffset;
-        if (replay.replayData[i].keys > 0 || replay.replayData[i].x > 0) {
-          console.log(`frame ${i}: time=${t} x=${replay.replayData[i].x} y=${replay.replayData[i].y} keys=${replay.replayData[i].keys}`);
-          count++;
-        }
+    console.log("Replay parsed and saved to src/lib/replay.json");
+    console.log(`Player: ${replay.playerName}`);
+    console.log(`Mode: ${replay.mode} (0=std, 1=taiko, 2=catch, 3=mania)`);
+    console.log(`Mods: ${replay.mods}`);
+    console.log(`Score: ${replay.totalScore}`);
+    console.log(`Max Combo: ${replay.maxCombo}`);
+    console.log(
+      `300: ${replay.count300}, 100: ${replay.count100}, 50: ${replay.count50}, Miss: ${replay.countMiss}`,
+    );
+    console.log(`Perfect: ${replay.perfect}`);
+    console.log(`Replay frames: ${replay.replayData.length}`);
+
+    // Show sample frames with keys
+    console.log("\nSample frames with keys:");
+    let t = 0;
+    let count = 0;
+    for (let i = 0; i < replay.replayData.length && count < 20; i++) {
+      t += replay.replayData[i].timeOffset;
+      if (replay.replayData[i].keys > 0 || replay.replayData[i].x > 0) {
+        console.log(
+          `frame ${i}: time=${t} x=${replay.replayData[i].x} y=${replay.replayData[i].y} keys=${replay.replayData[i].keys}`,
+        );
+        count++;
       }
     }
-  } else {
-    console.log("No .osr file found.");
-    console.log("Place your .osr file in the replay/ folder.");
   }
 }
 

@@ -251,7 +251,10 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       const hitSample = parts[6] || "";
 
       // Calculate column based on x position
-      const column = Math.floor(x / 128);
+      // Use 512 (osu! playfield width) / circleSize (key count) for column width
+      const keyCount = Math.max(1, difficulty.circleSize);
+      const columnWidth = 512 / keyCount;
+      const column = Math.min(Math.floor(x / columnWidth), keyCount - 1);
 
       hitObjects.push({
         x,
@@ -316,9 +319,21 @@ async function main() {
   const beatmapPath = path.join(cheartDir, beatmapFile);
 
   console.log(`\nLooking for file: ${beatmapFile}`);
-  console.log(`File exists: ${fs.existsSync(beatmapPath)}`);
 
-  const beatmap = parseOsuFile(beatmapPath);
+  if (!fs.existsSync(beatmapPath)) {
+    console.error(`Error: Beatmap file not found: ${beatmapPath}`);
+    process.exit(1);
+  }
+
+  let beatmap: ParsedBeatmap;
+  try {
+    beatmap = parseOsuFile(beatmapPath);
+  } catch (error) {
+    console.error(
+      `Error parsing beatmap: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
 
   // Get source directory (where the .osu file is located)
   const sourceDir = path.dirname(beatmapPath);
@@ -406,7 +421,10 @@ async function main() {
         const osuObjectCount = mergedStoryboard.objects.length;
         const renumberedOsbObjects = osbSb.objects.map((obj, index) => ({
           ...obj,
-          id: obj.type === "sprite" ? `sprite_${osuObjectCount + index}` : `anim_${osuObjectCount + index}`,
+          id:
+            obj.type === "sprite"
+              ? `sprite_${osuObjectCount + index}`
+              : `anim_${osuObjectCount + index}`,
         }));
         mergedStoryboard.objects = [
           ...mergedStoryboard.objects,

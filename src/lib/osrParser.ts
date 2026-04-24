@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as zlib from "zlib";
-import lzma from "lzma";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const lzma = require("lzma");
 
 export interface ReplayData {
   mode: number;
@@ -201,8 +202,8 @@ export function parseOsuReplay(filePath: string): ReplayData | null {
       }
     }
 
-    // Timestamp (8 bytes, Windows ticks)
-    const timestamp = buffer.readBigInt64LE(offset);
+    // Timestamp (8 bytes, Windows ticks) - convert to number
+    const timestamp = Number(buffer.readBigInt64LE(offset));
     offset += 8;
 
     // Replay data length (4 bytes)
