@@ -428,23 +428,15 @@ function substituteVariables(text: string, variables: Record<string, string>): s
 // Main Parser
 // ============================================
 
-// Detect and fix absolute-time loops:
-// If commands inside a loop use absolute times (startTime >> loopDuration),
-// the loop iteration formula produces incorrect results after the first iteration.
-// Set repeatCount to 0 so commands execute only once.
-function fixLoopRepeatCount(
-  commands: SbCommand[],
-  startTime: number,
-  repeatCount: number,
-  loopDuration: number
-): number {
-  if (loopDuration <= 0 || repeatCount <= 0) return repeatCount;
-  const minStart = Math.min(...commands.map((c) => c.startTime));
-  // If min command start time is much larger than loop duration,
-  // the commands use absolute times and should only execute once.
-  if (minStart > loopDuration) return 0;
-  return repeatCount;
-}
+// Removed fixLoopRepeatCount - osu! L commands always use the command time span
+// as the loop duration, and commands are executed at their specified times in each iteration.
+// For example: L,0,3 with F,0,131434,132108 means:
+//   loopDuration = 132108 - 131434 = 674ms
+//   Iteration 0: F at 131434-132108
+//   Iteration 1: F at 131434+674 - 132108+674 = 132108-132782
+//   Iteration 2: F at 131434+2*674 - 132108+2*674 = 132782-133456
+//   Iteration 3: F at 131434+3*674 - 132108+3*674 = 133456-134130
+// Total iterations = repeatCount + 1 = 4
 
 export function parseStoryboard(content: string): ParsedStoryboard {
   const lines = content.split(/\r?\n/);
@@ -539,18 +531,12 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // If all commands have infinite end time or duration is 0, use a reasonable default
           if (loopDuration <= 0) loopDuration = 1000;
           currentLoop.loopDuration = loopDuration;
-          // Detect absolute-time loops and fix repeat count
-          const fixedRC = fixLoopRepeatCount(
-            currentLoop.childCommands,
-            currentLoop.startTime,
-            currentLoop.repeatCount,
-            currentLoop.loopDuration,
-          );
+          // repeatCount preserved from L command (osu! behavior: repeatCount + 1 total iterations)
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
-            repeatCount: fixedRC,
+            repeatCount: currentLoop.repeatCount,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
           });
@@ -602,18 +588,12 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // If all commands have infinite end time or duration is 0, use a reasonable default
           if (loopDuration <= 0) loopDuration = 1000;
           currentLoop.loopDuration = loopDuration;
-          // Detect absolute-time loops and fix repeat count
-          const fixedRC = fixLoopRepeatCount(
-            currentLoop.childCommands,
-            currentLoop.startTime,
-            currentLoop.repeatCount,
-            currentLoop.loopDuration,
-          );
+          // repeatCount preserved from L command (osu! behavior: repeatCount + 1 total iterations)
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
-            repeatCount: fixedRC,
+            repeatCount: currentLoop.repeatCount,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
           });
@@ -664,16 +644,11 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         currentLoop.loopDuration = loopDuration;
 
         // Detect absolute-time loops and fix repeat count
-        const fixedRC = fixLoopRepeatCount(
-          currentLoop.childCommands,
-          currentLoop.startTime,
-          currentLoop.repeatCount,
-          currentLoop.loopDuration,
-        );
+        // repeatCount preserved from L command
         // Save to loops array instead of expanding
         currentObject.loops.push({
           startTime: currentLoop.startTime,
-          repeatCount: fixedRC,
+          repeatCount: currentLoop.repeatCount,
           commands: currentLoop.childCommands,
           loopDuration: currentLoop.loopDuration,
         });
@@ -821,21 +796,16 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       if (loopDuration <= 0) loopDuration = 1000;
       currentLoop.loopDuration = loopDuration;
       // Detect absolute-time loops and fix repeat count
-      const fixedRC = fixLoopRepeatCount(
-        currentLoop.childCommands,
-        currentLoop.startTime,
-        currentLoop.repeatCount,
-        currentLoop.loopDuration,
-      );
+      // repeatCount preserved from L command
       // Save to loops array instead of expanding
       currentObject.loops.push({
         startTime: currentLoop.startTime,
-        repeatCount: fixedRC,
+        repeatCount: currentLoop.repeatCount,
         commands: currentLoop.childCommands,
         loopDuration: currentLoop.loopDuration,
       });
-      // Calculate max time from loop iterations (use fixed repeat count)
-      const loopEndTime = currentLoop.startTime + (fixedRC + 1) * currentLoop.loopDuration;
+      // Calculate max time from loop iterations
+      const loopEndTime = currentLoop.startTime + (currentLoop.repeatCount + 1) * currentLoop.loopDuration;
       if (loopEndTime > maxTime) {
         maxTime = loopEndTime;
       }
