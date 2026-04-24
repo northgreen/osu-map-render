@@ -150,6 +150,8 @@ function getLoopCommandValue(
   currentTime: number,
   paramIndex: number,
 ): number | null {
+  let preReadValue: number | null = null;
+
   for (const loop of loops) {
     if (currentTime < loop.startTime) continue;
 
@@ -166,11 +168,43 @@ function getLoopCommandValue(
     // Compute iteration relative to when the first command iteration actually starts
     const firstCmdAbs = loop.startTime + minCmdStart;
     const timeSinceFirstCmd = currentTime - firstCmdAbs;
-    if (timeSinceFirstCmd < 0) continue;
+
+    // osu! behavior: ApplyInitialValue sets StartValue immediately when loop starts
+    // (StoryboardSprite.cs:149, StoryboardLoopingGroup.cs:54)
+    // When loop has started but first command hasn't, return the command's start value
+    if (timeSinceFirstCmd < 0) {
+      for (const cmd of loop.commands) {
+        if (cmd.type !== cmdType) continue;
+        const value = cmd.params[paramIndex];
+        if (
+          value !== undefined &&
+          (preReadValue === null || cmd.startTime < minCmdStart)
+        ) {
+          preReadValue = value;
+        }
+      }
+      continue;
+    }
 
     const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
 
-    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
+    if (loop.repeatCount > 0 && iteration > loop.repeatCount) {
+      // After loop ends, use the end value of the last matching command
+      let lastEndValue: number | null = null;
+      for (const cmd of loop.commands) {
+        if (cmd.type !== cmdType) continue;
+        const endIndex =
+          cmdType === "M" ||
+          cmdType === "MX" ||
+          cmdType === "MY" ||
+          cmdType === "V"
+            ? paramIndex + 2
+            : paramIndex + 1;
+        lastEndValue = cmd.params[endIndex] ?? cmd.params[paramIndex] ?? null;
+      }
+      if (lastEndValue !== null) preReadValue = lastEndValue;
+      continue;
+    }
 
     const iterationStart = firstCmdAbs + iteration * loopDuration;
 
@@ -204,7 +238,8 @@ function getLoopCommandValue(
       }
     }
   }
-  return null;
+
+  return preReadValue;
 }
 
 function interpolateWithEasing(
@@ -726,22 +761,25 @@ function isObjectVisible(
     // Compute iteration relative to when the first command iteration actually starts
     const firstCmdAbs = loop.startTime + minCmdStart;
     const timeSinceFirstCmd = currentTime - firstCmdAbs;
+
+    // Total visible range: loop start to last iteration end
+    // osu! behavior: sprite is visible from loop start (ApplyInitialValue at load time)
+    const totalIterations = loop.repeatCount + 1;
+    const loopWindowEnd = firstCmdAbs + totalIterations * loopDuration;
+
+    // Use loop.startTime as earliest start (pre-read: visible from loop start)
+    if (loop.startTime < earliestStartTime) {
+      earliestStartTime = loop.startTime;
+    }
+    if (loopWindowEnd > latestEndTime) {
+      latestEndTime = loopWindowEnd;
+    }
+
     if (timeSinceFirstCmd < 0) continue;
 
     const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
 
     if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
-
-    // Total visible range: first iteration start to last iteration end
-    const totalIterations = loop.repeatCount + 1;
-    const loopWindowEnd = firstCmdAbs + totalIterations * loopDuration;
-
-    if (firstCmdAbs < earliestStartTime) {
-      earliestStartTime = firstCmdAbs;
-    }
-    if (loopWindowEnd > latestEndTime) {
-      latestEndTime = loopWindowEnd;
-    }
   }
 
   // Object is not visible before first command starts
