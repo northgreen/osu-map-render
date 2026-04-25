@@ -762,14 +762,13 @@ function isObjectVisible(
     const firstCmdAbs = loop.startTime + minCmdStart;
     const timeSinceFirstCmd = currentTime - firstCmdAbs;
 
-    // Total visible range: loop start to last iteration end
-    // osu! behavior: sprite is visible from loop start (ApplyInitialValue at load time)
+    // Total visible range: firstCmdAbs to last iteration end
+    // Sprite is only visible when the first command iteration starts, not from loop.startTime
     const totalIterations = loop.repeatCount + 1;
     const loopWindowEnd = firstCmdAbs + totalIterations * loopDuration;
 
-    // Use loop.startTime as earliest start (pre-read: visible from loop start)
-    if (loop.startTime < earliestStartTime) {
-      earliestStartTime = loop.startTime;
+    if (firstCmdAbs < earliestStartTime) {
+      earliestStartTime = firstCmdAbs;
     }
     if (loopWindowEnd > latestEndTime) {
       latestEndTime = loopWindowEnd;
