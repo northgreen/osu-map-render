@@ -2,12 +2,12 @@ import {
   AbsoluteFill,
   useCurrentFrame,
   useVideoConfig,
-  Img,
   staticFile,
   Audio,
   interpolate,
+  Img,
 } from "remotion";
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { SbObject, SbSample } from "./sbParser";
 import storyboardData from "../generated/storyboard.json";
 import {
@@ -17,9 +17,6 @@ import {
   getVectorScale,
   getRotation,
   getColor,
-  calculateHue,
-  calculateSaturation,
-  calculateBrightness,
   isObjectVisible,
 } from "./storyboard";
 
@@ -46,12 +43,54 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
     height: number;
   } | null>(null);
   const [imgError, setImgError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Compute src early (needed for Img src and callback deps)
+  let src = object.path;
+  if (object.type === "animation" && object.frameCount && object.frameDelay) {
+    const animationStartTime = object.commands[0]?.startTime ?? 0;
+    const totalDuration = object.frameCount * object.frameDelay;
+    const elapsed = currentTime - animationStartTime;
+    const loopType = object.loopType ?? "LoopForever";
+
+    let frameIndex: number;
+    if (loopType === "LoopOnce") {
+      frameIndex =
+        elapsed >= totalDuration
+          ? object.frameCount - 1
+          : Math.floor(elapsed / object.frameDelay) % object.frameCount;
+    } else {
+      frameIndex =
+        Math.floor((elapsed % totalDuration) / object.frameDelay) %
+        object.frameCount;
+    }
+
+    const lastDotIndex = object.path.lastIndexOf(".");
+    if (lastDotIndex !== -1) {
+      src =
+        object.path.slice(0, lastDotIndex) +
+        frameIndex +
+        object.path.slice(lastDotIndex);
+    }
+  }
 
   // osu! behavior: silently skip sprites whose textures can't be loaded
   const handleError = useCallback(() => {
     setImgError(true);
-  }, []);
+    console.error("Img error:", src);
+  }, [src]);
+
+  const handleImgLoad = useCallback(
+    (event: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = event.currentTarget;
+      if (img.naturalWidth && img.naturalHeight) {
+        setImageSize({
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
+      }
+    },
+    [src],
+  );
 
   const loops = object.loops || [];
 
@@ -109,34 +148,6 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   // osu! silently skips rendering when a texture can't be loaded
   if (imgError) return null;
 
-  let src = object.path;
-  if (object.type === "animation" && object.frameCount && object.frameDelay) {
-    const animationStartTime = object.commands[0]?.startTime ?? 0;
-    const totalDuration = object.frameCount * object.frameDelay;
-    const elapsed = currentTime - animationStartTime;
-    const loopType = object.loopType ?? "LoopForever";
-
-    let frameIndex: number;
-    if (loopType === "LoopOnce") {
-      frameIndex =
-        elapsed >= totalDuration
-          ? object.frameCount - 1
-          : Math.floor(elapsed / object.frameDelay) % object.frameCount;
-    } else {
-      frameIndex =
-        Math.floor((elapsed % totalDuration) / object.frameDelay) %
-        object.frameCount;
-    }
-
-    const lastDotIndex = object.path.lastIndexOf(".");
-    if (lastDotIndex !== -1) {
-      src =
-        object.path.slice(0, lastDotIndex) +
-        frameIndex +
-        object.path.slice(lastDotIndex);
-    }
-  }
-
   const originFactors: Record<string, { x: number; y: number }> = {
     TopLeft: { x: 0, y: 0 },
     Centre: { x: 0.5, y: 0.5 },
@@ -163,6 +174,9 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
+  // SVG filter ID for per-pixel color multiplication (unique per sprite)
+  const filterId = `sb-color-${object.id}`;
+
   // CSS transforms for flip and rotation only (scale is already applied to baseWidth/baseHeight)
   const transforms: string[] = [];
 
@@ -185,6 +199,22 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
         height: baseHeight,
       }}
     >
+      {/* SVG filter for per-pixel color multiplication */}
+      {color && (
+        <svg
+          style={{ position: "absolute", width: 0, height: 0 }}
+          aria-hidden="true"
+        >
+          <defs>
+            <filter id={filterId}>
+              <feColorMatrix
+                type="matrix"
+                values={`${color.r} 0 0 0 0 0 ${color.g} 0 0 0 0 0 ${color.b} 0 0 0 0 0 1 0`}
+              />
+            </filter>
+          </defs>
+        </svg>
+      )}
       <div
         style={{
           position: "absolute",
@@ -195,48 +225,18 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
           ...(additive ? { mixBlendMode: "screen" } : {}),
         }}
       >
-        {color ? (
-          <Img
-            ref={imgRef}
-            src={staticFile(src)}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              if (img.naturalWidth && img.naturalHeight) {
-                setImageSize({
-                  width: img.naturalWidth,
-                  height: img.naturalHeight,
-                });
-              }
-            }}
-            onError={handleError}
-            style={{
-              width: "100%",
-              height: "100%",
-              opacity,
-              filter: `brightness(${calculateBrightness(color.r, color.g, color.b)}%) saturate(${calculateSaturation(color.r, color.g, color.b) * 2}%) hue-rotate(${calculateHue(color.r, color.g, color.b)}deg)`,
-            }}
-          />
-        ) : (
-          <Img
-            ref={imgRef}
-            src={staticFile(src)}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              if (img.naturalWidth && img.naturalHeight) {
-                setImageSize({
-                  width: img.naturalWidth,
-                  height: img.naturalHeight,
-                });
-              }
-            }}
-            onError={handleError}
-            style={{
-              width: "100%",
-              height: "100%",
-              opacity,
-            }}
-          />
-        )}
+        <Img
+          src={staticFile(src)}
+          style={{
+            width: "100%",
+            height: "100%",
+            opacity,
+            objectFit: "fill",
+            filter: color ? `url(#${filterId})` : "none",
+          }}
+          onLoad={handleImgLoad}
+          onError={handleError}
+        />
       </div>
     </div>
   );
