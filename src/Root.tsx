@@ -147,24 +147,13 @@ export const RemotionRoot: React.FC = () => {
         schema={maniaRenderSchema}
         defaultProps={{
           time: { beatOffset: 900, timeOffset: 0 },
-          scroll: { scrollSpeed: 20 },
-          judgment: {
-            mode: "custom" as const,
-            offset: 0,
-            showZones: false,
-            customWindows: {
-              perfect: 16.5,
-              great: 41.5,
-              good: 74.5,
-              ok: 104.5,
-              meh: 128.5,
-            },
-          },
+          scroll: { scrollSpeed: 27 },
+          judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 67, judgmentLineY: 1000 },
           contents: {
             trackHeight: true,
             columnHighlights: true,
-            replayCursor: true,
+            replayCursor: false,
             sessionLine: true,
             storyboardEnabled: true,
           },
