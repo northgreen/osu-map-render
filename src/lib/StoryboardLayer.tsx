@@ -71,34 +71,32 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   // Container centered: horizontal offset = (1920-1440)/2 = 240
   // Formula: screenPos = (storyboardPos - centerOffset) * scale + screenCenter
   // Which simplifies to: screenX = 240 + rawPos.x * 2.25, screenY = rawPos.y * 2.25
-  const x =
-    (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2 +
-    rawPos.x * STORYBOARD_SCALE;
-  const y = rawPos.y * STORYBOARD_SCALE;
+  // Container offset (container is centered on screen)
+  const containerOffsetX =
+    (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2;
+  const containerOffsetY =
+    (RENDER_HEIGHT - SB_BASE_HEIGHT * STORYBOARD_SCALE) / 2;
+
+  // Storyboard coordinates scaled by STORYBOARD_SCALE (matching osu! DrawScale)
+  const x = containerOffsetX + rawPos.x * STORYBOARD_SCALE;
+  const y = containerOffsetY + rawPos.y * STORYBOARD_SCALE;
 
   // Image dimensions in render space
   // V command (vector scale): sets absolute size in storyboard units
   // S command (scale): multiplier applied to the base size
   const vectorScale = getVectorScale(object.commands, loops, currentTime);
-  const rawScale = vectorScale
-    ? null // V command takes precedence, S command is ignored
-    : getScale(object.commands, loops, currentTime);
+  const rawScale = getScale(object.commands, loops, currentTime);
 
-  // Use actual image dimensions when loaded
   const nativeWidth = imageSize?.width ?? 640;
   const nativeHeight = imageSize?.height ?? 480;
 
-  // Calculate base size (includes vector scale if present)
   const vectorScaleX = vectorScale ? vectorScale.x : 1;
   const vectorScaleY = vectorScale ? vectorScale.y : 1;
-  let baseWidth = nativeWidth * STORYBOARD_SCALE * vectorScaleX;
-  let baseHeight = nativeHeight * STORYBOARD_SCALE * vectorScaleY;
 
-  // Apply S command scale to the size (not just as CSS transform)
-  if (rawScale !== null && rawScale !== 1) {
-    baseWidth *= rawScale;
-    baseHeight *= rawScale;
-  }
+  // Size = nativeSize * STORYBOARD_SCALE * VectorScale * Scale
+  // STORYBOARD_SCALE converts from storyboard space to render space (matching osu! DrawScale)
+  const baseWidth = nativeWidth * STORYBOARD_SCALE * vectorScaleX * rawScale;
+  const baseHeight = nativeHeight * STORYBOARD_SCALE * vectorScaleY * rawScale;
 
   const calculatedOpacity = getOpacity(object.commands, loops, currentTime);
   let opacity = calculatedOpacity;

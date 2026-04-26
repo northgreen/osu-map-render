@@ -77,7 +77,11 @@ export function getLoopCommandValue(
 
       if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
         const cmdDuration = cmdEndAbs - cmdStartAbs;
-        if (cmdDuration <= 0) continue;
+        if (cmdDuration <= 0) {
+          // Instant command: return the start value (osu! ApplyInitialValue behavior)
+          // Position persists after the instant change
+          return cmd.params[paramIndex];
+        }
 
         const relTimeInCmd = currentTime - cmdStartAbs;
         const t = relTimeInCmd / cmdDuration;
@@ -94,6 +98,9 @@ export function getLoopCommandValue(
 
         const easedT = applyEasing(t, cmd.easing);
         return iterStartValue + (iterEndValue - iterStartValue) * easedT;
+      } else if (currentTime > cmdEndAbs && cmdEndAbs - cmdStartAbs === 0) {
+        // Instant command has ended - position persists (osu! behavior)
+        preReadValue = cmd.params[paramIndex];
       }
     }
   }
