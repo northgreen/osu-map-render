@@ -7,11 +7,10 @@ import { HitObject } from "./osuParser";
 export interface DifficultyResult {
   stars: number;
   maxCombo: number;
-  pp: number;
+  difficulty: number;
+  total: number;
   ppComponents: {
-    aim: number;
-    speed: number;
-    accuracy: number;
+    difficulty: number;
   };
 }
 
@@ -102,7 +101,8 @@ export function calculateDifficulty(
   const result = {
     stars: Math.round(starRating * 100) / 100,
     maxCombo,
-    pp: ppResult.total,
+    difficulty: ppResult.difficulty,
+    total: ppResult.total,
     ppComponents: ppResult.components,
   };
 
@@ -120,9 +120,19 @@ function calculateMaxCombo(hitObjects: HitObject[]): number {
 }
 
 // ============================================
-// PP Calculation
+// PP Calculation (osu!mania formula)
 // ============================================
 
+/**
+ * osu!mania PP calculation based on ManiaPerformanceCalculator.cs
+ *
+ * Formula:
+ *   difficultyValue = 8.0 * pow(max(stars - 0.15, 0.05), 2.2)
+ *                   * max(0, 5 * accuracy - 4)
+ *                   * (1 + 0.1 * min(1, totalHits / 1500))
+ *
+ * Accuracy uses mania weights: Perfect=320, Great=300, Good=200, Ok=100, Meh=50
+ */
 function calculatePP(
   beatmap: {
     hitObjects: HitObject[];
@@ -133,46 +143,74 @@ function calculatePP(
   replayData?: { hitResults: number[] },
 ): {
   total: number;
-  components: { aim: number; speed: number; accuracy: number };
+  difficulty: number;
+  components: { difficulty: number };
 } {
   const hitObjects = beatmap.hitObjects;
   const totalNotes = hitObjects.length;
 
   if (totalNotes === 0) {
-    return { total: 0, components: { aim: 0, speed: 0, accuracy: 0 } };
+    return { total: 0, difficulty: 0, components: { difficulty: 0 } };
   }
 
-  let count300 = totalNotes;
-  let count100 = 0;
-  let count50 = 0;
+  // Parse hit results into mania judgment counts
+  // hitResults uses osu!mania values: 320=Perfect, 300=Great, 200=Good, 100=Ok, 50=Meh, 0=Miss
+  let countPerfect = 0;
+  let countGreat = 0;
+  let countGood = 0;
+  let countOk = 0;
+  let countMeh = 0;
+  let countMiss = 0;
 
   if (replayData?.hitResults) {
-    count300 = replayData.hitResults.filter((r) => r === 300).length;
-    count100 = replayData.hitResults.filter((r) => r === 100).length;
-    count50 = replayData.hitResults.filter((r) => r === 50).length;
+    for (const result of replayData.hitResults) {
+      if (result === 320) countPerfect++;
+      else if (result === 300) countGreat++;
+      else if (result === 200) countGood++;
+      else if (result === 100) countOk++;
+      else if (result === 50) countMeh++;
+      else countMiss++;
+    }
+  } else {
+    // Default: all Perfect
+    countPerfect = totalNotes;
   }
 
+  const totalHits =
+    countPerfect + countGreat + countGood + countOk + countMeh + countMiss;
+
+  // osu!mania accuracy calculation (ManiaPerformanceCalculator.cs:72-78)
   const accuracy =
-    (count300 * 300 + count100 * 100 + count50 * 50) / (totalNotes * 300);
+    totalHits > 0
+      ? (countPerfect * 320 +
+          countGreat * 300 +
+          countGood * 200 +
+          countOk * 100 +
+          countMeh * 50) /
+        (totalHits * 320)
+      : 0;
 
-  const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
-  const speedPP = stars * 0.5 * accuracy;
-  const accPP = accuracy * accuracy * 100;
+  // osu!mania PP formula (ManiaPerformanceCalculator.cs:60-62)
+  // difficultyValue = 8.0 * pow(max(stars - 0.15, 0.05), 2.2)
+  //                 * max(0, 5 * accuracy - 4)
+  //                 * (1 + 0.1 * min(1, totalHits / 1500))
+  const starRatingFactor = 8.0 * Math.pow(Math.max(stars - 0.15, 0.05), 2.2);
+  const accuracyFactor = Math.max(0, 5 * accuracy - 4);
+  const lengthFactor = 1 + 0.1 * Math.min(1, totalHits / 1500);
 
-  const comboMultiplier = Math.min(1, maxCombo / 500);
-  const total = Math.round((aimPP + speedPP + accPP) * comboMultiplier);
+  const difficultyValue = starRatingFactor * accuracyFactor * lengthFactor;
+  const total = Math.round(difficultyValue);
 
   return {
     total,
+    difficulty: Math.round(difficultyValue),
     components: {
-      aim: Math.round(aimPP),
-      speed: Math.round(speedPP),
-      accuracy: Math.round(accPP),
+      difficulty: Math.round(difficultyValue),
     },
   };
 }
 
-// Real-time PP calculation
+// Real-time PP calculation (osu!mania formula)
 export function calculateRealtimePP(
   beatmap: {
     hitObjects: HitObject[];
@@ -186,27 +224,44 @@ export function calculateRealtimePP(
   currentTime: number,
   currentCombo: number,
   judgmentCounts: {
-    count300: number;
-    count100: number;
-    count50: number;
+    countPerfect: number;
+    countGreat: number;
+    countGood: number;
+    countOk: number;
+    countMeh: number;
     countMiss: number;
   },
 ): number {
-  const { hitObjects } = beatmap;
   const stars = calculateDifficulty(beatmap).stars;
 
-  const totalNotes = hitObjects.length;
-  const totalScore =
-    judgmentCounts.count300 * 300 +
-    judgmentCounts.count100 * 100 +
-    judgmentCounts.count50 * 50;
-  const maxPossibleScore = totalNotes * 300;
-  const accuracy = maxPossibleScore > 0 ? totalScore / maxPossibleScore : 0;
+  const {
+    countPerfect,
+    countGreat,
+    countGood,
+    countOk,
+    countMeh,
+    countMiss,
+  } = judgmentCounts;
 
-  const aimPP = stars * 0.8 * (1 + accuracy * 0.5);
-  const speedPP = stars * 0.5 * accuracy;
-  const accPP = accuracy * accuracy * 100;
+  const totalHits =
+    countPerfect + countGreat + countGood + countOk + countMeh + countMiss;
 
-  const comboMultiplier = Math.min(1, currentCombo / 500);
-  return Math.round((aimPP + speedPP + accPP) * comboMultiplier);
+  // osu!mania accuracy calculation
+  const accuracy =
+    totalHits > 0
+      ? (countPerfect * 320 +
+          countGreat * 300 +
+          countGood * 200 +
+          countOk * 100 +
+          countMeh * 50) /
+        (totalHits * 320)
+      : 0;
+
+  // osu!mania PP formula
+  const starRatingFactor = 8.0 * Math.pow(Math.max(stars - 0.15, 0.05), 2.2);
+  const accuracyFactor = Math.max(0, 5 * accuracy - 4);
+  const lengthFactor = 1 + 0.1 * Math.min(1, totalHits / 1500);
+
+  const difficultyValue = starRatingFactor * accuracyFactor * lengthFactor;
+  return Math.round(difficultyValue);
 }

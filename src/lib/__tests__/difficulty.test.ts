@@ -51,7 +51,7 @@ describe("calculateDifficulty", () => {
     const result = calculateDifficulty(beatmap);
     expect(result.stars).toBe(0);
     expect(result.maxCombo).toBe(0);
-    expect(result.pp).toBe(0);
+    expect(result.difficulty).toBe(0);
   });
 
   it("should calculate difficulty for a simple beatmap", () => {
@@ -59,7 +59,7 @@ describe("calculateDifficulty", () => {
     const result = calculateDifficulty(beatmap);
     expect(result.stars).toBeGreaterThan(0);
     expect(result.maxCombo).toBe(100);
-    expect(result.pp).toBeGreaterThanOrEqual(0);
+    expect(result.difficulty).toBeGreaterThanOrEqual(0);
   });
 
   it("should return correct maxCombo", () => {
@@ -71,9 +71,7 @@ describe("calculateDifficulty", () => {
   it("should return ppComponents structure", () => {
     const beatmap = createTestBeatmap(100, 4, 5);
     const result = calculateDifficulty(beatmap);
-    expect(result.ppComponents).toHaveProperty("aim");
-    expect(result.ppComponents).toHaveProperty("speed");
-    expect(result.ppComponents).toHaveProperty("accuracy");
+    expect(result.ppComponents).toHaveProperty("difficulty");
   });
 
   it("should cache results for same beatmap", () => {
@@ -99,27 +97,33 @@ describe("calculateRealtimePP", () => {
   it("should return 0 for perfect accuracy with no combo", () => {
     const beatmap = createTestBeatmap(100, 4, 5);
     const pp = calculateRealtimePP(beatmap, 0, 0, {
-      count300: 0,
-      count100: 0,
-      count50: 0,
+      countPerfect: 0,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 0,
     });
-    // With 0 combo, multiplier = 0/500 = 0
+    // With 0 hits, accuracy = 0, so accuracyFactor = max(0, 5*0 - 4) = 0
     expect(pp).toBe(0);
   });
 
   it("should increase PP with more hits", () => {
     const beatmap = createTestBeatmap(100, 4, 5);
     const pp1 = calculateRealtimePP(beatmap, 0, 50, {
-      count300: 50,
-      count100: 0,
-      count50: 0,
+      countPerfect: 50,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 0,
     });
     const pp2 = calculateRealtimePP(beatmap, 0, 100, {
-      count300: 100,
-      count100: 0,
-      count50: 0,
+      countPerfect: 100,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 0,
     });
     expect(pp2).toBeGreaterThan(pp1);
@@ -128,15 +132,19 @@ describe("calculateRealtimePP", () => {
   it("should decrease PP with misses", () => {
     const beatmap = createTestBeatmap(100, 4, 5);
     const ppNoMiss = calculateRealtimePP(beatmap, 0, 100, {
-      count300: 100,
-      count100: 0,
-      count50: 0,
+      countPerfect: 100,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 0,
     });
     const ppWithMiss = calculateRealtimePP(beatmap, 0, 100, {
-      count300: 90,
-      count100: 0,
-      count50: 0,
+      countPerfect: 90,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 10,
     });
     expect(ppWithMiss).toBeLessThan(ppNoMiss);
@@ -145,9 +153,11 @@ describe("calculateRealtimePP", () => {
   it("should handle empty beatmap", () => {
     const beatmap = createTestBeatmap(0);
     const pp = calculateRealtimePP(beatmap, 0, 0, {
-      count300: 0,
-      count100: 0,
-      count50: 0,
+      countPerfect: 0,
+      countGreat: 0,
+      countGood: 0,
+      countOk: 0,
+      countMeh: 0,
       countMiss: 0,
     });
     expect(pp).toBe(0);

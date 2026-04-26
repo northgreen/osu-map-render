@@ -105,10 +105,12 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
 
   // Calculate real-time PP (using actual judgment counts and real combo)
   const realtimePP = calculateRealtimePP(beatmap, currentTime, maxCombo, {
-    count300: countPerfect + countGreat,
-    count100: countGood + countOk,
-    count50: countMeh,
-    countMiss: countMiss,
+    countPerfect,
+    countGreat,
+    countGood,
+    countOk,
+    countMeh,
+    countMiss,
   });
 
   return (

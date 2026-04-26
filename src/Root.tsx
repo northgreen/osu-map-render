@@ -150,7 +150,7 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: {
             mode: "custom" as const,
-            offset: -15,
+            offset: 0,
             showZones: false,
             customWindows: {
               perfect: 16.5,

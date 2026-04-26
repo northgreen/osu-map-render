@@ -3,6 +3,24 @@ import * as fs from "fs";
 // Use a reasonable "infinite" duration (24 hours in ms) instead of INFINITE_DURATION
 const INFINITE_DURATION = 24 * 60 * 60 * 1000; // 86400000ms
 
+/**
+ * Calculate loop duration from the span of child command times.
+ * Returns max(endTime) - min(startTime), defaulting to 1000ms when <= 0.
+ */
+function calculateLoopDuration(commands: SbCommand[]): number {
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+  for (const cmd of commands) {
+    if (cmd.startTime < minStart) minStart = cmd.startTime;
+    if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
+      maxEnd = cmd.endTime;
+    }
+  }
+  let loopDuration = maxEnd - minStart;
+  if (loopDuration <= 0) loopDuration = 1000;
+  return loopDuration;
+}
+
 // ============================================
 // Types
 // ============================================
@@ -515,22 +533,8 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       if (currentObject) {
         // Flush any pending loop to loops array before saving
         if (currentLoop && currentLoop.childCommands.length > 0) {
-          // Calculate loop duration from the span of command times (not filtering)
-          // For relative loops: times are relative to loop start (e.g., 0, 391, 1955)
-          // For absolute loops: times are absolute (e.g., 106490, 106827)
-          // In both cases, loop duration = max(endTime) - min(startTime)
-          let minStart = Infinity;
-          let maxEnd = -Infinity;
-          for (const cmd of currentLoop.childCommands) {
-            if (cmd.startTime < minStart) minStart = cmd.startTime;
-            if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
-              maxEnd = cmd.endTime;
-            }
-          }
-          let loopDuration = maxEnd - minStart;
-          // If all commands have infinite end time or duration is 0, use a reasonable default
-          if (loopDuration <= 0) loopDuration = 1000;
-          currentLoop.loopDuration = loopDuration;
+          // Calculate loop duration from the span of command times
+          currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
           // repeatCount preserved from L command (osu! behavior: repeatCount + 1 total iterations)
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
@@ -572,22 +576,8 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       if (currentObject) {
         // Flush any pending loop to loops array before saving
         if (currentLoop && currentLoop.childCommands.length > 0) {
-          // Calculate loop duration from the span of command times (not filtering)
-          // For relative loops: times are relative to loop start (e.g., 0, 391, 1955)
-          // For absolute loops: times are absolute (e.g., 106490, 106827)
-          // In both cases, loop duration = max(endTime) - min(startTime)
-          let minStart = Infinity;
-          let maxEnd = -Infinity;
-          for (const cmd of currentLoop.childCommands) {
-            if (cmd.startTime < minStart) minStart = cmd.startTime;
-            if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
-              maxEnd = cmd.endTime;
-            }
-          }
-          let loopDuration = maxEnd - minStart;
-          // If all commands have infinite end time or duration is 0, use a reasonable default
-          if (loopDuration <= 0) loopDuration = 1000;
-          currentLoop.loopDuration = loopDuration;
+          // Calculate loop duration from the span of command times
+          currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
           // repeatCount preserved from L command (osu! behavior: repeatCount + 1 total iterations)
           // Keep command times as-is (relative to loop start)
           // Runtime will calculate absolute times based on iteration
@@ -631,17 +621,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       // Save previous loop to loops array (don't expand)
       if (currentLoop && currentLoop.childCommands.length > 0) {
         // Calculate loop duration from the span of command times
-        let minStart = Infinity;
-        let maxEnd = -Infinity;
-        for (const cmd of currentLoop.childCommands) {
-          if (cmd.startTime < minStart) minStart = cmd.startTime;
-          if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
-            maxEnd = cmd.endTime;
-          }
-        }
-        let loopDuration = maxEnd - minStart;
-        if (loopDuration <= 0) loopDuration = 1000;
-        currentLoop.loopDuration = loopDuration;
+        currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
 
         // Detect absolute-time loops and fix repeat count
         // repeatCount preserved from L command
@@ -784,17 +764,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     // Flush any pending loop to loops array before saving
     if (currentLoop && currentLoop.childCommands.length > 0) {
       // Calculate loop duration from the span of command times
-      let minStart = Infinity;
-      let maxEnd = -Infinity;
-      for (const cmd of currentLoop.childCommands) {
-        if (cmd.startTime < minStart) minStart = cmd.startTime;
-        if (cmd.endTime > maxEnd && cmd.endTime !== INFINITE_DURATION) {
-          maxEnd = cmd.endTime;
-        }
-      }
-      let loopDuration = maxEnd - minStart;
-      if (loopDuration <= 0) loopDuration = 1000;
-      currentLoop.loopDuration = loopDuration;
+      currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
       // Detect absolute-time loops and fix repeat count
       // repeatCount preserved from L command
       // Save to loops array instead of expanding

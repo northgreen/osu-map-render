@@ -449,7 +449,7 @@ async function main() {
     const sbOutputPath = path.join(
       process.cwd(),
       "src",
-      "lib",
+      "generated",
       "storyboard.json",
     );
     fs.writeFileSync(sbOutputPath, JSON.stringify(mergedStoryboard, null, 2));
