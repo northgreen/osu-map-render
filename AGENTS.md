@@ -1,5 +1,7 @@
 # AGENTS.md
 
+对于toolcall不要直接输出xml
+
 ## Project
 
 Remotion 4.x project for rendering osu!mania beatmap videos. React + TypeScript + Tailwind v4.
@@ -85,3 +87,26 @@ Props are nested objects: `{ time: { beatOffset, timeOffset }, scroll: { scrollS
 - **ESLint**: uses `@remotion/eslint-config-flat` (flat config in `eslint.config.mjs`)
 - **Vitest** - test framework for unit tests (`npm run test`)
 - **Prettier**: 2-space, no tabs, bracketSpacing true
+
+## Reference Documentation
+
+When unsure about storyboard behavior or osu! specific implementation details:
+
+1. **OSU-SBDOC.md** - Chinese translation of official osu! storyboarding specifications. Contains detailed documentation on:
+   - Sprite/Animation object syntax and parameters
+   - All command types (F/M/S/V/R/C/P) with examples
+   - Easing functions (0-34)
+   - Loop (L) and Trigger (T) commands
+   - Variable substitution
+   - Shorthand syntax rules
+   - Layer priority and rendering order
+
+2. **Original osu! source code** - Available at `~/Projects/osu/` for reference on:
+   - Hit window calculations
+   - Judgment algorithms
+   - ScoreV1/ScoreV2 differences
+   - Replay data format
+   - StoryBoard Logic
+   - and so on
+
+3. **Parsed JSON outputs** - Check `src/generated/storyboard.json` for actual parsed data structure and command sequences
