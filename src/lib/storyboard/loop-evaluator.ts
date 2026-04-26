@@ -58,7 +58,9 @@ export function getLoopCommandValue(
           cmdType === "MY" ||
           cmdType === "V"
             ? paramIndex + 2
-            : paramIndex + 1;
+            : cmdType === "C"
+              ? paramIndex + 3 // C commands: [r1, g1, b1, r2, g2, b2]
+              : paramIndex + 1;
         lastEndValue = cmd.params[endIndex] ?? cmd.params[paramIndex] ?? null;
       }
       if (lastEndValue !== null) preReadValue = lastEndValue;
@@ -92,7 +94,9 @@ export function getLoopCommandValue(
           cmdType === "MY" ||
           cmdType === "V"
             ? paramIndex + 2
-            : paramIndex + 1;
+            : cmdType === "C"
+              ? paramIndex + 3 // C commands: [r1, g1, b1, r2, g2, b2]
+              : paramIndex + 1;
         const iterStartValue = cmd.params[paramIndex];
         const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
 

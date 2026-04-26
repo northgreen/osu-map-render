@@ -2,6 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { listFiles, selectFile, matchFile, getCheartDir } from "./selectFile";
 import { parseStoryboardFile } from "../src/lib/sbParser";
+import { extractScrollVelocitySegments } from "../src/lib/scrollVelocity";
+import type { ScrollVelocitySegment } from "../src/lib/scrollVelocity";
 
 interface BeatmapMetadata {
   title: string;
@@ -55,7 +57,8 @@ interface ParsedBeatmap {
   audioFile: string;
   mode: number;
   backgroundImage?: string;
-  storyboardEvents?: string[]; // Storyboard events from .osu file
+  storyboardEvents?: string[];
+  scrollVelocitySegments?: ScrollVelocitySegment[];
 }
 
 function parseSection(content: string, section: string): string[] {
@@ -229,6 +232,8 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     }
   }
 
+  const scrollVelocitySegments = extractScrollVelocitySegments(timingPoints);
+
   // Parse HitObjects
   const hitObjectLines = parseSection(content, "HitObjects");
   const hitObjects: HitObject[] = [];
@@ -280,6 +285,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     mode: parseInt(general["Mode"]) || 0,
     backgroundImage,
     storyboardEvents,
+    scrollVelocitySegments,
   };
 }
 

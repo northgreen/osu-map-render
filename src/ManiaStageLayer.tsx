@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
+import { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
 import { replay } from "./lib/replay";
 import { getHitWindows } from "./lib/judgment";
 import {
@@ -96,6 +97,14 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   // Calculate visible time based on AR and scroll speed - use consistent BASE_VISIBLE_TIME
   const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
   const visibleTime = baseVisibleTime * (10 / scrollSpeed);
+
+  const scrollAlgorithm = useMemo(() => {
+    const svSegments = beatmap?.scrollVelocitySegments;
+    if (svSegments && svSegments.length > 0) {
+      return new SequentialScrollAlgorithm(svSegments, visibleTime);
+    }
+    return null;
+  }, [beatmap?.scrollVelocitySegments, visibleTime]);
 
   // Compute actual positions with offsets
   const stageX = STAGE_X + stageOffset;
@@ -216,7 +225,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
 
           if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
 
-          const progress = 1 - timeUntilHit / visibleTime;
+          const progress = scrollAlgorithm
+            ? scrollAlgorithm.getProgress(time, currentTime)
+            : 1 - timeUntilHit / visibleTime;
           const y = progress * judgmentY;
           const isBarLine =
             time === 0 ||
@@ -283,7 +294,9 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           const windows = getHitWindows(od);
 
           // Calculate note position
-          const progress = 1 - timeUntilHit / visibleTime;
+          const progress = scrollAlgorithm
+            ? scrollAlgorithm.getProgress(note.time, currentTime)
+            : 1 - timeUntilHit / visibleTime;
           const noteY = progress * judgmentY;
           if (isNaN(noteY)) return null;
 
@@ -407,6 +420,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           key={`${note.time}-${note.column}-${index}`}
           note={note}
           scrollSpeed={scrollSpeed}
+          scrollAlgorithm={scrollAlgorithm}
           judgmentLineY={judgmentLineY}
           stageOffset={stageOffset}
         />
@@ -416,6 +430,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       {showReplayCursor && (
         <ReplayCursor
           scrollSpeed={scrollSpeed}
+          scrollAlgorithm={scrollAlgorithm}
           stageOffset={stageOffset}
           judgmentLineY={judgmentLineY}
         />

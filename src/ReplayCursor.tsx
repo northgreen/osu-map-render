@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { replay } from "./lib/replay";
+import type { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
 import { getKeyIntervals } from "./lib/judgment";
 import { getJudgmentResults, getJudgmentColor } from "./lib/judgment";
 import { beatmap } from "./lib/osuParser";
@@ -19,12 +20,14 @@ function getVisibleTime(scrollSpeed: number): number {
 
 interface ReplayCursorProps {
   scrollSpeed?: number;
+  scrollAlgorithm?: SequentialScrollAlgorithm | null;
   stageOffset?: number;
   judgmentLineY?: number;
 }
 
 export const ReplayCursor: React.FC<ReplayCursorProps> = ({
   scrollSpeed = DEFAULT_SCROLL_SPEED,
+  scrollAlgorithm = null,
   stageOffset = 0,
   judgmentLineY: jy = JUDGMENT_LINE_Y,
 }) => {
@@ -58,8 +61,12 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = ({
     if (interval.end < visibleStart || interval.start > visibleEnd) continue;
 
     // Calculate progress for start and end times
-    const startProgress = 1 - (interval.start - currentTime) / VISIBLE_TIME;
-    const endProgress = 1 - (interval.end - currentTime) / VISIBLE_TIME;
+    const startProgress = scrollAlgorithm
+      ? scrollAlgorithm.getProgress(interval.start, currentTime)
+      : 1 - (interval.start - currentTime) / VISIBLE_TIME;
+    const endProgress = scrollAlgorithm
+      ? scrollAlgorithm.getProgress(interval.end, currentTime)
+      : 1 - (interval.end - currentTime) / VISIBLE_TIME;
 
     // Calculate Y positions
     const clampedStartProgress = Math.max(0, Math.min(1, startProgress));

@@ -1,5 +1,6 @@
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { HitObject } from "./lib/osuParser";
+import type { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
 import {
   SCROLL_SPEED,
   BASE_VISIBLE_TIME,
@@ -14,6 +15,7 @@ import {
 interface ManiaNoteProps {
   note: HitObject;
   scrollSpeed?: number;
+  scrollAlgorithm?: SequentialScrollAlgorithm | null;
   judgmentLineY?: number;
   stageOffset?: number;
 }
@@ -27,6 +29,7 @@ function getVisibleTime(scrollSpeed: number): number {
 export const ManiaNote: React.FC<ManiaNoteProps> = ({
   note,
   scrollSpeed = SCROLL_SPEED,
+  scrollAlgorithm = null,
   judgmentLineY: jy = JUDGMENT_LINE_Y,
   stageOffset = 0,
 }) => {
@@ -62,8 +65,12 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
 
   // === Render Long Note ===
   if (isLongNote && endTime) {
-    const headProgress = 1 - timeUntilStart / VISIBLE_TIME;
-    const tailProgress = 1 - timeUntilEnd / VISIBLE_TIME;
+    const headProgress = scrollAlgorithm
+      ? scrollAlgorithm.getProgress(startTime, currentTime)
+      : 1 - timeUntilStart / VISIBLE_TIME;
+    const tailProgress = scrollAlgorithm
+      ? scrollAlgorithm.getProgress(endTime, currentTime)
+      : 1 - timeUntilEnd / VISIBLE_TIME;
 
     // Clamp progress to valid range (0 = at top, 1 = at judgment line)
     const clampedHeadProgress = Math.max(0, Math.min(1, headProgress));
@@ -148,7 +155,9 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
     return null;
   }
 
-  const progress = 1 - timeUntilStart / VISIBLE_TIME;
+  const progress = scrollAlgorithm
+    ? scrollAlgorithm.getProgress(startTime, currentTime)
+    : 1 - timeUntilStart / VISIBLE_TIME;
   const y = interpolate(progress, [0, 1], [-NOTE_HEIGHT, jy]);
 
   const isHit = Math.abs(timeUntilStart) < 50;

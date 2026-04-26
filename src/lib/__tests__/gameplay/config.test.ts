@@ -15,7 +15,7 @@ import {
   COLUMN_POSITIONS_NOTE,
   COLUMN_COLORS,
   config,
-} from "../../config";
+} from "../../../config";
 
 // ============================================
 // Stage Width Tests

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getBeatmapDuration, ParsedBeatmap } from "../osuParser";
+import { getBeatmapDuration, ParsedBeatmap } from "../../osuParser";
 
 function createMockBeatmap(
   hitObjects: Partial<ParsedBeatmap["hitObjects"][0]>[],

@@ -1,4 +1,5 @@
 import beatmapData from "../generated/beatmap.json";
+import type { ScrollVelocitySegment } from "./scrollVelocity";
 
 export interface BeatmapMetadata {
   title: string;
@@ -52,6 +53,7 @@ export interface ParsedBeatmap {
   audioFile: string;
   mode: number;
   backgroundImage?: string;
+  scrollVelocitySegments?: ScrollVelocitySegment[];
 }
 
 // Export the pre-loaded beatmap data

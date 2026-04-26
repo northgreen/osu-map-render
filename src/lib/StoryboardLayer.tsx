@@ -8,7 +8,7 @@ import {
   Img,
 } from "remotion";
 import { useMemo, useState, useCallback } from "react";
-import { SbObject, SbSample } from "./sbParser";
+import { SbObject, SbSample, SbLoop } from "./sbParser";
 import storyboardData from "../generated/storyboard.json";
 import {
   getOpacity,
@@ -20,9 +20,49 @@ import {
   isObjectVisible,
 } from "./storyboard";
 
+// ─── Color Filter Helpers ───────────────────────────────────────────────────
+//
+// Why SVG filter? CSS `filter` does not support per-channel color matrix
+// multiplication. The SVG `feColorMatrix` is the only browser-native way to
+// apply osu! storyboard C (color) commands accurately.
+//
+// Optimization: Instead of creating a per-sprite <svg><filter> element (which
+// causes DOM bloat with many sprites), we compute all unique colors at the
+// layer level and render a single global <svg> with all filter definitions.
+// Sprites reference filters by a stable ID derived from their color values.
+
+/** Compute a stable filter ID from an RGB color triplet. */
+function colorToFilterId(color: {
+  r: number;
+  g: number;
+  b: number;
+}): string {
+  // Round to 3 decimals for stable IDs despite floating-point imprecision
+  const r = Math.round(color.r * 1000);
+  const g = Math.round(color.g * 1000);
+  const b = Math.round(color.b * 1000);
+  return `sb-color-${r}-${g}-${b}`;
+}
+
+/** Compute the effective color for an object at a given time. */
+function computeObjectColor(
+  object: SbObject,
+  loops: SbLoop[],
+  currentTime: number,
+): { r: number; g: number; b: number } | null {
+  if (loops.length > 0) {
+    for (let i = loops.length - 1; i >= 0; i--) {
+      const loopResult = getColor(loops[i].commands, [], currentTime);
+      if (loopResult) return loopResult;
+    }
+  }
+  return getColor(object.commands, [], currentTime);
+}
+
 interface SbSpriteProps {
   object: SbObject;
   currentTime: number;
+  colorFilterId: string | null;
 }
 
 const SB_BASE_WIDTH = 640;
@@ -37,7 +77,11 @@ const STORYBOARD_SCALE = RENDER_HEIGHT / SB_BASE_HEIGHT; // 2.25
 
 // SbSprite: inside scaled container, uses 640x480 coordinates
 // 但 S 命令的 scale 是相对于原图，不应该被全局缩放
-const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
+const SbSprite: React.FC<SbSpriteProps> = ({
+  object,
+  currentTime,
+  colorFilterId,
+}) => {
   const [imageSize, setImageSize] = useState<{
     width: number;
     height: number;
@@ -141,7 +185,6 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   let opacity = calculatedOpacity;
   if (opacity > 1) opacity = opacity % 1;
   const rotation = getRotation(object.commands, loops, currentTime);
-  const color = getColor(object.commands, loops, currentTime);
 
   if (!isObjectVisible(object.commands, loops, currentTime)) return null;
 
@@ -174,9 +217,6 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // SVG filter ID for per-pixel color multiplication (unique per sprite)
-  const filterId = `sb-color-${object.id}`;
-
   // CSS transforms for flip and rotation only (scale is already applied to baseWidth/baseHeight)
   const transforms: string[] = [];
 
@@ -199,22 +239,6 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
         height: baseHeight,
       }}
     >
-      {/* SVG filter for per-pixel color multiplication */}
-      {color && (
-        <svg
-          style={{ position: "absolute", width: 0, height: 0 }}
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id={filterId}>
-              <feColorMatrix
-                type="matrix"
-                values={`${color.r} 0 0 0 0 0 ${color.g} 0 0 0 0 0 ${color.b} 0 0 0 0 0 1 0`}
-              />
-            </filter>
-          </defs>
-        </svg>
-      )}
       <div
         style={{
           position: "absolute",
@@ -232,7 +256,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({ object, currentTime }) => {
             height: "100%",
             opacity,
             objectFit: "fill",
-            filter: color ? `url(#${filterId})` : "none",
+            filter: colorFilterId ? `url(#${colorFilterId})` : "none",
           }}
           onLoad={handleImgLoad}
           onError={handleError}
@@ -247,6 +271,35 @@ interface StoryboardLayerProps {
   layer?: "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
   isFailing?: boolean;
 }
+
+// ─── GlobalColorFilters ─────────────────────────────────────────────────────
+// Single SVG element containing all color filter definitions for the layer.
+// Deduplicates colors so that sprites sharing the same color reuse the filter.
+const GlobalColorFilters: React.FC<{
+  colors: Set<string>;
+  colorMap: Map<string, { r: number; g: number; b: number }>;
+}> = ({ colors, colorMap }) => {
+  if (colors.size === 0) return null;
+
+  return (
+    <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
+      <defs>
+        {Array.from(colors).map((filterId) => {
+          const color = colorMap.get(filterId);
+          if (!color) return null;
+          return (
+            <filter key={filterId} id={filterId}>
+              <feColorMatrix
+                type="matrix"
+                values={`${color.r} 0 0 0 0 0 ${color.g} 0 0 0 0 0 ${color.b} 0 0 0 0 0 1 0`}
+              />
+            </filter>
+          );
+        })}
+      </defs>
+    </svg>
+  );
+};
 
 export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
   storyboard = [],
@@ -266,6 +319,28 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
     });
   }, [storyboard, layer, isFailing]);
 
+  // Compute unique colors and build a filter ID map for all visible sprites
+  const { colorFilterMap, uniqueColors, colorMap } = useMemo(() => {
+    const filterMap = new Map<string, string | null>();
+    const colors = new Set<string>();
+    const colorMap = new Map<string, { r: number; g: number; b: number }>();
+
+    for (const obj of layerObjects) {
+      const loops = obj.loops || [];
+      const color = computeObjectColor(obj, loops, currentTime);
+      if (color) {
+        const filterId = colorToFilterId(color);
+        colors.add(filterId);
+        colorMap.set(filterId, color);
+        filterMap.set(obj.id, filterId);
+      } else {
+        filterMap.set(obj.id, null);
+      }
+    }
+
+    return { colorFilterMap: filterMap, uniqueColors: colors, colorMap };
+  }, [layerObjects, currentTime]);
+
   // SbSprite now handles STORYBOARD_SCALE internally, so we don't need wrapper scaling
   // Position directly uses render coordinates (1920x1080)
   // Each sprite has its own z-index based on original JSON order
@@ -283,11 +358,14 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
           // DOM order determines z-order: later sprites render on top
         }}
       >
+        {/* Single global SVG with all color filter definitions */}
+        <GlobalColorFilters colors={uniqueColors} colorMap={colorMap} />
         {layerObjects.map((obj, index) => (
           <SbSprite
             key={`${obj.id}-${index}`}
             object={obj}
             currentTime={currentTime}
+            colorFilterId={colorFilterMap.get(obj.id) ?? null}
           />
         ))}
       </div>

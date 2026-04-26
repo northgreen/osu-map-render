@@ -9,7 +9,7 @@ import {
   getJudgmentColor,
   getJudgmentScore,
   clearJudgmentCache,
-} from "../judgment";
+} from "../../judgment";
 
 // ============================================
 // Hit Window Tests (verified against osu! source)

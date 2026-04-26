@@ -9,12 +9,12 @@ import { describe, it, expect } from "vitest";
 
 describe("osrParser module", () => {
   it("should export parseOsuReplay function", async () => {
-    const { parseOsuReplay } = await import("../osrParser");
+    const { parseOsuReplay } = await import("../../osrParser");
     expect(typeof parseOsuReplay).toBe("function");
   });
 
   it("should return null for non-existent file", async () => {
-    const { parseOsuReplay } = await import("../osrParser");
+    const { parseOsuReplay } = await import("../../osrParser");
     const result = parseOsuReplay("/nonexistent/path/file.osr");
     expect(result).toBeNull();
   });

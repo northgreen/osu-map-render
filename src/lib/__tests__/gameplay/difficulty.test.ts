@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { calculateDifficulty, calculateRealtimePP } from "../difficulty";
-import { HitObject } from "../osuParser";
+import { calculateDifficulty, calculateRealtimePP } from "../../difficulty";
+import { HitObject } from "../../osuParser";
 
 // ============================================
 // Difficulty Calculation Tests

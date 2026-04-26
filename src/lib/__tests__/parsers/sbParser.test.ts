@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseStoryboard, EASING_NAMES } from "../sbParser";
+import { parseStoryboard, EASING_NAMES } from "../../sbParser";
 
 // ============================================
 // Sprite/Animation Parsing Tests
