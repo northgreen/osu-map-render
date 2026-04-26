@@ -33,6 +33,7 @@
     "test": "vitest run",
     "parse": "tsx scripts/parseBeatmap.ts",
     "parse:replay": "tsx scripts/parseReplay.ts",
+    "parse:all": "tsx scripts/parseAll.ts",
     "prebuild": "tsx scripts/parseBeatmap.ts"
   },
   "sideEffects": [

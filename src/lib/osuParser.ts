@@ -54,6 +54,7 @@ export interface ParsedBeatmap {
   mode: number;
   backgroundImage?: string;
   scrollVelocitySegments?: ScrollVelocitySegment[];
+  fileHash?: string;
 }
 
 // Export the pre-loaded beatmap data

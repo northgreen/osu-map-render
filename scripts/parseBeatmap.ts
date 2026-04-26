@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 import { listFiles, selectFile, matchFile, getCheartDir } from "./selectFile";
 import { parseStoryboardFile } from "../src/lib/sbParser";
 import { extractScrollVelocitySegments } from "../src/lib/scrollVelocity";
@@ -59,6 +60,7 @@ interface ParsedBeatmap {
   backgroundImage?: string;
   storyboardEvents?: string[];
   scrollVelocitySegments?: ScrollVelocitySegment[];
+  fileHash?: string;
 }
 
 function parseSection(content: string, section: string): string[] {
@@ -87,6 +89,8 @@ function parseKeyValue(line: string): [string, string] {
 
 function parseOsuFile(filePath: string): ParsedBeatmap {
   const content = fs.readFileSync(filePath, "utf-8");
+  const rawBytes = fs.readFileSync(filePath);
+  const fileHash = crypto.createHash("md5").update(rawBytes).digest("hex");
 
   // Parse General
   const generalLines = parseSection(content, "General");
@@ -98,7 +102,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
 
   // Parse Events for background and storyboard
   let backgroundImage: string | undefined;
-  let storyboardEvents: string[] = [];
+  const storyboardEvents: string[] = [];
 
   // Also need original lines (with leading spaces) for command parsing
   const allLines = content.split("\n");
@@ -276,16 +280,27 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     }
   }
 
+  hitObjects.sort((a, b) => a.time - b.time);
+
+  const mode = parseInt(general["Mode"]) || 0;
+  if (mode !== 3) {
+    console.error(
+      `Error: Beatmap mode is ${mode} (expected 3 for osu!mania). This renderer only supports osu!mania beatmaps.`
+    );
+    process.exit(1);
+  }
+
   return {
     metadata,
     difficulty,
     timingPoints,
     hitObjects,
     audioFile: general["AudioFilename"] || "",
-    mode: parseInt(general["Mode"]) || 0,
+    mode,
     backgroundImage,
     storyboardEvents,
     scrollVelocitySegments,
+    fileHash,
   };
 }
 

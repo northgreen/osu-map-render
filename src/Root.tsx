@@ -155,7 +155,7 @@ export const RemotionRoot: React.FC = () => {
             columnHighlights: true,
             replayCursor: false,
             sessionLine: true,
-            storyboardEnabled: true,
+            storyboardEnabled: false,
           },
         }}
       />

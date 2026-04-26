@@ -8,6 +8,8 @@ import {
   getCheartDir,
   getReplayDir,
 } from "./selectFile";
+import type { ParsedBeatmap } from "../src/lib/osuParser";
+import beatmapData from "../src/generated/beatmap.json";
 
 const DEFAULT_REPLAY = "solo-replay-mania_5205935_6395917723.osr";
 
@@ -82,12 +84,22 @@ async function main() {
   }
 
   if (replay) {
-    // Convert BigInt to Number for JSON serialization
     const replayForJson: Record<string, unknown> = { ...replay };
     replayForJson.timestamp = Number(replay.timestamp);
     replayForJson.onlineScoreId = Number(replay.onlineScoreId);
 
-    // Write the parsed replay to a JSON file for import
+    const typedBeatmap = beatmapData as ParsedBeatmap;
+    if (replay.beatmapHash && typedBeatmap.fileHash) {
+      if (replay.beatmapHash !== typedBeatmap.fileHash) {
+        console.warn(
+          `WARNING: Replay beatmap hash (${replay.beatmapHash}) does not match current beatmap hash (${typedBeatmap.fileHash})`,
+        );
+        console.warn("The replay may be for a different beatmap version.");
+      } else {
+        console.log("Replay beatmap hash matches current beatmap.");
+      }
+    }
+
     fs.writeFileSync(
       path.join(process.cwd(), "src", "generated", "replay.json"),
       JSON.stringify(replayForJson, null, 2),
