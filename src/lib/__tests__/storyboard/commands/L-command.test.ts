@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseStoryboard } from "../../../sbParser";
+import { parseStoryboard, INFINITE_DURATION } from "../../../sbParser";
 import type { SbCommand, SbLoop } from "../../../sbParser";
 import {
   getPosition,
@@ -161,7 +161,9 @@ L,0,2
     const result = parseStoryboard(content);
     const loop = result.objects[0].loops[0];
     expect(loop.commands[0].type).toBe("R");
-    expect(loop.commands[0].params).toEqual([0, 3.14159]);
+    // 3.14159 rad ≈ 180 degrees
+    expect(loop.commands[0].params[0]).toBeCloseTo(0);
+    expect(loop.commands[0].params[1]).toBeCloseTo(180, 0);
   });
 
   it("should parse L with nested C commands", () => {
@@ -784,10 +786,10 @@ describe("Integration - after-loop value persistence", () => {
 
   it("should persist rotation after loop completes", () => {
     const loops: SbLoop[] = [
-      createLoop(0, 1, [createRCommand(0, 500, 0, Math.PI)], 500),
+      createLoop(0, 1, [createRCommand(0, 500, 0, 180)], 500),
     ];
     const rotation = getRotation([], loops, 2000);
-    // PI radians = 180 degrees
+    // 180 degrees
     expect(rotation).toBeCloseTo(180);
   });
 });
@@ -800,7 +802,7 @@ describe("Integration - loop with mixed command types", () => {
         createSCommand(0, 1000, 1, 2),
         createFCommand(0, 1000, 0, 1),
         createCCommand(0, 1000, 255, 0, 0, 0, 255, 0),
-        createRCommand(0, 1000, 0, Math.PI),
+        createRCommand(0, 1000, 0, 180),
       ], 1000),
     ];
     // At t=500 (midpoint of iteration 0)
@@ -944,10 +946,10 @@ describe("Integration - getLoopCommandValue direct API", () => {
   });
 });
 
-describe("Integration - loop with MAX_SAFE_INTEGER handling", () => {
-  it("should handle loop commands with MAX_SAFE_INTEGER endTime in getLoopCommandValue", () => {
-    // When endTime is MAX_SAFE_INTEGER, the evaluator treats it as startTime for iteration calc
-    // This results in loopDuration=0 (since maxCmdEnd uses startTime when endTime is MAX_SAFE_INTEGER)
+describe("Integration - loop with INFINITE_DURATION handling", () => {
+  it("should handle loop commands with INFINITE_DURATION endTime in getLoopCommandValue", () => {
+    // When endTime is INFINITE_DURATION, the evaluator treats it as startTime for iteration calc
+    // This results in loopDuration=0 (since maxCmdEnd uses startTime when endTime is INFINITE_DURATION)
     // The loop is then skipped
     const loops: SbLoop[] = [
       {
@@ -958,13 +960,14 @@ describe("Integration - loop with MAX_SAFE_INTEGER handling", () => {
             type: "M" as const,
             easing: 0,
             startTime: 0,
-            endTime: Number.MAX_SAFE_INTEGER,
+            endTime: INFINITE_DURATION,
             params: [0, 0, 100, 100],
           },
         ],
         loopDuration: 1000,
       },
     ];
+
     // MAX_SAFE_INTEGER is treated as startTime for maxCmdEnd calculation
     // maxCmdEnd = 0 (startTime), minCmdStart = 0, loopDuration = 0
     // Loop is skipped due to duration <= 0

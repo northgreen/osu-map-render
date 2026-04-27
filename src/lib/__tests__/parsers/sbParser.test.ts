@@ -249,7 +249,7 @@ V,0,1000,2000,1,1,2,0.5
 // ============================================
 
 describe("parseStoryboard - R (Rotate) command", () => {
-  it("should parse R with two values (radians)", () => {
+  it("should parse R with two values (degrees)", () => {
     const content = `
 [Events]
 Sprite,Pass,Centre,"img.png",320,240
@@ -258,7 +258,9 @@ R,0,1000,2000,-0.785,0.785
     const result = parseStoryboard(content);
     const cmd = result.objects[0].commands[0];
     expect(cmd.type).toBe("R");
-    expect(cmd.params).toEqual([-0.785, 0.785]);
+    // -0.785 rad ≈ -45 deg, 0.785 rad ≈ 45 deg
+    expect(cmd.params[0]).toBeCloseTo(-45, 1);
+    expect(cmd.params[1]).toBeCloseTo(45, 1);
   });
 });
 

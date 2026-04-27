@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getColor } from "../storyboard/command-evaluator";
-import { SbCommand, SbLoop } from "../sbParser";
+import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser";
+
 
 // Helper to create a C command
 function createCCommand(
@@ -433,16 +434,17 @@ describe("getColor - Easing in color transitions", () => {
 // ============================================
 
 describe("getColor - Edge cases", () => {
-  it("should handle command with Number.MAX_SAFE_INTEGER endTime", () => {
+  it("should handle command with INFINITE_DURATION endTime", () => {
     const commands: SbCommand[] = [
       {
         type: "C",
         easing: 0,
         startTime: 0,
-        endTime: Number.MAX_SAFE_INTEGER,
+        endTime: INFINITE_DURATION,
         params: [255, 128, 64, 255, 128, 64],
       },
     ];
+
     const result = getColor(commands, noLoops, 999999999);
     expect(result).toEqual({ r: 1, g: 128 / 255, b: 64 / 255 });
   });

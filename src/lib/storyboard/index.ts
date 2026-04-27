@@ -2,7 +2,7 @@
 export { applyEasing } from "./easing";
 
 // Loop evaluation
-export { getLoopCommandValue, getLoopOpacity } from "./loop-evaluator";
+export { getLoopCommandValue, getLoopOpacity, getLoopFlipState } from "./loop-evaluator";
 
 // Visibility
 export { isObjectVisible } from "./visibility";
@@ -18,4 +18,6 @@ export {
   calculateHue,
   calculateSaturation,
   calculateBrightness,
+  getFlipState,
+  getNegativeScale,
 } from "./command-evaluator";

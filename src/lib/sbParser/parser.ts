@@ -1,7 +1,43 @@
 import * as fs from "fs";
 
-// Use a reasonable "infinite" duration (24 hours in ms) instead of INFINITE_DURATION
-const INFINITE_DURATION = 24 * 60 * 60 * 1000; // 86400000ms
+// Import types for internal use (parsing functions need them)
+import type {
+  SbCommand,
+  SbObject,
+  SbSample,
+  ParsedStoryboard,
+  Layer,
+  Origin,
+  CommandType,
+} from "./types";
+import { INFINITE_DURATION } from "./types";
+
+// Re-export all types/constants from the browser-safe types module
+export {
+  INFINITE_DURATION,
+  EASING_NAMES,
+  type Layer,
+  type Origin,
+  type CommandType,
+  type SbCommand,
+  type SbLoop,
+  type SbObject,
+  type SbSample,
+  type ParsedStoryboard,
+} from "./types";
+
+// Convert radians (osu! file format) to degrees (internal representation)
+const RAD_TO_DEG = 180 / Math.PI;
+
+// Valid animation loop types for validation
+const VALID_LOOP_TYPES = ["LoopForever", "LoopOnce"] as const;
+
+// Maximum coordinate value in osu! storyboard
+const MAX_COORDINATE_VALUE = 131072;
+
+function clampCoord(val: number): number {
+  return Math.min(Math.max(val, -MAX_COORDINATE_VALUE), MAX_COORDINATE_VALUE);
+}
 
 /**
  * Calculate loop duration from the span of child command times.
@@ -19,106 +55,6 @@ function calculateLoopDuration(commands: SbCommand[]): number {
   let loopDuration = maxEnd - minStart;
   if (loopDuration <= 0) loopDuration = 1000;
   return loopDuration;
-}
-
-// ============================================
-// Types
-// ============================================
-
-export type Layer = "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
-export type Origin =
-  | "TopLeft" | "Centre" | "CentreLeft" | "TopRight"
-  | "BottomCentre" | "TopCentre" | "CentreRight"
-  | "BottomLeft" | "BottomRight";
-
-export type CommandType = "F" | "M" | "MX" | "MY" | "S" | "V" | "R" | "C" | "P";
-
-// Easing function mapping (0-34)
-export const EASING_NAMES: Record<number, string> = {
-  0: "linear",
-  1: "easeOut",
-  2: "easeIn",
-  3: "easeInQuad",
-  4: "easeOutQuad",
-  5: "easeInOutQuad",
-  6: "easeInCubic",
-  7: "easeOutCubic",
-  8: "easeInOutCubic",
-  9: "easeInQuart",
-  10: "easeOutQuart",
-  11: "easeInOutQuart",
-  12: "easeInQuint",
-  13: "easeOutQuint",
-  14: "easeInOutQuint",
-  15: "easeInSine",
-  16: "easeOutSine",
-  17: "easeInOutSine",
-  18: "easeInExpo",
-  19: "easeOutExpo",
-  20: "easeInOutExpo",
-  21: "easeInCirc",
-  22: "easeOutCirc",
-  23: "easeInOutCirc",
-  24: "easeInElastic",
-  25: "easeOutElastic",
-  26: "easeOutElasticHalf",
-  27: "easeOutElasticQuarter",
-  28: "easeInOutElastic",
-  29: "easeInBack",
-  30: "easeOutBack",
-  31: "easeInOutBack",
-  32: "easeInBounce",
-  33: "easeOutBounce",
-  34: "easeInOutBounce",
-};
-
-export interface SbCommand {
-  type: CommandType;
-  easing: number;
-  startTime: number;
-  endTime: number;
-  params: number[];
-}
-
-export interface SbLoop {
-  startTime: number;
-  repeatCount: number;
-  commands: SbCommand[];
-  loopDuration: number;
-}
-
-export interface SbObject {
-  id: string;
-  type: "sprite" | "animation";
-  layer: Layer;
-  origin: Origin;
-  path: string;
-  x: number;
-  y: number;
-  frameCount?: number;
-  frameDelay?: number;
-  loopType?: "LoopForever" | "LoopOnce";
-  commands: SbCommand[];
-  loops: SbLoop[];
-  // P command parameters
-  flipH?: boolean;
-  flipV?: boolean;
-  additive?: boolean;
-}
-
-export interface SbSample {
-  id: string;
-  time: number;
-  layer: Layer;
-  path: string;
-  volume: number;
-}
-
-export interface ParsedStoryboard {
-  objects: SbObject[];
-  samples: SbSample[];
-  variables: Record<string, string>;
-  duration: number;
 }
 
 // ============================================
@@ -192,10 +128,13 @@ function parseOrigin(value: string | number): Origin {
   return "Centre";
 }
 
-function parseCommand(line: string, variables: Record<string, string> = {}): SbCommand | null {
+function parseCommand(line: string, variables: Record<string, string> = {}): SbCommand[] | null {
   // Remove leading underscore if present
   const cleanLine = line.replace(/^_/, "");
-  const parts = cleanLine.split(",").map(p => substituteVariables(p.trim(), variables));
+  // FIX #8: Substitute variables BEFORE splitting so multi-value vars (e.g., $colour=0,255,0) split correctly
+  const substitutedLine = substituteVariables(cleanLine, variables);
+  const parts = substitutedLine.split(",").map(p => p.trim());
+
 
   if (parts.length < 3) return null;
 
@@ -355,31 +294,32 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
         ];
       }
       break;
-    case "R": // Rotate: type,easing,start,end,startRad,endRad
+    case "R": { // Rotate: type,easing,start,end,startDeg,endDeg (degrees)
       // osu! behavior: if endTime is empty, set it to startTime (instant change)
       if (parts[3] === undefined || parts[3] === "") {
         endTime = startTime; // Instant change
       } else {
         endTime = parseFloat(parts[3]) || startTime;
       }
-      // Parse rotation values
+      // .osu file format stores radians; convert to degrees for internal use
       if (parts[5] === undefined || parts[5] === "") {
         // Single value: rotate from 0 to that value (or stay at that value if endTime == startTime)
         const rValue = parseFloat(parts[4]);
         params = [
-          isNaN(rValue) ? 0 : rValue,
-          isNaN(rValue) ? 0 : rValue,
+          isNaN(rValue) ? 0 : rValue * RAD_TO_DEG,
+          isNaN(rValue) ? 0 : rValue * RAD_TO_DEG,
         ];
       } else {
         // Two values: rotate from startVal to endVal
         const rStart = parseFloat(parts[4]);
         const rEnd = parseFloat(parts[5]);
         params = [
-          isNaN(rStart) ? 0 : rStart,
-          isNaN(rEnd) ? rStart : rEnd,
+          isNaN(rStart) ? 0 : rStart * RAD_TO_DEG,
+          isNaN(rEnd) ? rStart : rEnd * RAD_TO_DEG,
         ];
       }
       break;
+    }
     case "C": // Color: type,easing,start,end,r1,g1,b1,r2,g2,b2
       // osu! behavior: if endTime is empty, set it to startTime (instant change)
       if (parts[3] === undefined || parts[3] === "") {
@@ -426,13 +366,32 @@ function parseCommand(line: string, variables: Record<string, string> = {}): SbC
       return null;
   }
 
-  return {
+  const baseCmd: SbCommand = {
     type,
     easing,
     startTime,
     endTime,
     params,
   };
+
+  // FIX #5: Expand shorthand 1 (multi-value sequence) for single-axis commands
+  // e.g., F,0,51000,52000,0,1,0.5,1,0 -> 4 F commands
+  if (params.length > 2 && (type === "F" || type === "S" || type === "R")) {
+    const duration = endTime - startTime;
+    const expanded: SbCommand[] = [];
+    for (let i = 0; i < params.length - 1; i++) {
+      expanded.push({
+        type,
+        easing,
+        startTime: startTime + i * duration,
+        endTime: startTime + (i + 1) * duration,
+        params: [params[i], params[i + 1]],
+      });
+    }
+    return expanded;
+  }
+
+  return [baseCmd];
 }
 
 // Helper function to substitute variables in strings
@@ -478,6 +437,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     startTime: number;
     endTime: number;
     childCommands: SbCommand[];
+    groupNumber?: number;
   }
   let currentTrigger: TriggerContext | null = null;
 
@@ -561,8 +521,8 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           layer: parseLayer(parts[1]),
           origin: parseOrigin(parts[2]),
           path: substituteVariables(parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"), variables),
-          x: parseInt(parts[4]) || 0,
-          y: parseInt(parts[5]) || 0,
+          x: clampCoord(parseInt(parts[4]) || 0),
+          y: clampCoord(parseInt(parts[5]) || 0),
           commands: [],
           loops: [],
         };
@@ -604,11 +564,58 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           layer: parseLayer(parts[1]),
           origin: parseOrigin(parts[2]),
           path: substituteVariables(parts[3].replace(/^"|"$/g, "").replace(/\\/g, "/"), variables),
-          x: parseInt(parts[4]) || 0,
-          y: parseInt(parts[5]) || 0,
+          x: clampCoord(parseInt(parts[4]) || 0),
+          y: clampCoord(parseInt(parts[5]) || 0),
           frameCount: parseInt(parts[6]) || 1,
           frameDelay: parseInt(parts[7]) || 100,
-          loopType: (parts[8] as "LoopForever" | "LoopOnce") || "LoopForever",
+          loopType: (() => {
+            const val = parts[8];
+            const isValid = val && VALID_LOOP_TYPES.includes(val as "LoopForever" | "LoopOnce");
+            if (val && !isValid) {
+              console.warn(`[sbParser] Invalid animation loopType "${val}", defaulting to "LoopForever"`);
+            }
+            return (isValid ? val : "LoopForever") as "LoopForever" | "LoopOnce";
+          })(),
+          commands: [],
+          loops: [],
+        };
+      }
+      continue;
+    }
+
+    // Parse Video
+    if (line.startsWith("Video,")) {
+      // Save previous object
+      if (currentObject) {
+        if (currentLoop && currentLoop.childCommands.length > 0) {
+          currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
+          currentObject.loops.push({
+            startTime: currentLoop.startTime,
+            repeatCount: currentLoop.repeatCount,
+            commands: currentLoop.childCommands,
+            loopDuration: currentLoop.loopDuration,
+          });
+          currentLoop = null;
+        }
+        if (currentTrigger && currentTrigger.childCommands.length > 0) {
+          currentObject.commands.push(...currentTrigger.childCommands);
+          currentTrigger = null;
+        }
+        objects.push(currentObject);
+      }
+
+      const parts = line.split(",");
+      const path = parts[2]?.replace(/^"/, "").replace(/"$/, "") || "";
+      const ext = path.split(".").pop()?.toLowerCase() || "";
+      if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "mp4", "webm"].includes(ext)) {
+        currentObject = {
+          id: path,
+          type: "video",
+          layer: "Background",
+          origin: "TopLeft",
+          path,
+          x: 0,
+          y: 0,
           commands: [],
           loops: [],
         };
@@ -664,6 +671,7 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         startTime: triggerStart,
         endTime: triggerEnd,
         childCommands: [],
+        groupNumber: parts[4] ? parseInt(parts[4]) : undefined,
       };
       continue;
     }
@@ -672,24 +680,26 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     // osu! uses leading spaces for indentation, but some tools use underscores
     const isChildCommand = depth >= 2 && (line.startsWith("F") || line.startsWith("M") ||
       line.startsWith("S") || line.startsWith("V") || line.startsWith("R") ||
-      line.startsWith("C") || line.startsWith("P"));
+      line.startsWith("C"));
 
     if (currentObject && isChildCommand) {
-      const cmd = parseCommand(line, variables);
-      if (cmd) {
-        if (currentLoop) {
-          currentLoop.childCommands.push(cmd);
-        } else if (currentTrigger) {
-          // For triggers, adjust time relative to trigger start
-          currentTrigger.childCommands.push({
-            ...cmd,
-            startTime: currentTrigger.startTime + cmd.startTime,
-            endTime: currentTrigger.startTime + cmd.endTime,
-          });
-        } else {
-          currentObject.commands.push(cmd);
-          if (cmd.endTime > maxTime) {
-            maxTime = cmd.endTime;
+      const cmds = parseCommand(line, variables);
+      if (cmds) {
+        for (const cmd of cmds) {
+          if (currentLoop) {
+            currentLoop.childCommands.push(cmd);
+          } else if (currentTrigger) {
+            // For triggers, adjust time relative to trigger start
+            currentTrigger.childCommands.push({
+              ...cmd,
+              startTime: currentTrigger.startTime + cmd.startTime,
+              endTime: currentTrigger.startTime + cmd.endTime,
+            });
+          } else {
+            currentObject.commands.push(cmd);
+            if (cmd.endTime > maxTime) {
+              maxTime = cmd.endTime;
+            }
           }
         }
       }
@@ -699,15 +709,59 @@ export function parseStoryboard(content: string): ParsedStoryboard {
     // Also handle __ prefixed commands (legacy format)
     if (currentObject && (line.startsWith("__F") || line.startsWith("__M") ||
       line.startsWith("__S") || line.startsWith("__V") || line.startsWith("__R") ||
-      line.startsWith("__C") || line.startsWith("__P") || line.startsWith("__MX") ||
+      line.startsWith("__C") || line.startsWith("__MX") ||
       line.startsWith("__MY"))) {
       const childLine = line.replace(/^__/, "_");
-      const cmd = parseCommand(childLine, variables);
-      if (cmd) {
-        if (currentLoop) {
+      const cmds = parseCommand(childLine, variables);
+      if (cmds) {
+        for (const cmd of cmds) {
+          if (currentLoop) {
+            currentLoop.childCommands.push(cmd);
+          } else if (currentTrigger) {
+            // For triggers, adjust time relative to trigger start
+            currentTrigger.childCommands.push({
+              ...cmd,
+              startTime: currentTrigger.startTime + cmd.startTime,
+              endTime: currentTrigger.startTime + cmd.endTime,
+            });
+          } else {
+            currentObject.commands.push(cmd);
+            if (cmd.endTime > maxTime) {
+              maxTime = cmd.endTime;
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+
+    // Parse P (Parameter) command for current object
+    if (currentObject && (line.startsWith("P,") || line.startsWith("_P,") || line.startsWith("__P,"))) {
+      const parts = line.replace(/^_+/, "").split(",");
+      const param = parts[4]?.trim();
+      const startTime = parseInt(parts[2]) || 0;
+      const endTime = parseInt(parts[3]) || startTime;
+      const isPermanent = startTime === endTime;
+
+      if (isPermanent) {
+        // Permanent P command: set static boolean (backward compatible)
+        if (param === "H") currentObject.flipH = true;
+        else if (param === "V") currentObject.flipV = true;
+        else if (param === "A") currentObject.additive = true;
+      } else {
+        // Temporary P command: create command object, add to commands[]
+        const cmd: SbCommand = {
+          type: "P",
+          easing: 0,
+          startTime,
+          endTime,
+          params: [],
+          paramStrings: [param],
+        };
+        if (currentLoop && depth >= 2) {
           currentLoop.childCommands.push(cmd);
         } else if (currentTrigger) {
-          // For triggers, adjust time relative to trigger start
           currentTrigger.childCommands.push({
             ...cmd,
             startTime: currentTrigger.startTime + cmd.startTime,
@@ -715,44 +769,28 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           });
         } else {
           currentObject.commands.push(cmd);
-          if (cmd.endTime > maxTime) {
-            maxTime = cmd.endTime;
+          if (endTime > maxTime) {
+            maxTime = endTime;
           }
         }
       }
       continue;
     }
 
-    // Parse P (Parameter) command for current object
-    if (currentObject && (line.startsWith("P,") || line.startsWith("_P,"))) {
-      const parts = line.replace(/^_/, "").split(",");
-      const param = parts[4]?.trim();
-      const startTime = parseInt(parts[2]) || 0;
-      const endTime = parseInt(parts[3]) || startTime;
-      const isPermanent = startTime === endTime;
-
-      if (param === "H" && isPermanent) {
-        currentObject.flipH = true;
-      } else if (param === "V" && isPermanent) {
-        currentObject.flipV = true;
-      } else if (param === "A" && isPermanent) {
-        currentObject.additive = true;
-      }
-      continue;
-    }
-
     // Parse regular Commands for current object
     if (currentObject && (line.match(/^[FMCPSRV]/) || line.match(/^_[FMCPSRV]/))) {
-      const cmd = parseCommand(line, variables);
-      if (cmd) {
+      const cmds = parseCommand(line, variables);
+      if (cmds) {
         // Only add to loop if line has loop-level indentation (3+ spaces)
         // This distinguishes commands inside L blocks from regular commands
-        if (currentLoop && depth >= 2) {
-          currentLoop.childCommands.push(cmd);
-        } else {
-          currentObject.commands.push(cmd);
-          if (cmd.endTime > maxTime) {
-            maxTime = cmd.endTime;
+        for (const cmd of cmds) {
+          if (currentLoop && depth >= 2) {
+            currentLoop.childCommands.push(cmd);
+          } else {
+            currentObject.commands.push(cmd);
+            if (cmd.endTime > maxTime) {
+              maxTime = cmd.endTime;
+            }
           }
         }
       }

@@ -8,7 +8,7 @@ import {
   Img,
 } from "remotion";
 import { useMemo, useState, useCallback } from "react";
-import { SbObject, SbSample, SbLoop } from "./sbParser";
+import { SbObject, SbSample, SbLoop } from "./sbParser/types";
 import storyboardData from "../generated/storyboard.json";
 import {
   getOpacity,
@@ -18,6 +18,8 @@ import {
   getRotation,
   getColor,
   isObjectVisible,
+  getFlipState,
+  getNegativeScale,
 } from "./storyboard";
 
 // ─── Color Filter Helpers ───────────────────────────────────────────────────
@@ -205,24 +207,34 @@ const SbSprite: React.FC<SbSpriteProps> = ({
   };
   const originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
 
-  const flipH = object.flipH,
-    flipV = object.flipV,
-    additive = object.additive;
-  const effectiveFlipH = flipH;
-  const effectiveFlipV = flipV;
+  const staticFlipH = object.flipH || false;
+  const staticFlipV = object.flipV || false;
+  const staticAdditive = object.additive || false;
 
-  if (effectiveFlipH) originFactor.x = 1 - originFactor.x;
-  if (effectiveFlipV) originFactor.y = 1 - originFactor.y;
+  // Get dynamic flip state from command system
+  const dynamicFlip = getFlipState(object.commands, loops || [], currentTime);
+
+  // Merge: static OR dynamic
+  const effectiveFlipH = staticFlipH || dynamicFlip.flipH;
+  const effectiveFlipV = staticFlipV || dynamicFlip.flipV;
+  const effectiveAdditive = staticAdditive || dynamicFlip.additive;
+
+  // Detect negative scale from V commands (osu! mirrors origin on negative scale)
+  const negScale = getNegativeScale(object.commands, loops || [], currentTime);
+
+  // XOR: negative scale inverts the flip state (osu! behavior)
+  // osu! StoryboardExtensions.cs: if (flipH ^ (vectorScale.X < 0))
+  const effectiveFlipH_final = effectiveFlipH !== negScale.scaleXNeg;
+  const effectiveFlipV_final = effectiveFlipV !== negScale.scaleYNeg;
+
+  if (effectiveFlipH_final) originFactor.x = 1 - originFactor.x;
+  if (effectiveFlipV_final) originFactor.y = 1 - originFactor.y;
 
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // CSS transforms for flip and rotation only (scale is already applied to baseWidth/baseHeight)
+  // CSS transforms for rotation only (flip handled via origin factor adjustment)
   const transforms: string[] = [];
-
-  if (effectiveFlipH && effectiveFlipV) transforms.push(`scale(-1, -1)`);
-  else if (effectiveFlipH) transforms.push(`scale(-1, 1)`);
-  else if (effectiveFlipV) transforms.push(`scale(1, -1)`);
 
   if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
 
@@ -246,7 +258,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({
           transform:
             transforms.length > 0 ? transforms.join(" ") : "translateZ(0)",
           transformOrigin: `${cssOriginX}% ${cssOriginY}%`,
-          ...(additive ? { mixBlendMode: "screen" } : {}),
+          ...(effectiveAdditive ? { mixBlendMode: "screen" } : {}),
         }}
       >
         <Img

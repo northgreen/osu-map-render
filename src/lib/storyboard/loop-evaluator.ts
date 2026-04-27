@@ -1,4 +1,4 @@
-import { SbLoop } from "../sbParser";
+import { SbLoop, INFINITE_DURATION } from "../sbParser/types";
 import { applyEasing } from "./easing";
 
 // Get command value within loops - handles iteration timing
@@ -17,7 +17,7 @@ export function getLoopCommandValue(
     const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
     const maxCmdEnd = Math.max(
       ...loop.commands.map((c) =>
-        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
+        c.endTime === INFINITE_DURATION ? c.startTime : c.endTime,
       ),
     );
     const loopDuration = maxCmdEnd - minCmdStart;
@@ -73,7 +73,8 @@ export function getLoopCommandValue(
       if (cmd.type !== cmdType) continue;
 
       const cmdEffectiveEnd =
-        cmd.endTime === Number.MAX_SAFE_INTEGER ? cmd.startTime : cmd.endTime;
+        cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
+
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
@@ -125,9 +126,10 @@ export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | n
     const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
     const maxCmdEnd = Math.max(
       ...loop.commands.map((c) =>
-        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
+        c.endTime === INFINITE_DURATION ? c.startTime : c.endTime,
       ),
     );
+
     const loopDuration = maxCmdEnd - minCmdStart;
 
     if (loopDuration <= 0) continue;
@@ -145,7 +147,8 @@ export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | n
 
     for (const cmd of fCommands) {
       const cmdEffectiveEnd =
-        cmd.endTime === Number.MAX_SAFE_INTEGER ? cmd.startTime : cmd.endTime;
+        cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
+
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
@@ -165,4 +168,63 @@ export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | n
   }
 
   return lastLoopOpacity;
+}
+
+interface FlipState {
+  flipH: boolean;
+  flipV: boolean;
+  additive: boolean;
+}
+
+export function getLoopFlipState(
+  loops: SbLoop[],
+  currentTime: number,
+): FlipState | null {
+  let result: FlipState | null = null;
+
+  for (const loop of loops) {
+    if (currentTime < loop.startTime) continue;
+
+    const pCommands = loop.commands.filter(
+      (c) => c.type === "P" && c.paramStrings && c.paramStrings.length > 0,
+    );
+    if (pCommands.length === 0) continue;
+
+    const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
+    const maxCmdEnd = Math.max(
+      ...loop.commands.map((c) =>
+        c.endTime === INFINITE_DURATION ? c.startTime : c.endTime,
+      ),
+    );
+
+    const loopDuration = maxCmdEnd - minCmdStart;
+    if (loopDuration <= 0) continue;
+
+    const firstCmdAbs = loop.startTime + minCmdStart;
+    const timeSinceFirstCmd = currentTime - firstCmdAbs;
+    if (timeSinceFirstCmd < 0) continue;
+
+    const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
+    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
+
+    const iterationStart = firstCmdAbs + iteration * loopDuration;
+
+    for (const cmd of pCommands) {
+      const param = cmd.paramStrings![0];
+      const cmdEffectiveEnd =
+        cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
+
+      const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
+      const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
+
+      if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
+        if (!result) result = { flipH: false, flipV: false, additive: false };
+        if (param === "H") result.flipH = true;
+        else if (param === "V") result.flipV = true;
+        else if (param === "A") result.additive = true;
+      }
+    }
+  }
+
+  return result;
 }

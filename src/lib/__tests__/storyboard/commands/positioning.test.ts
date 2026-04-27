@@ -828,17 +828,15 @@ describe("Integration - Full sprite rendering calculation", () => {
      * - Origin: Centre
      * - Image: 200x100
      *
-     * At t=500:
-     * - Position: getPosition uses paramIndex=0 for both M x and y,
-     *   so both x and y interpolate using x params: (200, 400) → 300
-     *   (Note: This is a known limitation in getPosition for M commands)
-     * - Scale: 1.5
-     * - VectorScale: (1.5, 1.25)
-     * - renderPos = (240 + 300*2.25, 0 + 300*2.25) = (915, 675)
-     * - Width = 200 * 2.25 * 1.5 * 1.5 = 1012.5
-     * - Height = 100 * 2.25 * 1.25 * 1.5 = 421.875
-     * - Origin offset (Centre) = (506.25, 210.9375)
-     * - Final = (915 - 506.25, 675 - 210.9375) = (408.75, 464.0625)
+      * At t=500:
+      * - Position: x interpolates (200→400) = 300, y interpolates (150→300) = 225
+      * - Scale: 1.5
+      * - VectorScale: (1.5, 1.25)
+      * - renderPos = (240 + 300*2.25, 0 + 225*2.25) = (915, 506.25)
+      * - Width = 200 * 2.25 * 1.5 * 1.5 = 1012.5
+      * - Height = 100 * 2.25 * 1.25 * 1.5 = 421.875
+      * - Origin offset (Centre) = (506.25, 210.9375)
+      * - Final = (915 - 506.25, 506.25 - 210.9375) = (408.75, 295.3125)
      */
     const object: SbObject = {
       id: "test",
@@ -859,7 +857,7 @@ describe("Integration - Full sprite rendering calculation", () => {
     const rect = computeSpriteRect(object, 500, 200, 100);
 
     expect(rect.x).toBeCloseTo(408.75);
-    expect(rect.y).toBeCloseTo(464.0625);
+    expect(rect.y).toBeCloseTo(295.3125);
     expect(rect.width).toBe(1012.5);
     expect(rect.height).toBe(421.875);
   });

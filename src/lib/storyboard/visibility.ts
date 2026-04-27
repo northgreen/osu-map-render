@@ -1,5 +1,14 @@
-import { SbCommand, SbLoop } from "../sbParser";
+import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser/types";
+import { getOpacity } from "./command-evaluator";
 
+/**
+ * Check if a storyboard object is visible at the given time.
+ *
+ * Matches osu! behavior:
+ * - LifetimeStart: First visible F command start, or earliest command start if no F commands
+ * - LifetimeEnd: Latest command end time or loop display end time
+ * - Visible when: LifetimeStart <= currentTime <= LifetimeEnd AND alpha > 0
+ */
 export function isObjectVisible(
   commands: SbCommand[],
   loops: SbLoop[],
@@ -7,62 +16,45 @@ export function isObjectVisible(
 ): boolean {
   if (commands.length === 0 && loops.length === 0) return false;
 
-  // Find the time range of all commands
-  let latestEndTime = -Infinity;
-  let earliestStartTime = Infinity;
+  // Calculate LifetimeStart
+  let lifetimeStart: number;
+  const fadeCommands = commands.filter((cmd) => cmd.type === "F");
 
-  // Regular commands
-  for (const cmd of commands) {
-    if (cmd.startTime < earliestStartTime) earliestStartTime = cmd.startTime;
-    if (cmd.endTime > latestEndTime) {
-      latestEndTime = cmd.endTime;
-    }
-  }
-
-  // Loop commands
-  for (const loop of loops) {
-    if (currentTime < loop.startTime) continue;
-
-    const minCmdStart = Math.min(...loop.commands.map((c) => c.startTime));
-    const maxCmdEnd = Math.max(
-      ...loop.commands.map((c) =>
-        c.endTime === Number.MAX_SAFE_INTEGER ? c.startTime : c.endTime,
-      ),
+  if (fadeCommands.length > 0) {
+    // Find first visible F command (StartValue > 0 || EndValue > 0)
+    // osu! skips 0→0 noop transforms for lifetime calculation
+    const firstVisible = fadeCommands.find(
+      (cmd) => (cmd.params[0] ?? 0) > 0 || (cmd.params[1] ?? 0) > 0,
     );
-    const loopDuration = maxCmdEnd - minCmdStart;
-
-    if (loopDuration <= 0) continue;
-
-    // Compute iteration relative to when the first command iteration actually starts
-    const firstCmdAbs = loop.startTime + minCmdStart;
-    const timeSinceFirstCmd = currentTime - firstCmdAbs;
-
-    // Total visible range: firstCmdAbs to last iteration end
-    // Sprite is only visible when the first command iteration starts, not from loop.startTime
-    const totalIterations = loop.repeatCount + 1;
-    const loopWindowEnd = firstCmdAbs + totalIterations * loopDuration;
-
-    if (firstCmdAbs < earliestStartTime) {
-      earliestStartTime = firstCmdAbs;
-    }
-    if (loopWindowEnd > latestEndTime) {
-      latestEndTime = loopWindowEnd;
-    }
-
-    if (timeSinceFirstCmd < 0) continue;
-
-    const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
-
-    if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
+    lifetimeStart = firstVisible
+      ? firstVisible.startTime
+      : fadeCommands[0].startTime;
+  } else {
+    // No F commands → use earliest command start time (EarliestTransformTime)
+    lifetimeStart = Math.min(...commands.map((c) => c.startTime));
   }
 
-  // Object is not visible before first command starts
-  if (earliestStartTime < 0 && currentTime < 0) return false;
-  if (earliestStartTime >= 0 && currentTime < earliestStartTime) return false;
+  // Calculate LifetimeEnd (EndTimeForDisplay)
+  let lifetimeEnd = Math.max(
+    ...commands.map((c) =>
+      c.endTime === INFINITE_DURATION ? c.startTime : c.endTime,
+    ),
+  );
 
-  // Object is not visible after last command ends
-  if (latestEndTime !== Number.MAX_SAFE_INTEGER && currentTime > latestEndTime)
-    return false;
+  for (const loop of loops) {
+    // osu! EndTimeForDisplay: loop.startTime + loop.loopDuration * (loop.repeatCount + 1)
+    const loopEnd =
+      loop.startTime + loop.loopDuration * (loop.repeatCount + 1);
+    lifetimeEnd = Math.max(lifetimeEnd, loopEnd);
+  }
 
-  return true;
+  // Before lifetime start → not visible
+  if (currentTime < lifetimeStart) return false;
+
+  // After lifetime end → not visible
+  if (currentTime > lifetimeEnd) return false;
+
+  // Within lifetime → check alpha value
+  const opacity = getOpacity(commands, loops, currentTime);
+  return opacity > 0;
 }

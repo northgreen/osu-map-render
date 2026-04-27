@@ -1,6 +1,6 @@
-import { SbCommand, SbLoop } from "../sbParser";
+import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser/types";
 import { applyEasing } from "./easing";
-import { getLoopCommandValue, getLoopOpacity } from "./loop-evaluator";
+import { getLoopCommandValue, getLoopOpacity, getLoopFlipState } from "./loop-evaluator";
 
 function interpolateWithEasing(
   startTime: number,
@@ -99,7 +99,7 @@ export function getOpacity(
         : getCommandValue(cmd, currentTime, 0);
     } else if (
       currentTime > cmd.endTime &&
-      cmd.endTime !== Number.MAX_SAFE_INTEGER
+      cmd.endTime !== INFINITE_DURATION
     ) {
       // Command has ended - osu! behavior:
       // The alpha value persists until another F command overrides it,
@@ -112,7 +112,7 @@ export function getOpacity(
       // The "not alive" logic in isObjectVisible will hide it after last command ends.
       opacity = cmd.params[1] ?? cmd.params[0] ?? 0;
     } else if (
-      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
       // Infinite duration command - use interpolated value
@@ -152,10 +152,10 @@ export function getPosition(
       if (cmd.type === "M" || cmd.type === "MX")
         x = getCommandValue(cmd, currentTime, 0);
       if (cmd.type === "M" || cmd.type === "MY")
-        y = getCommandValue(cmd, currentTime, 0);
+        y = getCommandValue(cmd, currentTime, cmd.type === "M" ? 1 : 0);
     } else if (
       currentTime > cmd.endTime &&
-      cmd.endTime !== Number.MAX_SAFE_INTEGER
+      cmd.endTime !== INFINITE_DURATION
     ) {
       // Command has ended - use end value
       // MX: params = [x1] or [x1, x2], end value is last param
@@ -172,12 +172,13 @@ export function getPosition(
         y = cmd.params[1] ?? cmd.params[0] ?? defaultY;
       }
     } else if (
-      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
       // Infinite duration command
       if (cmd.type === "M" || cmd.type === "MX") x = cmd.params[0] ?? defaultX;
-      if (cmd.type === "M" || cmd.type === "MY") y = cmd.params[0] ?? defaultY;
+      if (cmd.type === "M" || cmd.type === "MY")
+        y = cmd.params[cmd.type === "M" ? 1 : 0] ?? defaultY;
     } else if (currentTime < cmd.startTime) {
       // Pre-read: use command start value before it starts (osu! behavior)
       // Only apply if no previous command has set the value (i.e., all commands are in the future)
@@ -186,7 +187,7 @@ export function getPosition(
       if (x === defaultX && (cmd.type === "M" || cmd.type === "MX"))
         x = cmd.params[0] ?? defaultX;
       if (y === defaultY && (cmd.type === "M" || cmd.type === "MY"))
-        y = cmd.params[0] ?? defaultY;
+        y = cmd.params[cmd.type === "M" ? 1 : 0] ?? defaultY;
       // Only break if both x and y have been set (or this command could set both)
       const canSetX = cmd.type === "M" || cmd.type === "MX";
       const canSetY = cmd.type === "M" || cmd.type === "MY";
@@ -226,12 +227,12 @@ export function getScale(
       break;
     } else if (
       currentTime > cmd.endTime &&
-      cmd.endTime !== Number.MAX_SAFE_INTEGER
+      cmd.endTime !== INFINITE_DURATION
     ) {
       // 命令已结束（非无限），使用结束值
       scale = cmd.params[1] ?? cmd.params[0] ?? 1;
     } else if (
-      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
       // 无限命令进行中
@@ -263,7 +264,7 @@ export function getVectorScale(
     .sort((a, b) => a.startTime - b.startTime);
 
   for (const cmd of vCommands) {
-    const isInfinite = cmd.endTime === Number.MAX_SAFE_INTEGER;
+    const isInfinite = cmd.endTime === INFINITE_DURATION;
     if (
       currentTime >= cmd.endTime ||
       (isInfinite && currentTime >= cmd.startTime)
@@ -311,27 +312,27 @@ export function getRotation(
 
   for (const cmd of rCommands) {
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      rotation = getCommandValue(cmd, currentTime, 0) * (180 / Math.PI);
+      rotation = getCommandValue(cmd, currentTime, 0);
     } else if (
       currentTime > cmd.endTime &&
-      cmd.endTime !== Number.MAX_SAFE_INTEGER
+      cmd.endTime !== INFINITE_DURATION
     ) {
-      rotation = (cmd.params[1] ?? cmd.params[0] ?? 0) * (180 / Math.PI);
+      rotation = cmd.params[1] ?? cmd.params[0] ?? 0;
     } else if (
-      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
-      rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
+      rotation = cmd.params[0] ?? 0;
     } else if (currentTime < cmd.startTime) {
       // Pre-read: use command start value before it starts (osu! behavior)
-      rotation = (cmd.params[0] ?? 0) * (180 / Math.PI);
+      rotation = cmd.params[0] ?? 0;
     }
   }
 
   // Also check loops for rotation values
   if (loops.length > 0) {
     const loopRotation = getLoopCommandValue(loops, "R", currentTime, 0);
-    if (loopRotation !== null) rotation = loopRotation * (180 / Math.PI);
+    if (loopRotation !== null) rotation = loopRotation;
   }
 
   return rotation;
@@ -355,7 +356,7 @@ export function getColor(
       };
     } else if (
       currentTime > cmd.endTime &&
-      cmd.endTime !== Number.MAX_SAFE_INTEGER
+      cmd.endTime !== INFINITE_DURATION
     ) {
       return {
         r: (cmd.params[3] ?? cmd.params[0]) / 255,
@@ -363,7 +364,7 @@ export function getColor(
         b: (cmd.params[5] ?? cmd.params[2]) / 255,
       };
     } else if (
-      cmd.endTime === Number.MAX_SAFE_INTEGER &&
+      cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
       return {
@@ -428,4 +429,57 @@ export function calculateBrightness(r: number, g: number, b: number): number {
   // Use luminance formula: 0.299R + 0.587G + 0.114B
   const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
   return luminance * 100;
+}
+
+export function getFlipState(
+  commands: SbCommand[],
+  loops: SbLoop[],
+  currentTime: number,
+): { flipH: boolean; flipV: boolean; additive: boolean } {
+  let flipH = false;
+  let flipV = false;
+  let additive = false;
+
+  // Iterate through P commands, find the last one active at current time
+  const pCommands = commands
+    .filter((cmd) => cmd.type === "P" && cmd.paramStrings && cmd.paramStrings.length > 0)
+    .sort((a, b) => a.startTime - b.startTime);
+
+  for (const cmd of pCommands) {
+    const param = cmd.paramStrings![0];
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      if (param === "H") flipH = true;
+      else if (param === "V") flipV = true;
+      else if (param === "A") additive = true;
+    }
+  }
+
+  // Check loops for P commands
+  if (loops.length > 0) {
+    const loopFlip = getLoopFlipState(loops, currentTime);
+    if (loopFlip) {
+      flipH = flipH || loopFlip.flipH;
+      flipV = flipV || loopFlip.flipV;
+      additive = additive || loopFlip.additive;
+    }
+  }
+
+  return { flipH, flipV, additive };
+}
+
+/**
+ * Detect if V (Vector Scale) command returns negative values at the given time.
+ * osu! uses negative scale to mirror sprites, which requires origin mirroring
+ * (XOR with flipH/flipV).
+ */
+export function getNegativeScale(
+  commands: SbCommand[],
+  loops: SbLoop[],
+  currentTime: number,
+): { scaleXNeg: boolean; scaleYNeg: boolean } {
+  const vScale = getVectorScale(commands, loops, currentTime);
+  return {
+    scaleXNeg: vScale !== null && vScale.x < 0,
+    scaleYNeg: vScale !== null && vScale.y < 0,
+  };
 }

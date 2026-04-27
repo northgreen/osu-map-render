@@ -151,34 +151,34 @@ export function createFCommand(
 }
 
 /**
- * Create a rotate command (R).
+ * Create an R (Rotate) command.
  *
- * osu! rotate commands interpolate rotation in radians over time.
+ * osu! rotate commands interpolate rotation in degrees over time.
  * Positive values rotate clockwise.
  *
  * @param startTime - Time in milliseconds when the command begins
  * @param endTime - Time in milliseconds when the command ends
- * @param startRad - Rotation in radians at the start
- * @param endRad - Rotation in radians at the end
+ * @param startDeg - Rotation in degrees at the start
+ * @param endDeg - Rotation in degrees at the end
  * @param easing - Easing function index (0 = linear, default)
  *
  * @example
  * ```ts
- * // Rotate 90 degrees (PI/2 radians) clockwise
- * createRCommand(0, 1000, 0, Math.PI / 2)
+ * // Rotate 90 degrees clockwise
+ * createRCommand(0, 1000, 0, 90)
  *
  * // Full rotation (360 degrees)
- * createRCommand(0, 2000, 0, 2 * Math.PI)
+ * createRCommand(0, 2000, 0, 360)
  * ```
  */
 export function createRCommand(
   startTime: number,
   endTime: number,
-  startRad: number,
-  endRad: number,
+  startDeg: number,
+  endDeg: number,
   easing = 0,
 ): SbCommand {
-  return { type: "R", easing, startTime, endTime, params: [startRad, endRad] };
+  return { type: "R", easing, startTime, endTime, params: [startDeg, endDeg] };
 }
 
 /**
