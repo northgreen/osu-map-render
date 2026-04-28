@@ -366,31 +366,33 @@ async function main() {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  // Copy audio file to public folder
-  if (beatmap.audioFile) {
-    const audioSrc = path.join(sourceDir, beatmap.audioFile);
-    const audioDest = path.join(publicDir, "audio.mp3");
-    if (fs.existsSync(audioSrc)) {
-      fs.copyFileSync(audioSrc, audioDest);
-      console.log(`Copied audio: ${beatmap.audioFile}`);
-    } else {
-      console.log(`Audio file not found: ${audioSrc}`);
+  // Copy all resources from beatmap directory to public/
+  // osu! beatmaps store all assets (audio, images, storyboard) in the same directory
+  // and subdirectories, not a specific folder
+  function copyRecursive(src: string, dest: string) {
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true });
+    }
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      if (entry.isDirectory()) {
+        copyRecursive(srcPath, destPath);
+      } else if (entry.isFile()) {
+        // Skip .osu and .osb files (already parsed)
+        const ext = path.extname(entry.name).toLowerCase();
+        if (ext === ".osu" || ext === ".osb") continue;
+
+        fs.copyFileSync(srcPath, destPath);
+      }
     }
   }
 
-  // Copy background image to public folder (keep original filename)
-  if (beatmap.backgroundImage) {
-    // Remove quotes if present
-    const bgFile = beatmap.backgroundImage.replace(/^"|"$/g, "");
-    const bgSrc = path.join(sourceDir, bgFile);
-    const bgDest = path.join(publicDir, bgFile);
-    if (fs.existsSync(bgSrc)) {
-      fs.copyFileSync(bgSrc, bgDest);
-      console.log(`Copied background: ${bgFile}`);
-    } else {
-      console.log(`Background file not found: ${bgSrc}`);
-    }
-  }
+  copyRecursive(sourceDir, publicDir);
+  console.log(`Copied beatmap resources from ${sourceDir}`);
+
 
   // Copy .osb storyboard file if exists
   // Try different possible locations: same directory as .osu, or base directory
@@ -484,34 +486,7 @@ async function main() {
     console.log("No storyboard found in .osu or .osb file");
   }
 
-  // Copy all image files referenced in storyboard (including subdirectories)
-  const storyboardDir = path.join(sourceDir, "Storyboard");
-  if (fs.existsSync(storyboardDir)) {
-    const sbDestDir = path.join(publicDir, "Storyboard");
-    if (!fs.existsSync(sbDestDir)) {
-      fs.mkdirSync(sbDestDir, { recursive: true });
-    }
 
-    // Recursively copy all files in Storyboard folder
-    function copyDirRecursive(src: string, dest: string) {
-      if (!fs.existsSync(dest)) {
-        fs.mkdirSync(dest, { recursive: true });
-      }
-      const entries = fs.readdirSync(src, { withFileTypes: true });
-      for (const entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-        if (entry.isDirectory()) {
-          copyDirRecursive(srcPath, destPath);
-        } else if (entry.isFile()) {
-          fs.copyFileSync(srcPath, destPath);
-        }
-      }
-    }
-
-    copyDirRecursive(storyboardDir, sbDestDir);
-    console.log(`Copied storyboard assets from ${storyboardDir}`);
-  }
 
   // Write the parsed beatmap to a JSON file for import
   fs.writeFileSync(
