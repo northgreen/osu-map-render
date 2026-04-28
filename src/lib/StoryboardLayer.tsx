@@ -233,10 +233,14 @@ const SbSprite: React.FC<SbSpriteProps> = ({
   const finalX = x - baseWidth * originFactor.x;
   const finalY = y - baseHeight * originFactor.y;
 
-  // CSS transforms for rotation only (flip handled via origin factor adjustment)
+  // CSS transforms for rotation and flip
+  // Flip must use CSS transform because origin factor adjustment doesn't work for symmetric origins
+  // (e.g., Centre: 0.5 -> 1-0.5 = 0.5, no change)
   const transforms: string[] = [];
 
   if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+  if (effectiveFlipH_final) transforms.push('scaleX(-1)');
+  if (effectiveFlipV_final) transforms.push('scaleY(-1)');
 
   const cssOriginX = originFactor.x * 100;
   const cssOriginY = originFactor.y * 100;
