@@ -17,6 +17,9 @@ export function isObjectVisible(
   if (commands.length === 0 && loops.length === 0) return false;
 
   // Calculate LifetimeStart
+  // osu! behavior: lifetimeStart is the earliest startTime across ALL commands,
+  // not just F commands. This ensures objects with C/M/S/V/R commands but no F
+  // commands (or F commands at a later time) are visible from their first transform.
   let lifetimeStart: number;
   const fadeCommands = commands.filter((cmd) => cmd.type === "F");
 
@@ -26,13 +29,23 @@ export function isObjectVisible(
     const firstVisible = fadeCommands.find(
       (cmd) => (cmd.params[0] ?? 0) > 0 || (cmd.params[1] ?? 0) > 0,
     );
-    lifetimeStart = firstVisible
+    const fLifetimeStart = firstVisible
       ? firstVisible.startTime
       : fadeCommands[0].startTime;
+    
+    // Also consider non-F commands - lifetimeStart should be the earliest of all commands
+    // This fixes objects with C commands at early times but F commands at later times
+    const nonFLifetimeStart = Math.min(
+      ...commands.filter((c) => c.type !== "F").map((c) => c.startTime)
+    );
+    
+    // Take the minimum of F and non-F command start times
+    lifetimeStart = Math.min(fLifetimeStart, nonFLifetimeStart);
   } else {
     // No F commands → use earliest command start time (EarliestTransformTime)
     lifetimeStart = Math.min(...commands.map((c) => c.startTime));
   }
+
 
   // Calculate LifetimeEnd (EndTimeForDisplay)
   let lifetimeEnd = Math.max(
