@@ -310,7 +310,8 @@ __F,0,500,1000,1,0
     expect(result.objects[0].loops).toHaveLength(1);
     const loop = result.objects[0].loops[0];
     expect(loop.startTime).toBe(60000);
-    expect(loop.repeatCount).toBe(30);
+    // L,60000,30 means 30 total plays, stored as repeatCount=29
+    expect(loop.repeatCount).toBe(29);
     expect(loop.commands).toHaveLength(2);
     expect(loop.commands[0].type).toBe("F");
     expect(loop.commands[0].params).toEqual([0, 1]);

@@ -33,7 +33,8 @@ L,60000,30
     const result = parseStoryboard(content);
     const loop = result.objects[0].loops[0];
     expect(loop.startTime).toBe(60000);
-    expect(loop.repeatCount).toBe(30);
+    // L,60000,30 means 30 total plays, stored as repeatCount=29
+    expect(loop.repeatCount).toBe(29);
   });
 
   it("should parse L command with repeatCount=1", () => {
@@ -44,7 +45,8 @@ L,1000,1
   F,0,0,500,0,1
 `;
     const result = parseStoryboard(content);
-    expect(result.objects[0].loops[0].repeatCount).toBe(1);
+    // L,1000,1 means 1 total play, stored as repeatCount=0
+    expect(result.objects[0].loops[0].repeatCount).toBe(0);
   });
 
   it("should parse L command with repeatCount=2", () => {
@@ -55,7 +57,8 @@ L,1000,2
   F,0,0,500,0,1
 `;
     const result = parseStoryboard(content);
-    expect(result.objects[0].loops[0].repeatCount).toBe(2);
+    // L,1000,2 means 2 total plays, stored as repeatCount=1
+    expect(result.objects[0].loops[0].repeatCount).toBe(1);
   });
 
   it("should parse L command with repeatCount=30 (common in beatmaps)", () => {
@@ -66,7 +69,8 @@ L,60000,30
   F,0,0,500,0,1
 `;
     const result = parseStoryboard(content);
-    expect(result.objects[0].loops[0].repeatCount).toBe(30);
+    // L,60000,30 means 30 total plays, stored as repeatCount=29
+    expect(result.objects[0].loops[0].repeatCount).toBe(29);
   });
 
   it("should parse L command with underscore prefix", () => {
@@ -78,10 +82,11 @@ _L,1000,2
 `;
     const result = parseStoryboard(content);
     expect(result.objects[0].loops[0].startTime).toBe(1000);
-    expect(result.objects[0].loops[0].repeatCount).toBe(2);
+    // _L,1000,2 means 2 total plays, stored as repeatCount=1
+    expect(result.objects[0].loops[0].repeatCount).toBe(1);
   });
 
-  it("should default repeatCount to 1 when omitted/invalid", () => {
+  it("should default repeatCount to 0 when omitted/invalid (1 total play)", () => {
     const content = `
 [Events]
 Sprite,Pass,Centre,"img.png",320,240
@@ -89,9 +94,8 @@ L,1000,0
   F,0,0,500,0,1
 `;
     const result = parseStoryboard(content);
-    // L with repeatCount=0 means 0 repeats = 1 total play in osu!
-    // But parseInt("0") || 1 = 1 due to falsy handling
-    expect(result.objects[0].loops[0].repeatCount).toBe(1);
+    // L,1000,0: parseInt("0")=0, max(0, 0-1)=0, means 1 total play
+    expect(result.objects[0].loops[0].repeatCount).toBe(0);
   });
 });
 
@@ -209,9 +213,11 @@ L,2000,3
     const result = parseStoryboard(content);
     expect(result.objects[0].loops).toHaveLength(2);
     expect(result.objects[0].loops[0].startTime).toBe(0);
-    expect(result.objects[0].loops[0].repeatCount).toBe(2);
+    // L,0,2 means 2 total plays, stored as repeatCount=1
+    expect(result.objects[0].loops[0].repeatCount).toBe(1);
     expect(result.objects[0].loops[1].startTime).toBe(2000);
-    expect(result.objects[0].loops[1].repeatCount).toBe(3);
+    // L,2000,3 means 3 total plays, stored as repeatCount=2
+    expect(result.objects[0].loops[1].repeatCount).toBe(2);
   });
 
   it("should parse multiple L commands with different nested commands", () => {
@@ -250,7 +256,8 @@ L,0,999
   F,0,0,500,0,1
 `;
     const result = parseStoryboard(content);
-    expect(result.objects[0].loops[0].repeatCount).toBe(999);
+    // L,0,999 means 999 total plays, stored as repeatCount=998
+    expect(result.objects[0].loops[0].repeatCount).toBe(998);
   });
 
   it("should parse L command with large startTime", () => {
@@ -852,7 +859,8 @@ L,60000,30
     const loop = result.objects[0].loops[0];
 
     expect(loop.startTime).toBe(60000);
-    expect(loop.repeatCount).toBe(30);
+    // L,60000,30 means 30 total plays, stored as repeatCount=29
+    expect(loop.repeatCount).toBe(29);
     expect(loop.loopDuration).toBe(674); // 674 - 0
     expect(loop.commands).toHaveLength(2);
   });
@@ -889,7 +897,8 @@ L,0,4
     expect(result.objects[0].type).toBe("animation");
     expect(result.objects[0].loops).toHaveLength(1);
     const loop = result.objects[0].loops[0];
-    expect(loop.repeatCount).toBe(4);
+    // L,0,4 means 4 total plays, stored as repeatCount=3
+    expect(loop.repeatCount).toBe(3);
     expect(loop.commands).toHaveLength(2);
   });
 });

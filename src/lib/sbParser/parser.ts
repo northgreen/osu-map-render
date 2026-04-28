@@ -644,10 +644,12 @@ export function parseStoryboard(content: string): ParsedStoryboard {
 
       const parts = line.replace(/^_/, "").split(",");
       const loopStart = parseInt(parts[1]) || 0;
-      const repeatCount = parseInt(parts[2]) || 1;
+      // osu! behavior: L command repeatCount means "total plays - 1"
+      // e.g., L,1000,3 means 3 total iterations (stored as repeatCount=2, TotalIterations=repeatCount+1=3)
+      const repeatCount = Math.max(0, parseInt(parts[2]) - 1);
       currentLoop = {
         startTime: loopStart,
-        repeatCount: repeatCount, // osu! L,start,repeatCount means repeatCount+1 total plays
+        repeatCount: repeatCount,
         childCommands: [],
         loopDuration: 0,
       };

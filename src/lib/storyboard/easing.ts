@@ -125,6 +125,8 @@ export function applyEasing(t: number, easing: number): number {
     case 34:
       if (t < 0.5) return (1 - bounceOut(1 - 2 * t)) / 2;
       return (1 + bounceOut(2 * t - 1)) / 2;
+    case 35:
+      return Math.pow(t - 1, 10) * t + 1; // OutPow10
     default:
       return t;
   }

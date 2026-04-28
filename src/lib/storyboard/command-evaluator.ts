@@ -265,21 +265,20 @@ export function getVectorScale(
 
   for (const cmd of vCommands) {
     const isInfinite = cmd.endTime === INFINITE_DURATION;
-    if (
-      currentTime >= cmd.endTime ||
-      (isInfinite && currentTime >= cmd.startTime)
-    ) {
+    if (currentTime >= cmd.endTime && !isInfinite) {
+      // Command has ended (non-infinite) - use end value
       return {
         x: cmd.params[2] ?? cmd.params[0] ?? 1,
         y: cmd.params[3] ?? cmd.params[1] ?? 1,
       };
     } else if (currentTime >= cmd.startTime) {
+      // Command is active (including infinite duration) - interpolate
       return {
         x: getCommandValue(cmd, currentTime, 0),
         y: getCommandValue(cmd, currentTime, 1),
       };
     } else if (currentTime < cmd.startTime) {
-      // Pre-read: use command start value before it starts (osu! behavior)
+      // Pre-read: use command start value before it starts
       return {
         x: cmd.params[0] ?? 1,
         y: cmd.params[1] ?? 1,
