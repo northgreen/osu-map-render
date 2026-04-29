@@ -174,3 +174,70 @@ describe("Loop S command interpolation", () => {
     expect(scale).toBeCloseTo(2);
   });
 });
+
+// ============================================
+// 6. getScale - Multiple S commands
+// ============================================
+
+describe("getScale - Multiple S commands", () => {
+  it("should use last active command when multiple overlap", () => {
+    const commands: SbCommand[] = [
+      createSCommand(0, 2000, 1, 2), // Active 0-2000
+      createSCommand(1000, 1500, 3, 4), // Active 1000-1500 (overlaps)
+    ];
+    // At t=1200, both active -> last active (3-4 range) takes precedence
+    const scale = getScale(commands, noLoops, 1200);
+    expect(scale).toBeCloseTo(3.4);
+  });
+
+  it("should use last ended command's end value when all commands have ended", () => {
+    const commands: SbCommand[] = [
+      createSCommand(0, 500, 1, 2), // Ended at 500
+      createSCommand(600, 1000, 3, 5), // Ended at 1000
+    ];
+    // At t=1500, both ended -> last ended (5) takes precedence
+    const scale = getScale(commands, noLoops, 1500);
+    expect(scale).toBe(5);
+  });
+
+  it("should prioritize active command over ended command", () => {
+    const commands: SbCommand[] = [
+      createSCommand(0, 500, 1, 2), // Ended at 500
+      createSCommand(1000, 2000, 3, 6), // Active at 1500
+    ];
+    // At t=1500: first ended, second active -> second wins
+    const scale = getScale(commands, noLoops, 1500);
+    expect(scale).toBeCloseTo(4.5);
+  });
+
+  it("should pre-read first command's start value when all in future", () => {
+    const commands: SbCommand[] = [
+      createSCommand(2000, 3000, 1, 2),
+      createSCommand(1000, 2000, 3, 4),
+    ];
+    // Sorted: [1000-2000, 2000-3000]
+    // At t=0: both in future -> pre-read first (3)
+    const scale = getScale(commands, noLoops, 0);
+    expect(scale).toBe(3);
+  });
+
+  it("should handle sequential non-overlapping commands correctly", () => {
+    const commands: SbCommand[] = [
+      createSCommand(0, 1000, 1, 2),
+      createSCommand(1000, 2000, 2, 3),
+      createSCommand(2000, 3000, 3, 4),
+    ];
+    // During first
+    const scale1 = getScale(commands, noLoops, 500);
+    expect(scale1).toBeCloseTo(1.5);
+    // During second
+    const scale2 = getScale(commands, noLoops, 1500);
+    expect(scale2).toBeCloseTo(2.5);
+    // During third
+    const scale3 = getScale(commands, noLoops, 2500);
+    expect(scale3).toBeCloseTo(3.5);
+    // After all ended
+    const scale4 = getScale(commands, noLoops, 4000);
+    expect(scale4).toBe(4);
+  });
+});

@@ -156,3 +156,92 @@ describe("Loop V command interpolation", () => {
     expect(vs!.y).toBeCloseTo(2);
   });
 });
+
+// ============================================
+// 6. getVectorScale - Multiple V commands
+// ============================================
+
+describe("getVectorScale - Multiple V commands", () => {
+  it("should use last active command when multiple overlap", () => {
+    const commands: SbCommand[] = [
+      createVCommand(0, 2000, 1, 1, 2, 2), // Active 0-2000
+      createVCommand(1000, 1500, 3, 3, 4, 4), // Active 1000-1500 (overlaps)
+    ];
+    // At t=1200, both active -> last active (3-4 range) takes precedence
+    const vs = getVectorScale(commands, noLoops, 1200);
+    expect(vs!.x).toBeCloseTo(3.4);
+    expect(vs!.y).toBeCloseTo(3.4);
+  });
+
+  it("should use last ended command's end value when all commands have ended", () => {
+    const commands: SbCommand[] = [
+      createVCommand(0, 500, 1, 1, 2, 2), // Ended at 500
+      createVCommand(600, 1000, 3, 3, 5, 5), // Ended at 1000
+    ];
+    // At t=1500, both ended -> last ended (5,5) takes precedence
+    const vs = getVectorScale(commands, noLoops, 1500);
+    expect(vs).toEqual({ x: 5, y: 5 });
+  });
+
+  it("should prioritize active command over ended command", () => {
+    const commands: SbCommand[] = [
+      createVCommand(0, 500, 1, 1, 2, 2), // Ended at 500
+      createVCommand(1000, 2000, 3, 3, 6, 6), // Active at 1500
+    ];
+    // At t=1500: first ended, second active -> second wins
+    const vs = getVectorScale(commands, noLoops, 1500);
+    expect(vs!.x).toBeCloseTo(4.5);
+    expect(vs!.y).toBeCloseTo(4.5);
+  });
+
+  it("should pre-read first command's start value when all in future", () => {
+    const commands: SbCommand[] = [
+      createVCommand(2000, 3000, 1, 1, 2, 2),
+      createVCommand(1000, 2000, 3, 3, 4, 4),
+    ];
+    // Sorted: [1000-2000, 2000-3000]
+    // At t=0: both in future -> pre-read first (3,3)
+    const vs = getVectorScale(commands, noLoops, 0);
+    expect(vs).toEqual({ x: 3, y: 3 });
+  });
+
+  it("should handle sequential non-overlapping commands correctly", () => {
+    const commands: SbCommand[] = [
+      createVCommand(0, 1000, 1, 1, 2, 2),
+      createVCommand(1000, 2000, 2, 2, 3, 3),
+      createVCommand(2000, 3000, 3, 3, 4, 4),
+    ];
+    // During first
+    const vs1 = getVectorScale(commands, noLoops, 500);
+    expect(vs1!.x).toBeCloseTo(1.5);
+    expect(vs1!.y).toBeCloseTo(1.5);
+    // During second
+    const vs2 = getVectorScale(commands, noLoops, 1500);
+    expect(vs2!.x).toBeCloseTo(2.5);
+    expect(vs2!.y).toBeCloseTo(2.5);
+    // During third
+    const vs3 = getVectorScale(commands, noLoops, 2500);
+    expect(vs3!.x).toBeCloseTo(3.5);
+    expect(vs3!.y).toBeCloseTo(3.5);
+    // After all ended
+    const vs4 = getVectorScale(commands, noLoops, 4000);
+    expect(vs4).toEqual({ x: 4, y: 4 });
+  });
+
+  it("should match real-world scenario: multiple V commands at 108210ms", () => {
+    // Real scenario from SB/White.jpg sprite_209
+    const commands: SbCommand[] = [
+      createVCommand(102566, 108004, 0.1441379, 0.9117241, 0.1882759, 0.9382067),
+      createVCommand(108004, 108191, 0.1882759, 0.9382067, 0.2853792, 1.026482),
+      createVCommand(108191, 108379, 0.2853792, 1.026482, 0.2942066, 0.9646893),
+    ];
+    // At 108210ms: first two ended, third active
+    const vs = getVectorScale(commands, noLoops, 108210);
+    // Third command: interpolate at (108210-108191)/(108379-108191) = 19/188 ≈ 0.101
+    const t = 19 / 188;
+    const expectedX = 0.2853792 + (0.2942066 - 0.2853792) * t;
+    const expectedY = 1.026482 + (0.9646893 - 1.026482) * t;
+    expect(vs!.x).toBeCloseTo(expectedX, 4);
+    expect(vs!.y).toBeCloseTo(expectedY, 4);
+  });
+});

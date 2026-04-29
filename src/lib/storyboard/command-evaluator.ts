@@ -223,44 +223,53 @@ export function getScale(
   loops: SbLoop[],
   currentTime: number,
 ): number {
-  let scale = 1;
-  // 按时间排序 S 命令，确保正确处理多个命令
   const sCommands = commands
     .filter((cmd) => cmd.type === "S")
     .sort((a, b) => a.startTime - b.startTime);
 
+  if (sCommands.length === 0) {
+    return getScaleFromLoops(loops, currentTime) ?? 1;
+  }
+
+  let lastEndedCmd: SbCommand | null = null;
+  let lastActiveCmd: SbCommand | null = null;
+
   for (const cmd of sCommands) {
+    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
+      return getCommandValue(cmd, currentTime, 0);
+    }
+
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      // 命令正在进行中，使用插值
-      scale = getCommandValue(cmd, currentTime, 0);
-      break;
-    } else if (
-      currentTime > cmd.endTime &&
-      cmd.endTime !== INFINITE_DURATION
-    ) {
-      // 命令已结束（非无限），使用结束值
-      scale = cmd.params[1] ?? cmd.params[0] ?? 1;
-    } else if (
-      cmd.endTime === INFINITE_DURATION &&
-      currentTime >= cmd.startTime
-    ) {
-      // 无限命令进行中
-      scale = getCommandValue(cmd, currentTime, 0);
-      break;
-    } else if (currentTime < cmd.startTime) {
-      // 命令还没开始，使用开始值（osu! behavior: pre-read command value）
-      scale = cmd.params[0] ?? 1;
-      break;
+      lastActiveCmd = cmd;
+    }
+
+    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
+      lastEndedCmd = cmd;
     }
   }
 
-  // Also check loops for scale values
-  if (loops.length > 0) {
-    const loopScale = getLoopCommandValue(loops, "S", currentTime, 0);
-    if (loopScale !== null) scale = loopScale;
+  // Priority: last active > last ended > pre-read > loops
+  if (lastActiveCmd) {
+    return getCommandValue(lastActiveCmd, currentTime, 0);
   }
 
-  return scale;
+  if (lastEndedCmd) {
+    return lastEndedCmd.params[1] ?? lastEndedCmd.params[0] ?? 1;
+  }
+
+  if (currentTime < sCommands[0].startTime) {
+    return sCommands[0].params[0] ?? 1;
+  }
+
+  return getScaleFromLoops(loops, currentTime) ?? 1;
+}
+
+function getScaleFromLoops(
+  loops: SbLoop[],
+  currentTime: number,
+): number | null {
+  if (loops.length === 0) return null;
+  return getLoopCommandValue(loops, "S", currentTime, 0);
 }
 
 export function getVectorScale(
@@ -272,38 +281,69 @@ export function getVectorScale(
     .filter((cmd) => cmd.type === "V")
     .sort((a, b) => a.startTime - b.startTime);
 
+  if (vCommands.length === 0) {
+    return getVectorScaleFromLoops(loops, currentTime);
+  }
+
+  let lastEndedCmd: SbCommand | null = null;
+  let lastActiveCmd: SbCommand | null = null;
+
   for (const cmd of vCommands) {
-    const isInfinite = cmd.endTime === INFINITE_DURATION;
-    if (currentTime >= cmd.endTime && !isInfinite) {
-      // Command has ended (non-infinite) - use end value
-      return {
-        x: cmd.params[2] ?? cmd.params[0] ?? 1,
-        y: cmd.params[3] ?? cmd.params[1] ?? 1,
-      };
-    } else if (currentTime >= cmd.startTime) {
-      // Command is active (including infinite duration) - interpolate
+    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
+      // Infinite duration: interpolate and return immediately
       return {
         x: getCommandValue(cmd, currentTime, 0),
         y: getCommandValue(cmd, currentTime, 1),
       };
-    } else if (currentTime < cmd.startTime) {
-      // Pre-read: use command start value before it starts
-      return {
-        x: cmd.params[0] ?? 1,
-        y: cmd.params[1] ?? 1,
-      };
+    }
+
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      // Active command: track it (keep overwriting to get the latest)
+      lastActiveCmd = cmd;
+    }
+
+    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
+      // Track the last ended command (keep overwriting to get the latest)
+      lastEndedCmd = cmd;
     }
   }
 
-  // Also check loops for vector scale values
-  if (loops.length > 0) {
-    const loopX = getLoopCommandValue(loops, "V", currentTime, 0);
-    const loopY = getLoopCommandValue(loops, "V", currentTime, 1);
-    if (loopX !== null && loopY !== null) {
-      return { x: loopX, y: loopY };
-    }
+  // Priority: last active > last ended > pre-read > loops
+  if (lastActiveCmd) {
+    return {
+      x: getCommandValue(lastActiveCmd, currentTime, 0),
+      y: getCommandValue(lastActiveCmd, currentTime, 1),
+    };
   }
 
+  if (lastEndedCmd) {
+    return {
+      x: lastEndedCmd.params[2] ?? lastEndedCmd.params[0] ?? 1,
+      y: lastEndedCmd.params[3] ?? lastEndedCmd.params[1] ?? 1,
+    };
+  }
+
+  // Pre-read: first command's start value
+  if (currentTime < vCommands[0].startTime) {
+    return {
+      x: vCommands[0].params[0] ?? 1,
+      y: vCommands[0].params[1] ?? 1,
+    };
+  }
+
+  return getVectorScaleFromLoops(loops, currentTime);
+}
+
+function getVectorScaleFromLoops(
+  loops: SbLoop[],
+  currentTime: number,
+): { x: number; y: number } | null {
+  if (loops.length === 0) return null;
+  const loopX = getLoopCommandValue(loops, "V", currentTime, 0);
+  const loopY = getLoopCommandValue(loops, "V", currentTime, 1);
+  if (loopX !== null && loopY !== null) {
+    return { x: loopX, y: loopY };
+  }
   return null;
 }
 
@@ -312,38 +352,53 @@ export function getRotation(
   loops: SbLoop[],
   currentTime: number,
 ): number {
-  let rotation = 0;
-
   const rCommands = commands
     .filter((cmd) => cmd.type === "R")
     .sort((a, b) => a.startTime - b.startTime);
 
+  if (rCommands.length === 0) {
+    return getRotationFromLoops(loops, currentTime) ?? 0;
+  }
+
+  let lastEndedCmd: SbCommand | null = null;
+  let lastActiveCmd: SbCommand | null = null;
+
   for (const cmd of rCommands) {
+    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
+      return getCommandValue(cmd, currentTime, 0);
+    }
+
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      rotation = getCommandValue(cmd, currentTime, 0);
-    } else if (
-      currentTime > cmd.endTime &&
-      cmd.endTime !== INFINITE_DURATION
-    ) {
-      rotation = cmd.params[1] ?? cmd.params[0] ?? 0;
-    } else if (
-      cmd.endTime === INFINITE_DURATION &&
-      currentTime >= cmd.startTime
-    ) {
-      rotation = cmd.params[0] ?? 0;
-    } else if (currentTime < cmd.startTime) {
-      // Pre-read: use command start value before it starts (osu! behavior)
-      rotation = cmd.params[0] ?? 0;
+      lastActiveCmd = cmd;
+    }
+
+    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
+      lastEndedCmd = cmd;
     }
   }
 
-  // Also check loops for rotation values
-  if (loops.length > 0) {
-    const loopRotation = getLoopCommandValue(loops, "R", currentTime, 0);
-    if (loopRotation !== null) rotation = loopRotation;
+  // Priority: last active > last ended > pre-read > loops
+  if (lastActiveCmd) {
+    return getCommandValue(lastActiveCmd, currentTime, 0);
   }
 
-  return rotation;
+  if (lastEndedCmd) {
+    return lastEndedCmd.params[1] ?? lastEndedCmd.params[0] ?? 0;
+  }
+
+  if (currentTime < rCommands[0].startTime) {
+    return rCommands[0].params[0] ?? 0;
+  }
+
+  return getRotationFromLoops(loops, currentTime) ?? 0;
+}
+
+function getRotationFromLoops(
+  loops: SbLoop[],
+  currentTime: number,
+): number | null {
+  if (loops.length === 0) return null;
+  return getLoopCommandValue(loops, "R", currentTime, 0);
 }
 
 /**
