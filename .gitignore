@@ -9,16 +9,13 @@ out
 # Generated data (beatmap, replay, storyboard JSON)
 src/generated/
 
-# Parsed assets from beatmap files
-public/audio.*
-public/background.*
-public/BG*.*
-public/Storyboard/
-
 build
 /.playwright-cli
-/replay/solo-replay-mania_5205935_6395917723.osr
+/replay/*
 /.ocx
 /.opencode
+/cheart/
+/cheart/*
+/public/
 /cheart-*
 /cheart-*/*

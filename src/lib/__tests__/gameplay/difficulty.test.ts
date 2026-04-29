@@ -18,10 +18,9 @@ function createTestBeatmap(
     hitObjects.push({
       x: (i % keyCount) * 128,
       y: 256,
-      time: i * 500, // 500ms apart = 120 BPM
+      time: i * 500,
       type: isLN ? 128 : 1,
       hitSound: 0,
-      objectParams: "",
       hitSample: "",
       column: i % keyCount,
       endTime: isLN ? i * 500 + 1000 : undefined,

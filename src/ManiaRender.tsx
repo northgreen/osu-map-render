@@ -21,14 +21,14 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     time = { beatOffset: 900, timeOffset: 0 },
     scroll = { scrollSpeed: 20 },
     judgment = { mode: "v2", offset: 0, showZones: false },
-    layout = { stageOffset: 0, judgmentLineY: 900 },
+    layout = { stageOffset: 0, judgmentLineY: 900, judgmentTextY: 750 },
     contents = { trackHeight: true, replayCursor: true, sessionLine: true },
   } = props;
 
   const { beatOffset, timeOffset } = time;
   const { scrollSpeed } = scroll;
   const { mode, offset, showZones, customWindows } = judgment;
-  const { stageOffset, judgmentLineY } = layout;
+  const { stageOffset, judgmentLineY, judgmentTextY } = layout;
 
   // Merge with defaults from schema
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
@@ -41,7 +41,11 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     bgDarken,
     bgBlur,
     stageBgOpacity,
+    hitsounds,
+    hitOffsetIndicator,
   } = contentsWithDefaults;
+
+  const indicator = hitOffsetIndicator ?? { enabled: false };
 
   // Set judgment mode and custom windows
   setJudgmentMode(mode);
@@ -61,7 +65,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       }
     >
       {/* Audio - shared across all layers */}
-      <Audio src={staticFile("audio.mp3")} />
+      <Audio src={staticFile(importedBeatmap.audioFile || "audio.mp3")} />
 
       {/* Layer 1: Background (handles bg image or black bg + storyboard based on storyboardEnabled) */}
       <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} bgBlur={bgBlur} />
@@ -79,6 +83,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
         showBeatLines={sessionLine}
         showColumnHighlights={columnHighlights}
         stageBgOpacity={stageBgOpacity}
+        hitsounds={hitsounds}
       />
 
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}
@@ -87,7 +92,8 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
         judgmentMode={mode}
         judgmentOffset={offset}
         stageOffset={stageOffset}
-        judgmentLineY={judgmentLineY}
+        judgmentTextY={judgmentTextY}
+        hitOffsetIndicator={indicator}
       />
     </AbsoluteFill>
   );

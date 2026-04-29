@@ -37,14 +37,22 @@ interface TimingPoint {
   effects: number;
 }
 
+interface HitSample {
+  normalSet: number;
+  additionSet: number;
+  index: number;
+  volume: number;
+  filename: string;
+}
+
 interface HitObject {
   x: number;
   y: number;
   time: number;
   type: number;
   hitSound: number;
-  objectParams: string;
   hitSample: string;
+  parsedHitSample?: HitSample;
   column: number;
   endTime?: number; // For long notes
   isLongNote: boolean;
@@ -85,6 +93,22 @@ function parseKeyValue(line: string): [string, string] {
   const key = line.substring(0, colonIndex).trim();
   const value = line.substring(colonIndex + 1).trim();
   return [key, value];
+}
+
+/**
+ * Parse hitSample format: "normalSet:additionSet:index:volume:filename"
+ */
+function parseHitSample(hitSample: string): HitSample | undefined {
+  if (!hitSample || hitSample.trim() === "") return undefined;
+  const parts = hitSample.split(":");
+  if (parts.length < 2) return undefined;
+  return {
+    normalSet: parseInt(parts[0], 10) || 0,
+    additionSet: parseInt(parts[1], 10) || 0,
+    index: parseInt(parts[2], 10) || 0,
+    volume: parseInt(parts[3], 10) || 0,
+    filename: parts[4] || "",
+  };
 }
 
 function parseOsuFile(filePath: string): ParsedBeatmap {
@@ -251,13 +275,23 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
       const type = parseInt(parts[3]);
       const hitSound = parseInt(parts[4]);
 
-      // For LN (type & 128), parts[5] is endTime (ms), parts[6] is hitSample
-      // For circle, parts[5] is objectParams, parts[6] is hitSample
+      // osu!mania hit object format:
+      // Circle: x,y,time,type,hitSound,hitSample
+      // LN:     x,y,time,type,hitSound,endTime:hitSample
       const isLongNote = (type & 128) !== 0;
-      const endTimeStr = isLongNote ? parts[5] || "" : "";
-      const endTime = isLongNote ? parseInt(endTimeStr) : undefined;
-      const objectParams = !isLongNote ? parts[5] || "" : "";
-      const hitSample = parts[6] || "";
+      let endTime: number | undefined;
+      let hitSample = "";
+      
+      if (isLongNote) {
+        // parts[5] = "endTime:normalSet:additionSet:index:volume:filename"
+        const lnParams = parts[5] || "";
+        const lnParts = lnParams.split(":");
+        endTime = parseInt(lnParts[0]) || undefined;
+        hitSample = lnParts.slice(1).join(":");
+      } else {
+        // parts[5] = "normalSet:additionSet:index:volume:filename" (hitSample)
+        hitSample = parts[5] || "";
+      }
 
       // Calculate column based on x position
       // Use 512 (osu! playfield width) / circleSize (key count) for column width
@@ -271,8 +305,8 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
         time,
         type,
         hitSound,
-        objectParams,
         hitSample,
+        parsedHitSample: parseHitSample(hitSample),
         column,
         endTime,
         isLongNote,
@@ -357,9 +391,15 @@ async function main() {
 
   // Ensure public directory exists
   const publicDir = path.join(projectDir, "public");
-  if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir, { recursive: true });
+
+  // Clear public directory before copying new resources
+  if (fs.existsSync(publicDir)) {
+    fs.rmSync(publicDir, { recursive: true, force: true });
   }
+  console.log("Cleared public/ directory");
+
+  // Recreate empty public directory
+  fs.mkdirSync(publicDir, { recursive: true });
 
   // Copy all resources from beatmap directory to public/
   // osu! beatmaps store all assets (audio, images, storyboard) in the same directory

@@ -1,4 +1,5 @@
-import { AbsoluteFill, staticFile, Img } from "remotion";
+import { AbsoluteFill, staticFile, Img, OffthreadVideo } from "remotion";
+import { useMemo } from "react";
 import { beatmap as importedBeatmap } from "./lib/osuParser";
 import { config, STAGE_X } from "./config";
 import { StoryboardLayer, storyboard } from "./lib/StoryboardLayer";
@@ -20,6 +21,12 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
 }) => {
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
+
+  // Find video object from storyboard (if any)
+  const videoObject = useMemo(
+    () => storyboard.find((obj) => obj.type === "video"),
+    [],
+  );
 
   return (
     <AbsoluteFill style={{
@@ -69,6 +76,29 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
       {/* Storyboard layers - only rendered when storyboardEnabled is true */}
       {storyboardEnabled && (
         <>
+          {/* Background: video (if present) or black */}
+          {videoObject && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+              }}
+            >
+              <OffthreadVideo
+                src={staticFile(videoObject.path)}
+                muted={true}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  transform: "translateZ(0)",
+                  willChange: "transform",
+                }}
+              />
+            </div>
+          )}
+
           {/* All storyboard elements wrapped in blur container */}
           <div style={{ position: "absolute", inset: 0, filter: bgBlur > 0 ? `blur(${bgBlur}px)` : undefined }}>
             {/* Storyboard layer - Background */}

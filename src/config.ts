@@ -36,10 +36,10 @@ export const LN_BODY_OPACITY = 0.4;
 const COLUMN_COLORS_MAP: Record<number, string[]> = {
   1: ["#FF6B6B"],
   2: ["#FF6B6B", "#4ECDC4"],
-  3: ["#FF6B6B", "#4ECDC4", "#FFD93D"],
+  3: ["#FF6B6B", "#FFD93D", "#FF6B6B"],
   4: ["#FF6B6B", "#4ECDC4", "#4ECDC4", "#FF6B6B"],
   5: ["#FF6B6B", "#FF8E53", "#4ECDC4", "#FF8E53", "#FF6B6B"],
-  6: ["#FF6B6B", "#FF8E53", "#4ECDC4", "#4ECDC4", "#FF8E53", "#FF6B6B"],
+  6: ["#FF6B6B", "#4ECDC4", "#FF6B6B", "#FF6B6B", "#4ECDC4", "#FF6B6B"],
   7: ["#FF6B6B", "#FF8E53", "#FFD93D", "#4ECDC4", "#FFD93D", "#FF8E53", "#FF6B6B"],
   8: ["#FF6B6B", "#FF8E53", "#FFD93D", "#6BCB77", "#6BCB77", "#FFD93D", "#FF8E53", "#FF6B6B"],
   9: ["#FF6B6B", "#FF8E53", "#FFD93D", "#6BCB77", "#45B7D1", "#6BCB77", "#FFD93D", "#FF8E53", "#FF6B6B"],
@@ -63,85 +63,65 @@ const COLUMN_COLORS_WILDCARD = [
   "#12CBC4", "#FDA7DF", "#ED4C67", "#F79F1F"
 ];
 
-// Stage positions for each key count (column centers, relative to stage)
+// ============================================
+// Position Generation (DRY)
+// ============================================
+
+/**
+ * Compute the stage width for a given key count.
+ *
+ * For 1-4K the stage stays at `STAGE_WIDTH_BASE`. From 5K onward the stage
+ * expands proportionally: each additional key adds `STAGE_WIDTH_BASE / 4`
+ * pixels. This mirrors the osu!mania UI where more columns need more room.
+ */
+function computeStageWidth(keyCount: number): number {
+  return keyCount <= 4
+    ? STAGE_WIDTH_BASE
+    : STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+}
+
+/**
+ * Generate column center positions (relative to stage left edge).
+ * Used for judgment lines, dividers, and key indicators.
+ */
 function generateStagePositions(keyCount: number): number[] {
-  const stageWidth = keyCount <= 4 ? STAGE_WIDTH_BASE : STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  const stageWidth = computeStageWidth(keyCount);
   const columnWidth = stageWidth / keyCount;
   return Array.from({ length: keyCount }, (_, i) => columnWidth * (i + 0.5));
 }
 
-// Note positions (left edge of each note, relative to stage)
+/**
+ * Generate note left-edge positions (relative to stage left edge).
+ * Notes are centered within each column, offset by `NOTE_WIDTH`.
+ */
 function generateNotePositions(keyCount: number): number[] {
-  // Calculate stage width based on key count (same logic as getStageWidth)
-  const stageWidth = keyCount <= 4 ? STAGE_WIDTH_BASE : STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  const stageWidth = computeStageWidth(keyCount);
   const columnWidth = stageWidth / keyCount;
-  // Left edge = column start + (columnWidth - NOTE_WIDTH) / 2
   return Array.from(
     { length: keyCount },
-    (_, i) => columnWidth * i + (columnWidth - NOTE_WIDTH) / 2
+    (_, i) => columnWidth * i + (columnWidth - NOTE_WIDTH) / 2,
   );
 }
 
-// Pre-computed stage positions (1K - 18K)
-const COLUMN_POSITIONS_STAGE_MAP: Record<number, number[]> = {
-  1: generateStagePositions(1),
-  2: generateStagePositions(2),
-  3: generateStagePositions(3),
-  4: generateStagePositions(4),
-  5: generateStagePositions(5),
-  6: generateStagePositions(6),
-  7: generateStagePositions(7),
-  8: generateStagePositions(8),
-  9: generateStagePositions(9),
-  10: generateStagePositions(10),
-  11: generateStagePositions(11),
-  12: generateStagePositions(12),
-  13: generateStagePositions(13),
-  14: generateStagePositions(14),
-  15: generateStagePositions(15),
-  16: generateStagePositions(16),
-  17: generateStagePositions(17),
-  18: generateStagePositions(18),
-};
+// ============================================
+// Pre-computed Position Maps (1K - 18K)
+// ============================================
 
-// Pre-computed note positions (1K - 18K)
-const COLUMN_POSITIONS_NOTE_MAP: Record<number, number[]> = {
-  1: generateNotePositions(1),
-  2: generateNotePositions(2),
-  3: generateNotePositions(3),
-  4: generateNotePositions(4),
-  5: generateNotePositions(5),
-  6: generateNotePositions(6),
-  7: generateNotePositions(7),
-  8: generateNotePositions(8),
-  9: generateNotePositions(9),
-  10: generateNotePositions(10),
-  11: generateNotePositions(11),
-  12: generateNotePositions(12),
-  13: generateNotePositions(13),
-  14: generateNotePositions(14),
-  15: generateNotePositions(15),
-  16: generateNotePositions(16),
-  17: generateNotePositions(17),
-  18: generateNotePositions(18),
-};
+/**
+ * Pre-computed stage positions for 1K-18K. Using a static map avoids
+ * regenerating arrays on every render frame. Key counts > 18 fall back
+ * to `generateWildcardPositions` which computes on demand.
+ *
+ * The wildcard fallback uses the same 20-color palette (`COLUMN_COLORS_WILDCARD`)
+ * and the same proportional stage-width formula, so behavior is consistent
+ * regardless of which code path is taken.
+ */
+const COLUMN_POSITIONS_STAGE_MAP: Record<number, number[]> = {};
+const COLUMN_POSITIONS_NOTE_MAP: Record<number, number[]> = {};
 
-// Wildcard fallback positions for key counts > 18
-function generateWildcardPositions(keyCount: number, forNote: boolean): number[] {
-  const stageWidth = STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
-  const columnWidth = stageWidth / keyCount;
-  if (forNote) {
-    // Note left edge (relative to stage)
-    return Array.from(
-      { length: keyCount },
-      (_, i) => columnWidth * i + (columnWidth - NOTE_WIDTH) / 2
-    );
-  }
-  // Stage center (relative to stage)
-  return Array.from(
-    { length: keyCount },
-    (_, i) => columnWidth * (i + 0.5)
-  );
+for (let k = 1; k <= 18; k++) {
+  COLUMN_POSITIONS_STAGE_MAP[k] = generateStagePositions(k);
+  COLUMN_POSITIONS_NOTE_MAP[k] = generateNotePositions(k);
 }
 
 // ============================================
@@ -149,42 +129,39 @@ function generateWildcardPositions(keyCount: number, forNote: boolean): number[]
 // ============================================
 
 /**
- * Get column colors for a specific key count
+ * Get column colors for a specific key count.
+ * Pre-defined palettes for 1-18K; slices the 20-color wildcard palette for > 18K.
  */
 export function getColumnColors(keyCount: number): string[] {
   return COLUMN_COLORS_MAP[keyCount] || COLUMN_COLORS_WILDCARD.slice(0, keyCount);
 }
 
 /**
- * Get stage positions (column centers) for a specific key count
+ * Get stage positions (column centers) for a specific key count.
+ * Pre-computed for 1-18K; computed on demand for > 18K.
  */
 export function getColumnPositionsStage(keyCount: number): number[] {
-  if (keyCount <= 18) {
-    return COLUMN_POSITIONS_STAGE_MAP[keyCount];
-  }
-  return generateWildcardPositions(keyCount, false);
+  return keyCount <= 18
+    ? COLUMN_POSITIONS_STAGE_MAP[keyCount]
+    : generateStagePositions(keyCount);
 }
 
 /**
- * Get note positions for a specific key count
+ * Get note positions for a specific key count.
+ * Pre-computed for 1-18K; computed on demand for > 18K.
  */
 export function getColumnPositionsNote(keyCount: number): number[] {
-  if (keyCount <= 18) {
-    return COLUMN_POSITIONS_NOTE_MAP[keyCount];
-  }
-  return generateWildcardPositions(keyCount, true);
+  return keyCount <= 18
+    ? COLUMN_POSITIONS_NOTE_MAP[keyCount]
+    : generateNotePositions(keyCount);
 }
 
 /**
- * Get stage width for a specific key count
- * For key counts > 4, expand stage proportionally
+ * Get stage width for a specific key count.
+ * For key counts > 4, expand stage proportionally.
  */
 export function getStageWidth(keyCount: number): number {
-  if (keyCount <= 4) {
-    return STAGE_WIDTH_BASE;
-  }
-  // For key counts > 4, expand stage width proportionally
-  return STAGE_WIDTH_BASE + (keyCount - 4) * (STAGE_WIDTH_BASE / 4);
+  return computeStageWidth(keyCount);
 }
 
 /**
@@ -231,3 +208,63 @@ export const config = {
   get columnPositionsNote() { return getColumnPositionsNote(_keyCount); },
   get columnColors() { return getColumnColors(_keyCount); },
 };
+
+// ============================================
+// Hitsound Configuration (osu! standard)
+// ============================================
+
+/**
+ * Hitsounds configuration for ManiaStageLayer component.
+ */
+export interface HitsoundsConfig {
+  enabled: boolean;
+  trigger: "auto" | "manual";
+  volume: number;
+}
+
+/**
+ * Hitsound configuration following osu! standard values.
+ * These values define how hit sounds are played when notes are hit.
+ */
+export const hitsoundConfig = {
+  // Base path for hitsound files - auto-detect environment
+  basePath: process.env.NODE_ENV === "production" ? "/osu-map-render/" : "/",
+
+  // Default volume (0-100, osu! standard)
+  defaultVolume: 100,
+
+  // Sample Set mapping (osu! standard)
+  sampleSets: {
+    0: "inherit" as const,  // Inherit from TimingPoint
+    1: "normal" as const,   // Normal set
+    2: "soft" as const,     // Soft set
+    3: "drum" as const,     // Drum set
+  } as const,
+
+  // hitSound bit flags (osu! standard)
+  hitSoundFlags: {
+    normal: 0b0001,  // Bit 0
+    whistle: 0b0010, // Bit 1
+    finish: 0b0100,  // Bit 2
+    clap: 0b1000,    // Bit 3
+  },
+
+  // Sound file template
+  soundFileTemplate: (sampleSet: string, soundType: string, index?: number) => {
+    if (index && index > 1) {
+      return `${sampleSet}-hit${soundType}${index}.wav`;
+    }
+    return `${sampleSet}-hit${soundType}.wav`;
+  },
+
+  // Fallback sound files (used when custom files are missing)
+  fallbackSounds: {
+    normal: "soft-hitnormal.wav",
+    whistle: "soft-hitwhistle.wav",
+    finish: "soft-hitfinish.wav",
+    clap: "soft-hitclap.wav", // Will be silently skipped if missing
+  },
+
+  // Concurrency limit (0 = unlimited)
+  maxConcurrentSounds: 10,
+} as const;

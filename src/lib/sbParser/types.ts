@@ -64,6 +64,7 @@ export interface SbCommand {
 
 export interface SbLoop {
   startTime: number;
+  endTime: number;
   repeatCount: number;
   commands: SbCommand[];
   loopDuration: number;

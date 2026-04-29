@@ -19,6 +19,9 @@ import type { SbCommand, SbLoop } from "../sbParser";
  * | F    | Fade (opacity)                               | [startOpacity, endOpacity]  |
  * | R    | Rotate (radians)                             | [startRad, endRad]          |
  * | C    | Color (RGB)                                  | [r1, g1, b1, r2, g2, b2]   |
+ * | P    | Flip / blending mode                         | "H" (horizontal), "V" (vertical), "A" (additive) |
+ * | L    | Loop (repeat nested commands)                | Constructed via `createLoop()` helper |
+ * | T    | Trigger (react to player input)              | Not yet fully supported in parser |
  *
  * All commands support an `easing` parameter (0 = linear, 1 = easeOut,
  * 2 = easeIn, etc., up to 34).
@@ -264,7 +267,13 @@ export function createLoop(
   commands: SbCommand[],
   loopDuration: number,
 ): SbLoop {
-  return { startTime, repeatCount, commands, loopDuration };
+  return {
+    startTime,
+    endTime: startTime + (repeatCount + 1) * loopDuration,
+    repeatCount,
+    commands,
+    loopDuration,
+  };
 }
 
 /**

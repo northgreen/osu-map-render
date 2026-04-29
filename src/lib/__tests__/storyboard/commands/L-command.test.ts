@@ -964,6 +964,7 @@ describe("Integration - loop with INFINITE_DURATION handling", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 3000,
         repeatCount: 2,
         commands: [
           {

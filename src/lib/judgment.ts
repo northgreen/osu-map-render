@@ -555,3 +555,35 @@ export function clearJudgmentCache(): void {
   judgmentCache = null;
   keyIntervalsCache = null;
 }
+
+// ============================================
+// Hit Offset Points for Visualization
+// ============================================
+
+// Hit offset point for visualization
+export interface HitOffsetPoint {
+  offset: number;      // ms, positive=late, negative=early
+  judgment: Judgment;
+  column: number;
+  time: number;
+}
+
+// Get recent hit offsets within a time window
+export function getRecentHitOffsets(
+  hitObjects: HitObject[],
+  od: number,
+  currentTime: number,
+  timeWindow: number,
+): HitOffsetPoint[] {
+  const results = getJudgmentResults(hitObjects, od);
+  const cutoff = currentTime - timeWindow;
+
+  return results
+    .filter((r) => r.hitTime >= cutoff && r.hitTime <= currentTime && r.judgment !== "Miss")
+    .map((r) => ({
+      offset: r.hitTime - r.noteTime,
+      judgment: r.judgment,
+      column: r.column,
+      time: r.hitTime,
+    }));
+}

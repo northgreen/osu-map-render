@@ -1,21 +1,27 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
 import { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
 import { replay } from "./lib/replay";
-import { getHitWindows, isAutoplayMode, getKeyIntervals } from "./lib/judgment";
+import { isAutoplayMode, getKeyIntervals } from "./lib/judgment";
+import { hitsoundManager } from "./lib/hitsound";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
-  NOTE_WIDTH,
-  NOTE_HEIGHT,
   STAGE_X,
   JUDGMENT_LINE_Y,
-  HIT_EFFECT_DURATION,
   config,
   getKeyCount,
+  type HitsoundsConfig,
 } from "./config";
+import {
+  BeatLinesLayer,
+  JudgmentZonesLayer,
+  KeyIndicatorsLayer,
+  ColumnHighlightsLayer,
+  HitEffectsLayer,
+} from "./ManiaStageSubComponents";
 
 interface ManiaStageLayerProps {
   beatmap?: ParsedBeatmap;
@@ -29,6 +35,7 @@ interface ManiaStageLayerProps {
   showBeatLines?: boolean;
   showColumnHighlights?: boolean;
   stageBgOpacity?: number;
+  hitsounds?: HitsoundsConfig;
 }
 
 // Generate beat lines based on timing points
@@ -79,6 +86,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   showBeatLines = true,
   showColumnHighlights = true,
   stageBgOpacity = 1,
+  hitsounds = { enabled: false, trigger: "auto", volume: 1.0 },
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -89,6 +97,75 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     timingPoints: [],
   };
   const currentTime = beatmap ? (frame / fps) * 1000 : 0;
+
+  // Track played hitsounds to avoid duplicate playback - use string for composite key
+  const playedHitsoundsRef = useRef<Set<string>>(new Set());
+
+  // Find timing point for current time (for hitsound sample set)
+  const currentTimingPoint = useMemo(() => {
+    if (timingPoints.length === 0) return undefined;
+    let tp = timingPoints[0];
+    for (let i = 0; i < timingPoints.length; i++) {
+      if (timingPoints[i].time <= currentTime) {
+        tp = timingPoints[i];
+      } else {
+        break;
+      }
+    }
+    return tp;
+  }, [timingPoints, currentTime]);
+
+  // Auto hitsound trigger: play when note reaches judgment line
+  // Use binary search to find notes within the current frame window
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[hitsound] useEffect triggered", {
+        enabled: hitsounds.enabled,
+        trigger: hitsounds.trigger,
+        volume: hitsounds.volume,
+        currentTime,
+        hitObjectsCount: hitObjects.length,
+        hasBeatmap: !!beatmap,
+      });
+    }
+    if (!hitsounds.enabled || hitsounds.trigger !== "auto") return;
+
+    const frameInterval = 1000 / fps;
+    const playedSet = playedHitsoundsRef.current;
+    const windowStart = currentTime - frameInterval;
+
+    // Binary search: find first note with time > windowStart
+    let lo = 0;
+    let hi = hitObjects.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (hitObjects[mid].time <= windowStart) lo = mid + 1;
+      else hi = mid;
+    }
+    const startIndex = lo;
+
+    // Only iterate over notes within the frame window
+    for (let i = startIndex; i < hitObjects.length; i++) {
+      const note = hitObjects[i];
+      const noteTime = note.time;
+      const noteColumn = note.column;
+
+      // Stop once we pass the current time
+      if (noteTime > currentTime) break;
+
+      // Skip if already played - use composite key to handle chords/stacked notes
+      const playedKey = `${noteTime}-${noteColumn}`;
+      if (playedSet.has(playedKey)) continue;
+
+      // Play hitsound
+      hitsoundManager.playHitObjectHitSound(
+        note,
+        currentTimingPoint,
+        hitsounds.volume,
+      );
+      playedSet.add(playedKey);
+    }
+  }, [currentTime, hitObjects, hitsounds, currentTimingPoint, fps]);
 
   const durationMs =
     hitObjects.length > 0
@@ -148,41 +225,14 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     return lo - 1;
   }
 
-  // Get pressed keys from replay or autoplay
-  const pressedKeys = useMemo(() => {
+  // Get key state: returns both pressedKeys and releaseTimes in a single pass
+  const { pressedKeys, releaseTimes } = useMemo(() => {
     const keyCount = getKeyCount();
     const pressedColumns = new Array(keyCount).fill(false) as boolean[];
+    const releaseTimeArray = new Array(keyCount).fill(0) as number[];
 
     if (isAutoplayMode()) {
       // Autoplay: use key intervals from judgment module
-      const intervals = getKeyIntervals(hitObjects);
-      for (const interval of intervals) {
-        if (currentTime >= interval.start && currentTime <= interval.end) {
-          pressedColumns[interval.column] = true;
-        }
-      }
-    } else if (replay?.replayData && cumulativeTimes.length > 0) {
-      const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
-      if (lastFrameIndex >= 0) {
-        const keys = replay.replayData[lastFrameIndex].x;
-        for (let col = 0; col < keyCount; col++) {
-          if ((keys & (1 << col)) !== 0) {
-            pressedColumns[col] = true;
-          }
-        }
-      }
-    }
-
-    return pressedColumns;
-  }, [cumulativeTimes, currentTime, hitObjects]);
-
-  // Get key release times for fade-out effect
-  const releaseTimes = useMemo(() => {
-    const keyCount = getKeyCount();
-    const result = new Array(keyCount).fill(0) as number[];
-
-    if (isAutoplayMode()) {
-      // Autoplay: track when keys are released based on intervals
       const intervals = getKeyIntervals(hitObjects);
       const keyState = new Array(keyCount).fill(false) as boolean[];
 
@@ -196,17 +246,30 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         if (interval.end <= currentTime) {
           // Key was released
           if (keyState[col]) {
-            result[col] = interval.end;
+            releaseTimeArray[col] = interval.end;
             keyState[col] = false;
           }
         } else if (interval.start <= currentTime) {
           // Key is currently pressed
+          pressedColumns[col] = true;
           keyState[col] = true;
         }
       }
     } else if (replay?.replayData && cumulativeTimes.length > 0) {
       const keyState = new Array(keyCount).fill(false) as boolean[];
+      const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
 
+      // Get current key state from replay
+      if (lastFrameIndex >= 0) {
+        const keys = replay.replayData[lastFrameIndex].x;
+        for (let col = 0; col < keyCount; col++) {
+          if ((keys & (1 << col)) !== 0) {
+            pressedColumns[col] = true;
+          }
+        }
+      }
+
+      // Track release times
       for (let i = 0; i < cumulativeTimes.length; i++) {
         const time = cumulativeTimes[i];
         if (time > currentTime) break;
@@ -217,68 +280,36 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           const isPressed = (keys & (1 << col)) !== 0;
 
           if (!isPressed && keyState[col]) {
-            result[col] = time;
+            releaseTimeArray[col] = time;
           }
           keyState[col] = isPressed;
         }
       }
     }
 
-    return result;
+    return { pressedKeys: pressedColumns, releaseTimes: releaseTimeArray };
   }, [cumulativeTimes, currentTime, hitObjects]);
-
-  const COLUMN_FADE_DURATION = 150;
 
   // Early return after all hooks
   if (!beatmap) {
     return null;
   }
 
-  const getColumnOpacity = (columnIndex: number, isPressed: boolean) => {
-    if (isPressed) return 0.15;
-
-    const releaseTime = releaseTimes[columnIndex];
-    // If releaseTime is 0, it means the key was never pressed - don't show highlight
-    if (releaseTime === 0) return 0;
-
-    const timeSinceRelease = currentTime - releaseTime;
-    if (timeSinceRelease < 0 || timeSinceRelease > COLUMN_FADE_DURATION)
-      return 0;
-
-    return 0.15 * (1 - timeSinceRelease / COLUMN_FADE_DURATION);
-  };
-
   return (
     <AbsoluteFill style={stageStyle}>
       {/* Beat lines */}
-      {showBeatLines &&
-        beatLines.map((time) => {
-          const adjustedTime = time + beatOffset;
-          const timeUntilHit = adjustedTime - currentTime;
-
-          if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
-
-          const progress = scrollAlgorithm
-            ? scrollAlgorithm.getProgress(time, currentTime)
-            : 1 - timeUntilHit / visibleTime;
-          const y = progress * judgmentY;
-          const isBarLine =
-            time === 0 ||
-            (timingPoints.length > 0 &&
-              time % (Math.abs(timingPoints[0].beatLength) * 4) === 0);
-
-          return (
-            <div
-              key={`beat-${time}`}
-              className={`beat-line ${isBarLine ? "bar" : "normal"}`}
-              style={{
-                left: stageX,
-                top: y,
-                height: isBarLine ? 3 : 1,
-              }}
-            />
-          );
-        })}
+      {showBeatLines && (
+        <BeatLinesLayer
+          beatLines={beatLines}
+          beatOffset={beatOffset}
+          currentTime={currentTime}
+          visibleTime={visibleTime}
+          judgmentY={judgmentY}
+          stageX={stageX}
+          scrollAlgorithm={scrollAlgorithm}
+          timingPoints={timingPoints}
+        />
+      )}
 
       {/* Stage background */}
       <div
@@ -316,137 +347,18 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         />
       )}
 
-      {/* Judgment zones - colored rectangles showing timing windows */}
-      {showJudgmentZones &&
-        visibleTime > 0 &&
-        hitObjects.map((note, index) => {
-          const timeUntilHit = note.time - currentTime;
-          // Show zones for notes that are about to hit (within visible time)
-          if (timeUntilHit > visibleTime || timeUntilHit < -200) return null;
-
-          const od = beatmap.difficulty.overallDifficulty;
-          const windows = getHitWindows(od);
-
-          // Calculate note position
-          const progress = scrollAlgorithm
-            ? scrollAlgorithm.getProgress(note.time, currentTime)
-            : 1 - timeUntilHit / visibleTime;
-          const noteY = progress * judgmentY;
-          if (isNaN(noteY)) return null;
-
-          // Judgment zone colors (from center outward)
-          const zoneColors = [
-            {
-              color: "rgba(255, 0, 255, 0.3)",
-              borderColor: "rgba(255, 0, 255, 0.8)",
-              window: windows.perfect,
-            }, // Magenta - Perfect
-            {
-              color: "rgba(0, 255, 136, 0.25)",
-              borderColor: "rgba(0, 255, 136, 0.6)",
-              window: windows.great,
-            }, // Green - Great
-            {
-              color: "rgba(0, 170, 255, 0.2)",
-              borderColor: "rgba(0, 170, 255, 0.5)",
-              window: windows.good,
-            }, // Blue - Good
-            {
-              color: "rgba(255, 170, 0, 0.15)",
-              borderColor: "rgba(255, 170, 0, 0.4)",
-              window: windows.ok,
-            }, // Orange - Ok
-            {
-              color: "rgba(255, 68, 68, 0.12)",
-              borderColor: "rgba(255, 68, 68, 0.3)",
-              window: windows.meh,
-            }, // Red - Meh
-          ];
-
-          const column = Math.min(
-            note.column,
-            config.columnPositionsNote.length - 1,
-          );
-          // Use config.columnPositionsNote + stageOffset to match note positioning (same as ManiaNote)
-          const posX =
-            STAGE_X + config.columnPositionsNote[column] + stageOffset;
-
-          // Calculate zone heights based on time windows (converted to pixels)
-          const msToPixels = (ms: number) => {
-            if (visibleTime <= 0 || isNaN(ms)) return 0;
-            return (ms / visibleTime) * judgmentY;
-          };
-
-          // Render zones centered on note - extends both above and below
-          // Zone starts from noteY, extends upward (early) and downward (late)
-          let zoneTop = noteY;
-          return (
-            <div key={`note-zones-${note.time}-${note.column}-${index}`}>
-              {zoneColors.map((zone, zoneIndex) => {
-                const zoneHeight = msToPixels(zone.window);
-                if (zoneHeight <= 0) return null;
-
-                // Calculate fade based on screen position
-                const fadeStart = 100;
-                const opacity = Math.min(
-                  1,
-                  Math.max(0.1, (zoneTop - fadeStart) / fadeStart + 1),
-                );
-
-                const currentTop = zoneTop - zoneHeight;
-                zoneTop -= zoneHeight;
-
-                return (
-                  <>
-                    {/* Zone extends upward from previous zone (early hit window) */}
-                    <div
-                      key={`zone-early-${note.time}-${note.column}-${index}-${zoneIndex}`}
-                      className={`judgment-zone zone-${zoneIndex}`}
-                      style={{
-                        left: posX + 2, // posX already includes stageOffset
-                        top: currentTop,
-                        width: NOTE_WIDTH - 4,
-                        height: zoneHeight - 1,
-                        opacity,
-                      }}
-                    />
-                  </>
-                );
-              })}
-              {/* Render late zones below note */}
-              {zoneColors.map((zone, zoneIndex) => {
-                const zoneHeight = msToPixels(zone.window);
-                if (zoneHeight <= 0) return null;
-
-                const startY =
-                  noteY +
-                  msToPixels(
-                    zoneColors
-                      .slice(0, zoneIndex)
-                      .reduce((sum, z) => sum + msToPixels(z.window), 0),
-                  );
-                const opacity = Math.min(
-                  1,
-                  Math.max(0.1, (startY - 100) / 100 + 1),
-                );
-
-                return (
-                  <div
-                    key={`zone-late-${note.time}-${note.column}-${index}-${zoneIndex}`}
-                    className={`judgment-zone zone-${zoneIndex}`}
-                    style={{
-                      left: posX + 2, // posX already includes stageOffset
-                      top: startY,
-                      width: NOTE_WIDTH - 4,
-                      height: zoneHeight - 1,
-                      opacity,
-                    }}
-                  />
-                );
-              })}
-            </div>
-          );
-        })}
+      {/* Judgment zones */}
+      {showJudgmentZones && visibleTime > 0 && (
+        <JudgmentZonesLayer
+          hitObjects={hitObjects}
+          currentTime={currentTime}
+          visibleTime={visibleTime}
+          judgmentY={judgmentY}
+          stageX={stageX}
+          beatmap={beatmap}
+          scrollAlgorithm={scrollAlgorithm}
+        />
+      )}
 
       {/* Notes */}
       {hitObjects.map((note, index) => (
@@ -460,7 +372,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         />
       ))}
 
-      {/* Replay cursor - shows player key presses falling */}
+      {/* Replay cursor */}
       {showReplayCursor && (
         <ReplayCursor
           scrollSpeed={scrollSpeed}
@@ -470,158 +382,30 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         />
       )}
 
-      {/* Key press indicators at bottom */}
-      {config.columnPositionsStage.map((pos, i) => {
-        const isPressed = pressedKeys[i];
-        const keyLabels = [
-          "D",
-          "F",
-          "J",
-          "K",
-          "A",
-          "S",
-          "Z",
-          "X",
-          "C",
-          "V",
-          "B",
-          "N",
-          "M",
-          ",",
-          ".",
-          "/",
-          "'",
-          ";",
-          "L",
-        ];
-        return (
-          <div
-            key={`key-${i}`}
-            className={`key-indicator column-${i} ${isPressed ? "pressed" : ""}`}
-            style={{
-              left: stageX + pos - config.columnWidth / 2,
-              top: judgmentY + 10,
-              width: config.columnWidth,
-              height: 60,
-            }}
-          >
-            {keyLabels[i] ?? i}
-          </div>
-        );
-      })}
+      {/* Key press indicators */}
+      <KeyIndicatorsLayer
+        pressedKeys={pressedKeys}
+        judgmentY={judgmentY}
+        stageX={stageX}
+      />
 
-      {/* Column highlights when key is pressed (with fade-out) */}
-      {showColumnHighlights &&
-        config.columnPositionsStage.map((pos, i) => {
-          const isPressed = pressedKeys[i];
-          const opacity = getColumnOpacity(i, isPressed);
+      {/* Column highlights */}
+      {showColumnHighlights && (
+        <ColumnHighlightsLayer
+          pressedKeys={pressedKeys}
+          releaseTimes={releaseTimes}
+          currentTime={currentTime}
+          stageX={stageX}
+        />
+      )}
 
-          if (opacity <= 0) return null;
-
-          return (
-            <div
-              key={`col-highlight-${i}`}
-              className={`column-highlight column-${i}`}
-              style={{
-                left: stageX + pos - config.columnWidth / 2,
-                width: config.columnWidth,
-                opacity,
-              }}
-            />
-          );
-        })}
-
-      {/* Hit effects - column highlight on note hit */}
-      {hitObjects.map((note, index) => {
-        const startTime = note.time;
-        const endTime =
-          note.isLongNote && note.endTime
-            ? note.endTime
-            : note.time + HIT_EFFECT_DURATION;
-
-        const isActive = note.isLongNote
-          ? currentTime >= startTime && currentTime <= endTime
-          : currentTime >= startTime &&
-            currentTime < startTime + HIT_EFFECT_DURATION;
-
-        if (!isActive) return null;
-
-        const column = Math.min(
-          note.column,
-          config.columnPositionsStage.length - 1,
-        );
-        const posX = config.columnPositionsStage[column];
-        const color = config.columnColors[column];
-
-        const timeSinceHit = currentTime - startTime;
-        const fadeProgress = note.isLongNote
-          ? 0
-          : timeSinceHit / HIT_EFFECT_DURATION;
-        const opacity = note.isLongNote
-          ? Math.min(0.1, (endTime - currentTime) / HIT_EFFECT_DURATION + 0.0)
-          : 0.1 * (1 - fadeProgress);
-
-        return (
-          <div
-            key={`col-hit-${startTime}-${note.column}-${index}`}
-            style={{
-              position: "absolute",
-              left: stageX + posX - config.columnWidth / 2,
-              top: 0,
-              width: config.columnWidth,
-              height: 1080,
-              backgroundColor: color,
-              opacity,
-              pointerEvents: "none",
-            }}
-          />
-        );
-      })}
-
-      {/* Hit effects - note flash */}
-      {hitObjects.map((note, index) => {
-        const column = Math.min(
-          note.column,
-          config.columnPositionsStage.length - 1,
-        );
-        const posX = config.columnPositionsStage[column];
-        const color = config.columnColors[column];
-
-        const flashTimes =
-          note.isLongNote && note.endTime
-            ? [note.time, note.endTime]
-            : [note.time];
-
-        return (
-          <>
-            {flashTimes.map((flashTime, flashIndex) => {
-              const timeSinceHit = currentTime - flashTime;
-
-              if (timeSinceHit >= 0 && timeSinceHit < HIT_EFFECT_DURATION) {
-                const progress = timeSinceHit / HIT_EFFECT_DURATION;
-
-                return (
-                  <div
-                    key={`hit-${flashTime}-${note.column}-${index}-${flashIndex}`}
-                    style={{
-                      position: "absolute",
-                      left: stageX + posX - config.columnWidth / 2,
-                      top: judgmentY,
-                      width: config.columnWidth,
-                      height: NOTE_HEIGHT,
-                      backgroundColor: color,
-                      opacity: 1 - progress,
-                      borderRadius: 4,
-                      boxShadow: `0 0 ${20 * (1 - progress)}px ${color}`,
-                    }}
-                  />
-                );
-              }
-              return null;
-            })}
-          </>
-        );
-      })}
+      {/* Hit effects */}
+      <HitEffectsLayer
+        hitObjects={hitObjects}
+        currentTime={currentTime}
+        stageX={stageX}
+        judgmentY={judgmentY}
+      />
     </AbsoluteFill>
   );
 };

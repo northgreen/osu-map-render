@@ -62,6 +62,19 @@ function calculateStarRating(
 let difficultyCache: DifficultyResult | null = null;
 let lastBeatmapHash: string | null = null;
 
+/**
+ * Clear the difficulty calculation cache.
+ *
+ * The `calculateDifficulty` function caches results keyed on a hash of
+ * hit object count, circle size, and overall difficulty. Call this to
+ * force a full recalculation (e.g. after switching beatmaps in a hot-reload
+ * scenario or when replay data changes).
+ */
+export function clearCache(): void {
+  difficultyCache = null;
+  lastBeatmapHash = null;
+}
+
 function hashBeatmap(beatmap: {
   hitObjects: HitObject[];
   difficulty: {

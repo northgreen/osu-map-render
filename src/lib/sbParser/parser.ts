@@ -500,6 +500,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
+            endTime:
+              currentLoop.startTime +
+              (currentLoop.repeatCount + 1) * currentLoop.loopDuration,
             repeatCount: currentLoop.repeatCount,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
@@ -543,6 +546,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           // Runtime will calculate absolute times based on iteration
           currentObject.loops.push({
             startTime: currentLoop.startTime,
+            endTime:
+              currentLoop.startTime +
+              (currentLoop.repeatCount + 1) * currentLoop.loopDuration,
             repeatCount: currentLoop.repeatCount,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
@@ -591,6 +597,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
           currentLoop.loopDuration = calculateLoopDuration(currentLoop.childCommands);
           currentObject.loops.push({
             startTime: currentLoop.startTime,
+            endTime:
+              currentLoop.startTime +
+              (currentLoop.repeatCount + 1) * currentLoop.loopDuration,
             repeatCount: currentLoop.repeatCount,
             commands: currentLoop.childCommands,
             loopDuration: currentLoop.loopDuration,
@@ -635,6 +644,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
         // Save to loops array instead of expanding
         currentObject.loops.push({
           startTime: currentLoop.startTime,
+          endTime:
+            currentLoop.startTime +
+            (currentLoop.repeatCount + 1) * currentLoop.loopDuration,
           repeatCount: currentLoop.repeatCount,
           commands: currentLoop.childCommands,
           loopDuration: currentLoop.loopDuration,
@@ -810,6 +822,9 @@ export function parseStoryboard(content: string): ParsedStoryboard {
       // Save to loops array instead of expanding
       currentObject.loops.push({
         startTime: currentLoop.startTime,
+        endTime:
+          currentLoop.startTime +
+          (currentLoop.repeatCount + 1) * currentLoop.loopDuration,
         repeatCount: currentLoop.repeatCount,
         commands: currentLoop.childCommands,
         loopDuration: currentLoop.loopDuration,

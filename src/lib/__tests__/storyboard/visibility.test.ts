@@ -157,6 +157,7 @@ describe("isObjectVisible", () => {
       const loops: SbLoop[] = [
         {
           startTime: 5000,
+          endTime: 8000,
           repeatCount: 2,
           commands: [],
           loopDuration: 1000,

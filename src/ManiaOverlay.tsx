@@ -1,5 +1,5 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { ParsedBeatmap } from "./lib/osuParser";
 import { calculateDifficulty, calculateRealtimePP } from "./lib/difficulty";
 import {
@@ -12,13 +12,26 @@ import {
   isAutoplayMode,
 } from "./lib/judgment";
 import { config, STAGE_X } from "./config";
+import { HitOffsetIndicator } from "./HitOffsetIndicator";
 
 interface ManiaOverlayProps {
   beatmap?: ParsedBeatmap;
   judgmentMode?: "v1" | "v2" | "custom";
   judgmentOffset?: number;
   stageOffset?: number;
-  judgmentLineY?: number;
+  judgmentTextY?: number;
+  hitOffsetIndicator?: {
+    enabled?: boolean;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    timeWindow?: number;
+    maxHits?: number;
+    maxOffset?: number;
+    showCenterLine?: boolean;
+    showLabels?: boolean;
+  };
 }
 
 export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
@@ -26,7 +39,8 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
   judgmentMode,
   judgmentOffset = 0,
   stageOffset = 0,
-  judgmentLineY = 900,
+  judgmentTextY = 750,
+  hitOffsetIndicator,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -45,56 +59,122 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
 
   const mode = judgmentMode || getJudgmentMode();
 
+  // Memoized judgments array (static per beatmap)
+  const judgments = useMemo(() => {
+    if (!beatmap) return [];
+    return getJudgmentResults(beatmap.hitObjects, beatmap.difficulty.overallDifficulty);
+  }, [beatmap]);
+
+  // Incremental score calculation using binary search and cached counts
+  const prevCountsRef = useRef<{
+    countPerfect: number;
+    countGreat: number;
+    countGood: number;
+    countOk: number;
+    countMeh: number;
+    countMiss: number;
+    maxCombo: number;
+    lastJudgment: JudgmentResult | null;
+    processedCount: number;
+    lastJudgmentTime: number;
+  }>({
+    countPerfect: 0,
+    countGreat: 0,
+    countGood: 0,
+    countOk: 0,
+    countMeh: 0,
+    countMiss: 0,
+    maxCombo: 0,
+    lastJudgment: null,
+    processedCount: 0,
+    lastJudgmentTime: 0,
+  });
+
   if (!beatmap) {
     return null;
   }
 
-  const { metadata, difficulty, hitObjects } = beatmap;
+  const { metadata, difficulty } = beatmap;
   const currentTime = (frame / fps) * 1000;
 
   if (!difficultyResult) return null;
 
-  // Get judgment results
-  const judgments = getJudgmentResults(
-    hitObjects,
-    difficulty.overallDifficulty,
-  );
+  // Binary search: find rightmost index where judgment.hitTime <= currentTime
+  function findLastHitJudgment(arr: JudgmentResult[], time: number): number {
+    let lo = 0;
+    let hi = arr.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (arr[mid].hitTime <= time) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo - 1;
+  }
 
-  // Calculate cumulative scores (osu!mania: Perfect=320, Great=300, Good=200, Ok=100, Meh=50, Miss=0)
-  let countPerfect = 0,
-    countGreat = 0,
-    countGood = 0,
-    countOk = 0,
-    countMeh = 0,
-    countMiss = 0;
-  let lastJudgment: JudgmentResult | null = null;
-  let currentCombo = 0;
+  // Get counts up to current time
+  const currentIndex = findLastHitJudgment(judgments, currentTime);
+  const counts = prevCountsRef.current;
+
+  // Reset if time went backwards (seeking)
+  if (currentIndex < counts.processedCount - 1) {
+    counts.countPerfect = 0;
+    counts.countGreat = 0;
+    counts.countGood = 0;
+    counts.countOk = 0;
+    counts.countMeh = 0;
+    counts.countMiss = 0;
+    counts.maxCombo = 0;
+    counts.lastJudgment = null;
+    counts.processedCount = 0;
+    counts.lastJudgmentTime = 0;
+  }
+
+  // Process only new judgments since last frame
+  for (let i = counts.processedCount; i <= currentIndex && i < judgments.length; i++) {
+    const j = judgments[i];
+    if (j.judgment === "Perfect") {
+      counts.countPerfect++;
+    } else if (j.judgment === "Great") {
+      counts.countGreat++;
+    } else if (j.judgment === "Good") {
+      counts.countGood++;
+    } else if (j.judgment === "Ok") {
+      counts.countOk++;
+    } else if (j.judgment === "Meh") {
+      counts.countMeh++;
+    } else if (j.judgment === "Miss") {
+      counts.countMiss++;
+    }
+    counts.lastJudgment = j;
+  }
+
+  // Update processed count
+  counts.processedCount = currentIndex + 1;
+
+  // Calculate max combo (scan all processed judgments)
   let maxCombo = 0;
-  for (const j of judgments) {
-    if (j.hitTime <= currentTime) {
-      if (j.judgment === "Perfect") {
-        countPerfect++;
-        currentCombo++;
-      } else if (j.judgment === "Great") {
-        countGreat++;
-        currentCombo++;
-      } else if (j.judgment === "Good") {
-        countGood++;
-        currentCombo++;
-      } else if (j.judgment === "Ok") {
-        countOk++;
-        currentCombo++;
-      } else if (j.judgment === "Meh") {
-        countMeh++;
-        currentCombo++;
-      } else if (j.judgment === "Miss") {
-        currentCombo = 0;
-        countMiss++;
-      }
-      if (currentCombo > maxCombo) maxCombo = currentCombo;
-      lastJudgment = j;
+  let tempCombo = 0;
+  for (let i = 0; i <= currentIndex && i < judgments.length; i++) {
+    const j = judgments[i];
+    if (j.judgment === "Miss") {
+      if (tempCombo > maxCombo) maxCombo = tempCombo;
+      tempCombo = 0;
+    } else {
+      tempCombo++;
     }
   }
+  if (tempCombo > maxCombo) maxCombo = tempCombo;
+
+  // Extract counts for rendering
+  const {
+    countPerfect,
+    countGreat,
+    countGood,
+    countOk,
+    countMeh,
+    countMiss,
+    lastJudgment,
+  } = counts;
 
   // Calculate score
   const totalScore =
@@ -104,7 +184,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
     countOk * 100 +
     countMeh * 50;
 
-  // Calculate real-time PP (using actual judgment counts and real combo)
+  // Calculate real-time PP
   const realtimePP = calculateRealtimePP(beatmap, currentTime, maxCombo, {
     countPerfect,
     countGreat,
@@ -204,8 +284,8 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
         <div
           style={{
             position: "absolute",
-            top: judgmentLineY - 150,
-            left: 320 + stageOffset,
+            top: judgmentTextY,
+            left: STAGE_X + config.stageWidth / 2 + stageOffset,
             transform: "translateX(-50%)",
             fontSize: 64,
             fontWeight: "bold",
@@ -216,6 +296,23 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
         >
           {lastJudgment.judgment}
         </div>
+      )}
+
+      {/* Hit offset indicator */}
+      {hitOffsetIndicator?.enabled && (
+        <HitOffsetIndicator
+          beatmap={beatmap}
+          enabled={hitOffsetIndicator.enabled}
+          x={hitOffsetIndicator.x}
+          y={hitOffsetIndicator.y}
+          width={hitOffsetIndicator.width}
+          height={hitOffsetIndicator.height}
+          timeWindow={hitOffsetIndicator.timeWindow}
+          maxHits={hitOffsetIndicator.maxHits}
+          maxOffset={hitOffsetIndicator.maxOffset}
+          showCenterLine={hitOffsetIndicator.showCenterLine}
+          showLabels={hitOffsetIndicator.showLabels}
+        />
       )}
     </AbsoluteFill>
   );

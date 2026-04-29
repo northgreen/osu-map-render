@@ -2,7 +2,83 @@ import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser/types";
 import { applyEasing } from "./easing";
 import { getLoopCommandValue, getLoopOpacity, getLoopFlipState } from "./loop-evaluator";
 
-// Gamma correction constants (matching osu! Color4Extensions)
+// ============================================
+// Generic Command Sequence Evaluator
+// ============================================
+
+/**
+ * Callbacks for handling different command states in the evaluation pipeline.
+ * Used by `evaluateSequence` to avoid duplicating the
+ * "last active > last ended > pre-read > loops" pattern.
+ */
+interface CommandHandler<T> {
+  /** Handle infinite-duration command */
+  handleInfinite: (cmd: SbCommand, time: number) => T;
+  /** Handle currently active command */
+  handleActive: (cmd: SbCommand, time: number) => T;
+  /** Handle last ended command (return end value) */
+  handleEnded: (cmd: SbCommand) => T;
+  /** Handle pre-read (first command's start value) */
+  handlePreRead: (cmd: SbCommand) => T;
+  /** Default when no commands or loops apply */
+  defaultValue: T;
+}
+
+/**
+ * Evaluate a sequence of commands sorted by start time using the standard
+ * osu! priority: **last active > last ended > pre-read > loops**.
+ *
+ * This eliminates duplication across `getScale`, `getVectorScale`,
+ * `getRotation`, and `getColor`.
+ */
+function evaluateSequence<T>(
+  commands: SbCommand[],
+  loops: SbLoop[],
+  currentTime: number,
+  commandType: string,
+  handler: CommandHandler<T>,
+  loopReader: (loops: SbLoop[], time: number) => T | null,
+): T {
+  const filtered = commands
+    .filter((cmd) => cmd.type === commandType)
+    .sort((a, b) => a.startTime - b.startTime);
+
+  if (filtered.length === 0) {
+    return loopReader(loops, currentTime) ?? handler.defaultValue;
+  }
+
+  let lastEndedCmd: SbCommand | null = null;
+  let lastActiveCmd: SbCommand | null = null;
+
+  for (const cmd of filtered) {
+    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
+      return handler.handleInfinite(cmd, currentTime);
+    }
+
+    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      lastActiveCmd = cmd;
+    }
+
+    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
+      lastEndedCmd = cmd;
+    }
+  }
+
+  // Priority: last active > last ended > pre-read > loops
+  if (lastActiveCmd) {
+    return handler.handleActive(lastActiveCmd, currentTime);
+  }
+
+  if (lastEndedCmd) {
+    return handler.handleEnded(lastEndedCmd);
+  }
+
+  if (currentTime < filtered[0].startTime) {
+    return handler.handlePreRead(filtered[0]);
+  }
+
+  return loopReader(loops, currentTime) ?? handler.defaultValue;
+}
 const SRGB_TO_LINEAR_THRESHOLD = 0.04045;
 
 /** Convert sRGB channel value to linear space */
@@ -223,45 +299,20 @@ export function getScale(
   loops: SbLoop[],
   currentTime: number,
 ): number {
-  const sCommands = commands
-    .filter((cmd) => cmd.type === "S")
-    .sort((a, b) => a.startTime - b.startTime);
-
-  if (sCommands.length === 0) {
-    return getScaleFromLoops(loops, currentTime) ?? 1;
-  }
-
-  let lastEndedCmd: SbCommand | null = null;
-  let lastActiveCmd: SbCommand | null = null;
-
-  for (const cmd of sCommands) {
-    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
-      return getCommandValue(cmd, currentTime, 0);
-    }
-
-    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      lastActiveCmd = cmd;
-    }
-
-    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
-      lastEndedCmd = cmd;
-    }
-  }
-
-  // Priority: last active > last ended > pre-read > loops
-  if (lastActiveCmd) {
-    return getCommandValue(lastActiveCmd, currentTime, 0);
-  }
-
-  if (lastEndedCmd) {
-    return lastEndedCmd.params[1] ?? lastEndedCmd.params[0] ?? 1;
-  }
-
-  if (currentTime < sCommands[0].startTime) {
-    return sCommands[0].params[0] ?? 1;
-  }
-
-  return getScaleFromLoops(loops, currentTime) ?? 1;
+  return evaluateSequence(
+    commands,
+    loops,
+    currentTime,
+    "S",
+    {
+      handleInfinite: (cmd, time) => getCommandValue(cmd, time, 0),
+      handleActive: (cmd, time) => getCommandValue(cmd, time, 0),
+      handleEnded: (cmd) => cmd.params[1] ?? cmd.params[0] ?? 1,
+      handlePreRead: (cmd) => cmd.params[0] ?? 1,
+      defaultValue: 1,
+    },
+    getScaleFromLoops,
+  );
 }
 
 function getScaleFromLoops(
@@ -277,61 +328,38 @@ export function getVectorScale(
   loops: SbLoop[],
   currentTime: number,
 ): { x: number; y: number } | null {
-  const vCommands = commands
-    .filter((cmd) => cmd.type === "V")
-    .sort((a, b) => a.startTime - b.startTime);
-
+  const result = evaluateSequence(
+    commands,
+    loops,
+    currentTime,
+    "V",
+    {
+      handleInfinite: (cmd, time) => ({
+        x: getCommandValue(cmd, time, 0),
+        y: getCommandValue(cmd, time, 1),
+      }),
+      handleActive: (cmd, time) => ({
+        x: getCommandValue(cmd, time, 0),
+        y: getCommandValue(cmd, time, 1),
+      }),
+      handleEnded: (cmd) => ({
+        x: cmd.params[2] ?? cmd.params[0] ?? 1,
+        y: cmd.params[3] ?? cmd.params[1] ?? 1,
+      }),
+      handlePreRead: (cmd) => ({
+        x: cmd.params[0] ?? 1,
+        y: cmd.params[1] ?? 1,
+      }),
+      defaultValue: { x: 1, y: 1 },
+    },
+    getVectorScaleFromLoops,
+  );
+  // Return null when no V commands and no loop values (distinguish from default 1,1)
+  const vCommands = commands.filter((cmd) => cmd.type === "V");
   if (vCommands.length === 0) {
     return getVectorScaleFromLoops(loops, currentTime);
   }
-
-  let lastEndedCmd: SbCommand | null = null;
-  let lastActiveCmd: SbCommand | null = null;
-
-  for (const cmd of vCommands) {
-    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
-      // Infinite duration: interpolate and return immediately
-      return {
-        x: getCommandValue(cmd, currentTime, 0),
-        y: getCommandValue(cmd, currentTime, 1),
-      };
-    }
-
-    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      // Active command: track it (keep overwriting to get the latest)
-      lastActiveCmd = cmd;
-    }
-
-    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
-      // Track the last ended command (keep overwriting to get the latest)
-      lastEndedCmd = cmd;
-    }
-  }
-
-  // Priority: last active > last ended > pre-read > loops
-  if (lastActiveCmd) {
-    return {
-      x: getCommandValue(lastActiveCmd, currentTime, 0),
-      y: getCommandValue(lastActiveCmd, currentTime, 1),
-    };
-  }
-
-  if (lastEndedCmd) {
-    return {
-      x: lastEndedCmd.params[2] ?? lastEndedCmd.params[0] ?? 1,
-      y: lastEndedCmd.params[3] ?? lastEndedCmd.params[1] ?? 1,
-    };
-  }
-
-  // Pre-read: first command's start value
-  if (currentTime < vCommands[0].startTime) {
-    return {
-      x: vCommands[0].params[0] ?? 1,
-      y: vCommands[0].params[1] ?? 1,
-    };
-  }
-
-  return getVectorScaleFromLoops(loops, currentTime);
+  return result;
 }
 
 function getVectorScaleFromLoops(
@@ -352,45 +380,20 @@ export function getRotation(
   loops: SbLoop[],
   currentTime: number,
 ): number {
-  const rCommands = commands
-    .filter((cmd) => cmd.type === "R")
-    .sort((a, b) => a.startTime - b.startTime);
-
-  if (rCommands.length === 0) {
-    return getRotationFromLoops(loops, currentTime) ?? 0;
-  }
-
-  let lastEndedCmd: SbCommand | null = null;
-  let lastActiveCmd: SbCommand | null = null;
-
-  for (const cmd of rCommands) {
-    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
-      return getCommandValue(cmd, currentTime, 0);
-    }
-
-    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      lastActiveCmd = cmd;
-    }
-
-    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
-      lastEndedCmd = cmd;
-    }
-  }
-
-  // Priority: last active > last ended > pre-read > loops
-  if (lastActiveCmd) {
-    return getCommandValue(lastActiveCmd, currentTime, 0);
-  }
-
-  if (lastEndedCmd) {
-    return lastEndedCmd.params[1] ?? lastEndedCmd.params[0] ?? 0;
-  }
-
-  if (currentTime < rCommands[0].startTime) {
-    return rCommands[0].params[0] ?? 0;
-  }
-
-  return getRotationFromLoops(loops, currentTime) ?? 0;
+  return evaluateSequence(
+    commands,
+    loops,
+    currentTime,
+    "R",
+    {
+      handleInfinite: (cmd, time) => getCommandValue(cmd, time, 0),
+      handleActive: (cmd, time) => getCommandValue(cmd, time, 0),
+      handleEnded: (cmd) => cmd.params[1] ?? cmd.params[0] ?? 0,
+      handlePreRead: (cmd) => cmd.params[0] ?? 0,
+      defaultValue: 0,
+    },
+    getRotationFromLoops,
+  );
 }
 
 function getRotationFromLoops(
@@ -457,52 +460,25 @@ export function getColor(
   loops: SbLoop[],
   currentTime: number,
 ): { r: number; g: number; b: number } | null {
-  const cCommands = commands
-    .filter((cmd) => cmd.type === "C")
-    .sort((a, b) => a.startTime - b.startTime);
-
+  const cCommands = commands.filter((cmd) => cmd.type === "C");
   if (cCommands.length === 0) {
-    // No C commands — check loops
     return getColorFromLoops(loops, currentTime);
   }
 
-  let lastEndedCmd: SbCommand | null = null;
-  let lastActiveCmd: SbCommand | null = null;
-
-  for (const cmd of cCommands) {
-    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
-      // Infinite duration: interpolate and return immediately
-      return computeLinearColor(cmd, currentTime);
-    }
-
-    if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      // Active command: track it (keep overwriting to get the latest)
-      lastActiveCmd = cmd;
-    }
-
-    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
-      // Track the last ended command (keep overwriting to get the latest)
-      lastEndedCmd = cmd;
-    }
-  }
-
-  // Priority: last active command > last ended command > pre-read > loops
-  if (lastActiveCmd) {
-    return computeLinearColor(lastActiveCmd, currentTime);
-  }
-
-  // Return last ended command's end value
-  if (lastEndedCmd) {
-    return computeLinearEndValue(lastEndedCmd);
-  }
-
-  // Pre-read: first command's start value (all commands are in the future)
-  if (currentTime < cCommands[0].startTime) {
-    return computeLinearStartValue(cCommands[0]);
-  }
-
-  // No match — check loops
-  return getColorFromLoops(loops, currentTime);
+  return evaluateSequence(
+    commands,
+    loops,
+    currentTime,
+    "C",
+    {
+      handleInfinite: (cmd, time) => computeLinearColor(cmd, time),
+      handleActive: (cmd, time) => computeLinearColor(cmd, time),
+      handleEnded: (cmd) => computeLinearEndValue(cmd),
+      handlePreRead: (cmd) => computeLinearStartValue(cmd),
+      defaultValue: { r: 1, g: 1, b: 1 },
+    },
+    getColorFromLoops,
+  );
 }
 
 /**

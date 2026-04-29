@@ -126,17 +126,11 @@
 }
 
 .key-indicator.pressed {
-  background-color: var(--column-color-1);
-  border-color: var(--column-color-1);
   color: var(--key-text-pressed);
-  box-shadow: 0 0 20px var(--column-color-1);
   opacity: 0.8;
 }
 
-.key-indicator.column-0.pressed { background-color: var(--column-color-1); border-color: var(--column-color-1); box-shadow: 0 0 20px var(--column-color-1); }
-.key-indicator.column-1.pressed { background-color: var(--column-color-2); border-color: var(--column-color-2); box-shadow: 0 0 20px var(--column-color-2); }
-.key-indicator.column-2.pressed { background-color: var(--column-color-3); border-color: var(--column-color-3); box-shadow: 0 0 20px var(--column-color-3); }
-.key-indicator.column-3.pressed { background-color: var(--column-color-4); border-color: var(--column-color-4); box-shadow: 0 0 20px var(--column-color-4); }
+
 
 /* Column highlight */
 .column-highlight {
@@ -144,12 +138,8 @@
   top: 0;
   height: 1080px;
   pointer-events: none;
+  opacity: 0.15;
 }
-
-.column-highlight.column-0 { background-color: var(--column-color-1); opacity: 0.15; }
-.column-highlight.column-1 { background-color: var(--column-color-2); opacity: 0.15; }
-.column-highlight.column-2 { background-color: var(--column-color-3); opacity: 0.15; }
-.column-highlight.column-3 { background-color: var(--column-color-4); opacity: 0.15; }
 
 /* Judgment zone */
 .judgment-zone {

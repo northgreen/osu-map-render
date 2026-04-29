@@ -1,5 +1,18 @@
 import { TimingPoint } from "./osuParser";
 
+// ============================================
+// Constants
+// ============================================
+
+/** Floating-point comparison threshold for scroll velocity equality */
+const FLOAT_EPSILON = 1e-6;
+
+/** Default beat length in ms when no timing points are available */
+const DEFAULT_BEAT_LENGTH = 1000;
+
+/** Base multiplier for scroll velocity calculation from uninherited timing points */
+const VELOCITY_MULTIPLIER_BASE = 100;
+
 export interface ScrollVelocitySegment {
   startTime: number;
   scrollVelocity: number;
@@ -10,7 +23,7 @@ function findMostCommonBeatLength(timingPoints: TimingPoint[]): number {
     .filter(tp => tp.uninherited && tp.beatLength > 0)
     .sort((a, b) => a.time - b.time);
 
-  if (uninherited.length === 0) return 1000;
+  if (uninherited.length === 0) return DEFAULT_BEAT_LENGTH;
 
   const durations: Map<number, number> = new Map();
   for (let i = 0; i < uninherited.length; i++) {
@@ -23,7 +36,7 @@ function findMostCommonBeatLength(timingPoints: TimingPoint[]): number {
   }
 
   let maxDuration = 0;
-  let mostCommon = 1000;
+  let mostCommon = DEFAULT_BEAT_LENGTH;
   for (const [beatLength, duration] of durations) {
     if (duration > maxDuration) {
       maxDuration = duration;
@@ -53,7 +66,7 @@ export function extractScrollVelocitySegments(
     if (tp.uninherited && tp.beatLength > 0) {
       currentTimingBL = tp.beatLength;
     } else if (!tp.uninherited && tp.beatLength < 0) {
-      currentScrollSpeed = 100 / Math.abs(tp.beatLength);
+      currentScrollSpeed = VELOCITY_MULTIPLIER_BASE / Math.abs(tp.beatLength);
     } else {
       continue;
     }
@@ -61,7 +74,7 @@ export function extractScrollVelocitySegments(
     const multiplier = currentScrollSpeed * mostCommon / currentTimingBL;
     const lastMultiplier = segments[segments.length - 1].scrollVelocity;
 
-    if (Math.abs(multiplier - lastMultiplier) > 1e-6) {
+    if (Math.abs(multiplier - lastMultiplier) > FLOAT_EPSILON) {
       segments.push({ startTime: tp.time, scrollVelocity: multiplier });
     }
   }

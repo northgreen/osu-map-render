@@ -328,6 +328,7 @@ describe("getColor - C command with loop", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [
           { type: "F", easing: 0, startTime: 0, endTime: 500, params: [0, 1] },
@@ -343,6 +344,7 @@ describe("getColor - C command with loop", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [
           createCCommand(0, 500, 255, 0, 0, 255, 0, 0), // Red (static)
@@ -359,6 +361,7 @@ describe("getColor - C command with loop", () => {
     const loops: SbLoop[] = [
       {
         startTime: 1000,
+        endTime: 2500,
         repeatCount: 2,
         commands: [
           createCCommand(0, 500, 255, 0, 0, 255, 0, 0),
@@ -377,6 +380,7 @@ describe("getColor - C command with loop", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [
           createCCommand(0, 500, 255, 0, 0, 255, 0, 0), // Red
@@ -396,6 +400,7 @@ describe("getColor - C command with loop", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [
           createCCommand(0, 500, 0, 0, 255, 0, 0, 255), // Blue

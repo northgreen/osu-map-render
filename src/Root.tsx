@@ -33,6 +33,42 @@ export const maniaRenderContentsSchema = z.object({
   bgDarken: z.number().min(0).max(1).multipleOf(0.01).default(0),
   bgBlur: z.number().min(0).max(20).default(0),
   stageBgOpacity: z.number().min(0).multipleOf(0.01).max(1).default(1),
+  hitsounds: z
+    .object({
+      enabled: z.boolean().default(true),
+      trigger: z.enum(["auto", "manual"]).default("auto"),
+      volume: z.number().min(0).max(1).default(1.0),
+    })
+    .default({
+      enabled: true,
+      trigger: "auto",
+      volume: 1.0,
+    }),
+  hitOffsetIndicator: z
+    .object({
+      enabled: z.boolean().default(false),
+      x: z.number().default(0),
+      y: z.number().default(540),
+      width: z.number().default(600),
+      height: z.number().default(30),
+      timeWindow: z.number().default(3000),
+      maxHits: z.number().default(0), // 0 = unlimited
+      maxOffset: z.number().default(0),
+      showCenterLine: z.boolean().default(true),
+      showLabels: z.boolean().default(false),
+    })
+    .default({
+      enabled: false,
+      x: 0,
+      y: 540,
+      width: 600,
+      height: 30,
+      timeWindow: 3000,
+      maxHits: 0,
+      maxOffset: 0,
+      showCenterLine: true,
+      showLabels: false,
+    }),
 });
 
 export const maniaRenderSchema = z.object({
@@ -60,6 +96,7 @@ export const maniaRenderSchema = z.object({
   layout: z.object({
     stageOffset: z.number().default(0),
     judgmentLineY: z.number().min(100).max(1000).default(900),
+    judgmentTextY: z.number().min(0).max(1080).default(750),
   }),
   contents: maniaRenderContentsSchema.default({
     trackHeight: true,
@@ -70,6 +107,23 @@ export const maniaRenderSchema = z.object({
     bgDarken: 0.0,
     bgBlur: 0.0,
     stageBgOpacity: 1.0,
+    hitsounds: {
+      enabled: true,
+      trigger: "auto",
+      volume: 1.0,
+    },
+    hitOffsetIndicator: {
+      enabled: false,
+      x: 0,
+      y: 540,
+      width: 600,
+      height: 30,
+      timeWindow: 3000,
+      maxHits: 0,
+      maxOffset: 0,
+      showCenterLine: true,
+      showLabels: false,
+    },
   }),
 });
 
@@ -92,7 +146,7 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
     time = { beatOffset: 900, timeOffset: 0 },
     scroll = { scrollSpeed: 20 },
     judgment = { mode: "v2", offset: 0, showZones: false },
-    layout = { stageOffset: 0, judgmentLineY: 900 },
+    layout = { stageOffset: 0, judgmentLineY: 900, judgmentTextY: 750 },
     contents = {},
   } = props;
 
@@ -111,12 +165,12 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
 
   // Parse contents with defaults
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
-  const { trackHeight, replayCursor, sessionLine, columnHighlights, stageBgOpacity } =
+  const { trackHeight, replayCursor, sessionLine, columnHighlights, stageBgOpacity, hitsounds } =
     contentsWithDefaults;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "transparent" }}>
-      <Audio src={staticFile("audio.mp3")} />
+      <Audio src={staticFile(beatmap.audioFile || "audio.mp3")} />
       <ManiaStageLayer
         beatmap={beatmap}
         scrollSpeed={scrollSpeed}
@@ -129,6 +183,7 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
         showBeatLines={sessionLine}
         showColumnHighlights={columnHighlights}
         stageBgOpacity={stageBgOpacity}
+        hitsounds={hitsounds}
       />
     </AbsoluteFill>
   );
@@ -153,19 +208,32 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         schema={maniaRenderSchema}
         defaultProps={{
-          time: { beatOffset: 900, timeOffset: 0 },
+          time: { beatOffset: 0, timeOffset: 0 },
           scroll: { scrollSpeed: 27 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
-          layout: { stageOffset: 67, judgmentLineY: 1000 },
+          layout: { stageOffset: 508, judgmentLineY: 946, judgmentTextY: 850 },
           contents: {
             trackHeight: true,
             columnHighlights: true,
-            replayCursor: false,
+            replayCursor: true,
             sessionLine: true,
             storyboardEnabled: true,
             bgDarken: 0.4,
             bgBlur: 7,
             stageBgOpacity: 0.8,
+            hitsounds: { enabled: true, trigger: "auto" as const, volume: 1 },
+            hitOffsetIndicator: {
+              enabled: true,
+              x: 0,
+              y: 1040,
+              width: 600,
+              height: 30,
+              timeWindow: 3000,
+              maxHits: 0,
+              maxOffset: 0,
+              showCenterLine: true,
+              showLabels: true,
+            },
           },
         }}
       />
@@ -181,7 +249,7 @@ export const RemotionRoot: React.FC = () => {
           const parsed = maniaRenderContentsSchema.parse(contents ?? {});
           return (
             <AbsoluteFill>
-              <Audio src={staticFile("audio.mp3")} />
+              <Audio src={staticFile(beatmap.audioFile || "audio.mp3")} />
               <ManiaBackground storyboardEnabled={parsed.storyboardEnabled} bgDarken={parsed.bgDarken} />
             </AbsoluteFill>
           );
@@ -196,7 +264,26 @@ export const RemotionRoot: React.FC = () => {
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
           layout: { stageOffset: 0, judgmentLineY: 900 },
-          contents: { storyboardEnabled: true },
+          contents: {
+            storyboardEnabled: true,
+            hitsounds: {
+              enabled: true,
+              trigger: "auto" as const,
+              volume: 1.0,
+            },
+            hitOffsetIndicator: {
+              enabled: false,
+              x: 0,
+              y: 540,
+              width: 600,
+              height: 30,
+              timeWindow: 3000,
+              maxHits: 0,
+              maxOffset: 0,
+              showCenterLine: true,
+              showLabels: false,
+            },
+          },
         }}
       />
 
@@ -213,7 +300,7 @@ export const RemotionRoot: React.FC = () => {
           time: { beatOffset: 900, timeOffset: 0 },
           scroll: { scrollSpeed: 20 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
-          layout: { stageOffset: 507, judgmentLineY: 1000 },
+          layout: { stageOffset: 507, judgmentLineY: 1000, judgmentTextY: 850 },
           contents: {
             trackHeight: true,
             columnHighlights: false,
@@ -223,6 +310,23 @@ export const RemotionRoot: React.FC = () => {
             bgDarken: 0.0,
             bgBlur: 0.0,
             stageBgOpacity: 1.0,
+            hitsounds: {
+              enabled: true,
+              trigger: "auto" as const,
+              volume: 1.0,
+            },
+            hitOffsetIndicator: {
+              enabled: false,
+              x: 0,
+              y: 540,
+              width: 600,
+              height: 30,
+              timeWindow: 3000,
+              maxHits: 0,
+              maxOffset: 0,
+              showCenterLine: true,
+              showLabels: false,
+            },
           },
         }}
       />
@@ -232,7 +336,7 @@ export const RemotionRoot: React.FC = () => {
         id="ManiaOverlayOnly"
         component={() => (
           <AbsoluteFill style={{ backgroundColor: "transparent" }}>
-            <Audio src={staticFile("audio.mp3")} />
+            <Audio src={staticFile(beatmap.audioFile || "audio.mp3")} />
             <ManiaOverlay beatmap={beatmap} />
           </AbsoluteFill>
         )}
@@ -251,7 +355,7 @@ export const RemotionRoot: React.FC = () => {
           const judgmentLineY = props.layout?.judgmentLineY ?? 900;
           return (
             <AbsoluteFill style={{ backgroundColor: "transparent" }}>
-              <Audio src={staticFile("audio.mp3")} />
+              <Audio src={staticFile(beatmap.audioFile || "audio.mp3")} />
               <ReplayCursorLayer
                 scrollSpeed={scrollSpeed}
                 stageOffset={stageOffset}
@@ -269,7 +373,7 @@ export const RemotionRoot: React.FC = () => {
           time: { beatOffset: 900, timeOffset: 0 },
           scroll: { scrollSpeed: 30 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
-          layout: { stageOffset: 499, judgmentLineY: 1000 },
+          layout: { stageOffset: 499, judgmentLineY: 1000, judgmentTextY: 850 },
           contents: {
             trackHeight: true,
             columnHighlights: true,
@@ -279,6 +383,23 @@ export const RemotionRoot: React.FC = () => {
             bgDarken: 0.0,
             bgBlur: 0.0,
             stageBgOpacity: 1.0,
+            hitsounds: {
+              enabled: true,
+              trigger: "auto" as const,
+              volume: 1.0,
+            },
+            hitOffsetIndicator: {
+              enabled: false,
+              x: 0,
+              y: 540,
+              width: 600,
+              height: 30,
+              timeWindow: 3000,
+              maxHits: 0,
+              maxOffset: 0,
+              showCenterLine: true,
+              showLabels: false,
+            },
           },
         }}
       />

@@ -96,9 +96,12 @@ const SbSprite: React.FC<SbSpriteProps> = ({
   } | null>(null);
   const [imgError, setImgError] = useState(false);
 
-  // Compute src early (needed for Img src and callback deps)
-  let src = object.path;
-  if (object.type === "animation" && object.frameCount && object.frameDelay) {
+  // Compute animation frame index (cached per currentTime)
+  const animationFrame = useMemo(() => {
+    if (!(object.type === "animation" && object.frameCount && object.frameDelay)) {
+      return null;
+    }
+    
     const animationStartTime = object.commands[0]?.startTime ?? 0;
     const totalDuration = object.frameCount * object.frameDelay;
     const elapsed = currentTime - animationStartTime;
@@ -117,13 +120,18 @@ const SbSprite: React.FC<SbSpriteProps> = ({
     }
 
     const lastDotIndex = object.path.lastIndexOf(".");
-    if (lastDotIndex !== -1) {
-      src =
-        object.path.slice(0, lastDotIndex) +
-        frameIndex +
-        object.path.slice(lastDotIndex);
-    }
-  }
+    const src =
+      lastDotIndex !== -1
+        ? object.path.slice(0, lastDotIndex) +
+          frameIndex +
+          object.path.slice(lastDotIndex)
+        : object.path;
+    
+    return { frameIndex, src };
+  }, [object, currentTime]);
+
+  // Use cached src or fallback to object.path
+  const src = animationFrame?.src ?? object.path;
 
   // osu! behavior: silently skip sprites whose textures can't be loaded
   const handleError = useCallback(() => {
@@ -194,10 +202,8 @@ const SbSprite: React.FC<SbSpriteProps> = ({
   if (opacity > 1) opacity = opacity % 1;
   const rotation = getRotation(object.commands, loops, currentTime);
 
-  if (!isObjectVisible(object.commands, loops, currentTime)) return null;
-
-  // osu! silently skips rendering when a texture can't be loaded
-  if (imgError) return null;
+  // Check visibility early (before expensive calculations)
+  const isVisible = isObjectVisible(object.commands, loops, currentTime);
 
   const originFactors: Record<string, { x: number; y: number }> = {
     TopLeft: { x: 0, y: 0 },
@@ -250,6 +256,58 @@ const SbSprite: React.FC<SbSpriteProps> = ({
 
   const cssOriginX = originFactor.x * 100;
   const cssOriginY = originFactor.y * 100;
+
+  // Screen bounds check - skip rendering if sprite is completely off-screen
+  const isOffScreen = useMemo(() => {
+    const screenBounds = {
+      left: -200,
+      right: RENDER_WIDTH + 200,
+      top: -200,
+      bottom: RENDER_HEIGHT + 200,
+    };
+
+    // Calculate sprite bounds using final position and dimensions
+    const spriteLeft = finalX;
+    const spriteRight = finalX + baseWidth;
+    const spriteTop = finalY;
+    const spriteBottom = finalY + baseHeight;
+
+    // Completely off-screen
+    return (
+      spriteRight < screenBounds.left ||
+      spriteLeft > screenBounds.right ||
+      spriteBottom < screenBounds.top ||
+      spriteTop > screenBounds.bottom
+    );
+  }, [finalX, finalY, baseWidth, baseHeight]);
+
+  // Time visibility check - skip if object is outside its time range
+  const isTimeVisible = useMemo(() => {
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+
+    for (const cmd of object.commands) {
+      minTime = Math.min(minTime, cmd.startTime);
+      maxTime = Math.max(maxTime, cmd.endTime ?? cmd.startTime);
+    }
+
+    for (const loop of loops) {
+      minTime = Math.min(minTime, loop.startTime);
+      maxTime = Math.max(maxTime, loop.endTime);
+    }
+
+    // If no commands found, object is always visible in time
+    if (minTime === Infinity) return true;
+
+    // Add 500ms tolerance
+    return currentTime >= minTime - 500 && currentTime <= maxTime + 500;
+  }, [object.commands, loops, currentTime]);
+
+  // Early exit: skip rendering if any visibility check fails
+  if (!isVisible) return null;
+  if (imgError) return null;
+  if (!isTimeVisible) return null;
+  if (isOffScreen) return null;
 
   return (
     <div
@@ -334,6 +392,7 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
 
   const layerObjects = useMemo(() => {
     return storyboard.filter((obj) => {
+      if (obj.type === "video") return false; // Skip video, rendered separately
       if (obj.layer !== layer) return false;
       if (layer === "Fail") return isFailing;
       if (layer === "Pass") return !isFailing;

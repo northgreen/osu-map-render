@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { HitObject } from "./lib/osuParser";
 import type { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
@@ -20,13 +21,35 @@ interface ManiaNoteProps {
   stageOffset?: number;
 }
 
+// Custom comparison function for React.memo
+// Only re-render when note properties change (position is time-based)
+function areNotesEqual(
+  prevProps: ManiaNoteProps,
+  nextProps: ManiaNoteProps,
+): boolean {
+  // Always re-render if props change
+  if (prevProps.scrollSpeed !== nextProps.scrollSpeed) return false;
+  if (prevProps.scrollAlgorithm !== nextProps.scrollAlgorithm) return false;
+  if (prevProps.judgmentLineY !== nextProps.judgmentLineY) return false;
+  if (prevProps.stageOffset !== nextProps.stageOffset) return false;
+
+  // Compare note properties - skip re-render if note is identical
+  if (prevProps.note.time !== nextProps.note.time) return false;
+  if (prevProps.note.column !== nextProps.note.column) return false;
+  if (prevProps.note.isLongNote !== nextProps.note.isLongNote) return false;
+  if (prevProps.note.endTime !== nextProps.note.endTime) return false;
+
+  // Same note with same props, skip re-render
+  return true;
+}
+
 // Calculate visible time based on scroll speed
 function getVisibleTime(scrollSpeed: number): number {
   // scrollSpeed=10 → 1800ms, scrollSpeed=20 → 900ms, etc.
   return BASE_VISIBLE_TIME * (10 / scrollSpeed);
 }
 
-export const ManiaNote: React.FC<ManiaNoteProps> = ({
+export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
   note,
   scrollSpeed = SCROLL_SPEED,
   scrollAlgorithm = null,
@@ -195,4 +218,4 @@ export const ManiaNote: React.FC<ManiaNoteProps> = ({
       )}
     </div>
   );
-};
+}, areNotesEqual);

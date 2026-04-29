@@ -186,6 +186,7 @@ describe("getFlipState - P commands in loops", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [createPCommand(0, 500, "H")],
         loopDuration: 500,
@@ -200,6 +201,7 @@ describe("getFlipState - P commands in loops", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [createPCommand(0, 500, "V")],
         loopDuration: 500,
@@ -214,6 +216,7 @@ describe("getFlipState - P commands in loops", () => {
     const loops: SbLoop[] = [
       {
         startTime: 0,
+        endTime: 1500,
         repeatCount: 2,
         commands: [createPCommand(0, 500, "A")],
         loopDuration: 500,
@@ -228,6 +231,7 @@ describe("getFlipState - P commands in loops", () => {
     const loops: SbLoop[] = [
       {
         startTime: 1000,
+        endTime: 2500,
         repeatCount: 2,
         commands: [createPCommand(0, 500, "H")],
         loopDuration: 500,
