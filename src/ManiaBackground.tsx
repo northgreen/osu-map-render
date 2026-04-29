@@ -69,16 +69,25 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
       {/* Storyboard layers - only rendered when storyboardEnabled is true */}
       {storyboardEnabled && (
         <>
-          {/* Background layer with optional blur */}
-          {bgBlur > 0 ? (
-            <div style={{ position: "absolute", inset: 0, filter: `blur(${bgBlur}px)` }}>
-              <StoryboardLayer storyboard={storyboard} layer="Background" />
-            </div>
-          ) : (
+          {/* All storyboard elements wrapped in blur container */}
+          <div style={{ position: "absolute", inset: 0, filter: bgBlur > 0 ? `blur(${bgBlur}px)` : undefined }}>
+            {/* Storyboard layer - Background */}
             <StoryboardLayer storyboard={storyboard} layer="Background" />
-          )}
 
-          {/* Darkening overlay - between Background and other layers */}
+            {/* Storyboard layer - Fail (only when failing) */}
+            <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
+
+            {/* Storyboard layer - Pass (only when passing/not failing) */}
+            <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
+
+            {/* Storyboard layer - Foreground (always visible) */}
+            <StoryboardLayer storyboard={storyboard} layer="Foreground" />
+
+            {/* Storyboard layer - Overlay (topmost within blur) */}
+            <StoryboardLayer storyboard={storyboard} layer="Overlay" />
+          </div>
+
+          {/* Darkening overlay - on top of all storyboard elements, before stage */}
           {bgDarken > 0 && (
             <div
               style={{
@@ -88,18 +97,6 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
               }}
             />
           )}
-
-          {/* Storyboard layer - Fail (only when failing) */}
-          <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
-
-          {/* Storyboard layer - Pass (only when passing/not failing) */}
-          <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
-
-          {/* Storyboard layer - Foreground (always visible) */}
-          <StoryboardLayer storyboard={storyboard} layer="Foreground" />
-
-          {/* Storyboard layer - Overlay (topmost, always visible) */}
-          <StoryboardLayer storyboard={storyboard} layer="Overlay" />
         </>
       )}
     </AbsoluteFill>

@@ -141,7 +141,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({
         });
       }
     },
-    [src],
+    [],
   );
 
   const loops = object.loops || [];
