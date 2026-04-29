@@ -39,6 +39,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     columnHighlights,
     storyboardEnabled,
     bgDarken,
+    stageBgOpacity,
   } = contentsWithDefaults;
 
   // Set judgment mode and custom windows
@@ -76,6 +77,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
         showJudgmentLine={trackHeight}
         showBeatLines={sessionLine}
         showColumnHighlights={columnHighlights}
+        stageBgOpacity={stageBgOpacity}
       />
 
       {/* Layer 3: Overlay (info display: metadata, score, PP) */}

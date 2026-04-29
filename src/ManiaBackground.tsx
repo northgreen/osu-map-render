@@ -8,6 +8,7 @@ interface ManiaBackgroundProps {
   isFailing?: boolean; // Controls Pass/Fail storyboard layer visibility
   storyboardEnabled?: boolean; // When true, show storyboard with black bg; when false, show bg image only
   bgDarken?: number; // 0 = no darkening, 1 = fully dark
+  bgBlur?: number; // 0 = no blur, 1-20 = blur radius in pixels
 }
 
 export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
@@ -15,6 +16,7 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
   isFailing = false,
   storyboardEnabled = false,
   bgDarken = 0,
+  bgBlur = 0,
 }) => {
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
@@ -44,6 +46,7 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
               height: "100%",
               objectFit: "cover",
               opacity: 0.6,
+              filter: bgBlur > 0 ? `blur(${bgBlur}px)` : undefined,
             }}
           />
         </div>

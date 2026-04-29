@@ -28,6 +28,7 @@ interface ManiaStageLayerProps {
   showJudgmentLine?: boolean;
   showBeatLines?: boolean;
   showColumnHighlights?: boolean;
+  stageBgOpacity?: number;
 }
 
 // Generate beat lines based on timing points
@@ -77,6 +78,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   showJudgmentLine = true,
   showBeatLines = true,
   showColumnHighlights = true,
+  stageBgOpacity = 1,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -283,6 +285,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         className="stage-container"
         style={{
           left: stageX,
+          opacity: stageBgOpacity,
         }}
       >
         {/* Column dividers */}

@@ -31,6 +31,8 @@ export const maniaRenderContentsSchema = z.object({
   sessionLine: z.boolean().default(true),
   storyboardEnabled: z.boolean().default(false),
   bgDarken: z.number().min(0).max(1).multipleOf(0.01).default(0),
+  bgBlur: z.number().min(0).max(20).multipleOf(0.5).default(0),
+  stageBgOpacity: z.number().min(0).multipleOf(0.01).max(1).default(1),
 });
 
 export const maniaRenderSchema = z.object({
@@ -66,6 +68,8 @@ export const maniaRenderSchema = z.object({
     sessionLine: true,
     storyboardEnabled: false,
     bgDarken: 0.0,
+    bgBlur: 0.0,
+    stageBgOpacity: 1.0,
   }),
 });
 
@@ -107,7 +111,7 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
 
   // Parse contents with defaults
   const contentsWithDefaults = maniaRenderContentsSchema.parse(contents);
-  const { trackHeight, replayCursor, sessionLine, columnHighlights } =
+  const { trackHeight, replayCursor, sessionLine, columnHighlights, stageBgOpacity } =
     contentsWithDefaults;
 
   return (
@@ -124,6 +128,7 @@ const ManiaStageOnlyComponent: React.FC<ManiaRenderProps> = (props) => {
         showJudgmentLine={trackHeight}
         showBeatLines={sessionLine}
         showColumnHighlights={columnHighlights}
+        stageBgOpacity={stageBgOpacity}
       />
     </AbsoluteFill>
   );
@@ -158,7 +163,9 @@ export const RemotionRoot: React.FC = () => {
             replayCursor: false,
             sessionLine: true,
             storyboardEnabled: false,
-            bgDarken: 0.37,
+            bgDarken: 0.3,
+            bgBlur: 0.0,
+            stageBgOpacity: 0.85,
           },
         }}
       />
@@ -214,6 +221,7 @@ export const RemotionRoot: React.FC = () => {
             sessionLine: true,
             storyboardEnabled: false,
             bgDarken: 0.0,
+            stageBgOpacity: 1.0,
           },
         }}
       />
@@ -268,6 +276,7 @@ export const RemotionRoot: React.FC = () => {
             sessionLine: true,
             storyboardEnabled: false,
             bgDarken: 0.0,
+            stageBgOpacity: 1.0,
           },
         }}
       />
