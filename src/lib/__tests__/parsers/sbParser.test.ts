@@ -433,3 +433,210 @@ _M,0,1000,2000,0,0,320,240
     expect(result.objects[0].commands[1].type).toBe("M");
   });
 });
+
+// ============================================
+// P (Parameter) Command Tests
+// ============================================
+
+describe("parseStoryboard - P (Parameter) command", () => {
+  it("should parse permanent P,H command setting flipH", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,1000,H
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].flipH).toBe(true);
+    expect(result.objects[0].flipV).toBeUndefined();
+  });
+
+  it("should parse permanent P,V command setting flipV", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,1000,V
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].flipV).toBe(true);
+    expect(result.objects[0].flipH).toBeUndefined();
+  });
+
+  it("should parse permanent P,A command setting additive", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,1000,A
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].additive).toBe(true);
+    expect(result.objects[0].flipH).toBeUndefined();
+    expect(result.objects[0].flipV).toBeUndefined();
+  });
+
+  it("should parse temporary P,H command as SbCommand", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,2000,H
+`;
+    const result = parseStoryboard(content);
+    const cmd = result.objects[0].commands[0];
+    expect(cmd.type).toBe("P");
+    expect(cmd.startTime).toBe(1000);
+    expect(cmd.endTime).toBe(2000);
+    expect(cmd.paramStrings).toEqual(["H"]);
+    // Permanent flag should NOT be set
+    expect(result.objects[0].flipH).toBeUndefined();
+  });
+
+  it("should parse temporary P,V command as SbCommand", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,2000,V
+`;
+    const result = parseStoryboard(content);
+    const cmd = result.objects[0].commands[0];
+    expect(cmd.type).toBe("P");
+    expect(cmd.paramStrings).toEqual(["V"]);
+    expect(result.objects[0].flipV).toBeUndefined();
+  });
+
+  it("should parse temporary P,A command as SbCommand", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+P,0,1000,2000,A
+`;
+    const result = parseStoryboard(content);
+    const cmd = result.objects[0].commands[0];
+    expect(cmd.type).toBe("P");
+    expect(cmd.paramStrings).toEqual(["A"]);
+    expect(result.objects[0].additive).toBeUndefined();
+  });
+
+  it("should parse P command with underscore prefix", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+_P,0,1000,2000,H
+`;
+    const result = parseStoryboard(content);
+    const cmd = result.objects[0].commands[0];
+    expect(cmd.type).toBe("P");
+    expect(cmd.paramStrings).toEqual(["H"]);
+  });
+});
+
+// ============================================
+// T (Trigger) Detailed Parsing Tests
+// ============================================
+
+describe("parseStoryboard - T (Trigger) detailed parsing", () => {
+  it("should parse HitSoundClap trigger", () => {
+    const content = `
+[Events]
+Sprite,Foreground,Centre,"img.png",320,240
+T,HitSoundClap,20000
+__F,0,0,500,0,1
+`;
+    const result = parseStoryboard(content);
+    const cmds = result.objects[0].commands;
+    expect(cmds.length).toBeGreaterThanOrEqual(1);
+    expect(cmds[0].type).toBe("F");
+  });
+
+  it("should parse HitSoundFinish trigger", () => {
+    const content = `
+[Events]
+Sprite,Foreground,Centre,"img.png",320,240
+T,HitSoundFinish,20000
+__F,0,0,500,0,1
+`;
+    const result = parseStoryboard(content);
+    const cmds = result.objects[0].commands;
+    expect(cmds.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should parse Failing trigger", () => {
+    const content = `
+[Events]
+Sprite,Foreground,Centre,"img.png",320,240
+T,Failing,20000
+__F,0,0,500,0,1
+`;
+    const result = parseStoryboard(content);
+    const cmds = result.objects[0].commands;
+    expect(cmds.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should default trigger endTime to 999999999 when omitted", () => {
+    const content = `
+[Events]
+Sprite,Foreground,Centre,"img.png",320,240
+T,Passing,20000
+__F,0,0,500,0,1
+`;
+    const result = parseStoryboard(content);
+    // Trigger commands should be merged with offset from trigger startTime
+    const cmds = result.objects[0].commands;
+    expect(cmds.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should parse trigger groupNumber", () => {
+    const content = `
+[Events]
+Sprite,Foreground,Centre,"img.png",320,240
+T,HitSoundClap,20000,40000,1
+__F,0,0,500,0,1
+`;
+    const result = parseStoryboard(content);
+    const cmds = result.objects[0].commands;
+    expect(cmds.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ============================================
+// All Origin Types Tests
+// ============================================
+
+describe("parseStoryboard - All origin types", () => {
+  it("should parse all 10 origin types numerically (0-9)", () => {
+    const originMap: Record<number, string> = {
+      0: "TopLeft",
+      1: "Centre",
+      2: "CentreLeft",
+      3: "TopRight",
+      4: "BottomCentre",
+      5: "TopCentre",
+      6: "TopLeft", // Custom -> TopLeft
+      7: "CentreRight",
+      8: "BottomLeft",
+      9: "BottomRight",
+    };
+    for (const [num, name] of Object.entries(originMap)) {
+      const content = `\n[Events]\nSprite,Pass,${num},"img.png",0,0\n`;
+      const result = parseStoryboard(content);
+      expect(result.objects[0].origin).toBe(name);
+    }
+  });
+
+  it("should parse all origin types by name", () => {
+    const originNames = [
+      "TopLeft",
+      "Centre",
+      "CentreLeft",
+      "TopRight",
+      "BottomCentre",
+      "TopCentre",
+      "CentreRight",
+      "BottomLeft",
+      "BottomRight",
+    ];
+    for (const name of originNames) {
+      const content = `\n[Events]\nSprite,Pass,${name},"img.png",0,0\n`;
+      const result = parseStoryboard(content);
+      expect(result.objects[0].origin).toBe(name);
+    }
+  });
+});

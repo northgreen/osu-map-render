@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { getColor } from "../storyboard/command-evaluator";
+import {
+  getColor,
+  getOpacity,
+  getPosition,
+  getScale,
+  getVectorScale,
+  getRotation,
+} from "../storyboard/command-evaluator";
 import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser";
 
 
@@ -491,5 +498,91 @@ describe("getColor - Edge cases", () => {
     expect(result!.r).toBeCloseTo(0.21404);
     expect(result!.g).toBeCloseTo(0.21404);
     expect(result!.b).toBeCloseTo(0.21404);
+  });
+});
+
+// ============================================
+// INFINITE_DURATION handling Tests
+// ============================================
+
+describe("INFINITE_DURATION handling", () => {
+  it("getOpacity with INFINITE_DURATION", () => {
+    const commands: SbCommand[] = [
+      {
+        type: "F",
+        easing: 0,
+        startTime: 0,
+        endTime: INFINITE_DURATION,
+        params: [0, 1],
+      },
+    ];
+    // With INFINITE_DURATION, the command should be treated as always active
+    const result = getOpacity(commands, noLoops, 999999999);
+    // Since it's a transition from 0 to 1 over INFINITE_DURATION,
+    // at 999999999ms the interpolation is essentially at t=1
+    expect(result).toBe(1);
+  });
+
+  it("getPosition with INFINITE_DURATION", () => {
+    const commands: SbCommand[] = [
+      {
+        type: "M",
+        easing: 0,
+        startTime: 0,
+        endTime: INFINITE_DURATION,
+        params: [0, 0, 100, 100],
+      },
+    ];
+    // getPosition with INFINITE_DURATION uses start value (params[0], params[1])
+    // This matches the code path: cmd.params[0] ?? defaultX
+    const result = getPosition(commands, noLoops, 999999999, 320, 240);
+    expect(result.x).toBeCloseTo(0);
+    expect(result.y).toBeCloseTo(0);
+  });
+
+  it("getScale with INFINITE_DURATION", () => {
+    const commands: SbCommand[] = [
+      {
+        type: "S",
+        easing: 0,
+        startTime: 0,
+        endTime: INFINITE_DURATION,
+        params: [1, 5],
+      },
+    ];
+    const result = getScale(commands, noLoops, 999999999);
+    // With INFINITE_DURATION, at 999999999ms interpolation is at t=1
+    expect(result).toBeCloseTo(5);
+  });
+
+  it("getVectorScale with INFINITE_DURATION", () => {
+    const commands: SbCommand[] = [
+      {
+        type: "V",
+        easing: 0,
+        startTime: 0,
+        endTime: INFINITE_DURATION,
+        params: [1, 1, 3, 5],
+      },
+    ];
+    const result = getVectorScale(commands, noLoops, 999999999);
+    // With INFINITE_DURATION, at 999999999ms interpolation is at t=1
+    expect(result!.x).toBeCloseTo(3);
+    expect(result!.y).toBeCloseTo(5);
+  });
+
+  it("getRotation with INFINITE_DURATION", () => {
+    const commands: SbCommand[] = [
+      {
+        type: "R",
+        easing: 0,
+        startTime: 0,
+        endTime: INFINITE_DURATION,
+        params: [0, 360],
+      },
+    ];
+    const result = getRotation(commands, noLoops, 999999999);
+    // With INFINITE_DURATION, at 999999999ms interpolation is at t=1
+    expect(result).toBeCloseTo(360);
   });
 });

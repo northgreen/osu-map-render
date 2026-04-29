@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getVectorScale,
+  getNegativeScale,
 } from "../../../storyboard/command-evaluator";
 import type { SbCommand, SbLoop } from "../../../sbParser";
 import {
@@ -243,5 +244,57 @@ describe("getVectorScale - Multiple V commands", () => {
     const expectedY = 1.026482 + (0.9646893 - 1.026482) * t;
     expect(vs!.x).toBeCloseTo(expectedX, 4);
     expect(vs!.y).toBeCloseTo(expectedY, 4);
+  });
+});
+
+// ============================================
+// 7. getNegativeScale Tests
+// ============================================
+
+describe("getNegativeScale", () => {
+  it("should return false,false for positive vector scale", () => {
+    const commands = [createVCommand(0, 1000, 1, 1, 2, 2)];
+    const result = getNegativeScale(commands, noLoops, 500);
+    expect(result.scaleXNeg).toBe(false);
+    expect(result.scaleYNeg).toBe(false);
+  });
+
+  it("should return true,false for negative X scale", () => {
+    const commands = [createVCommand(0, 1000, 1, 1, -2, 2)];
+    const result = getNegativeScale(commands, noLoops, 500);
+    expect(result.scaleXNeg).toBe(true);
+    expect(result.scaleYNeg).toBe(false);
+  });
+
+  it("should return false,true for negative Y scale", () => {
+    const commands = [createVCommand(0, 1000, 1, 1, 2, -3)];
+    const result = getNegativeScale(commands, noLoops, 500);
+    expect(result.scaleXNeg).toBe(false);
+    expect(result.scaleYNeg).toBe(true);
+  });
+
+  it("should return true,true for both negative scales", () => {
+    const commands = [createVCommand(0, 1000, 1, 1, -2, -3)];
+    const result = getNegativeScale(commands, noLoops, 500);
+    expect(result.scaleXNeg).toBe(true);
+    expect(result.scaleYNeg).toBe(true);
+  });
+
+  it("should handle V commands in loops", () => {
+    const commands: SbCommand[] = [];
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [
+        createVCommand(0, 500, 1, 1, -2, -3),
+      ], 500),
+    ];
+    const result = getNegativeScale(commands, loops, 250);
+    expect(result.scaleXNeg).toBe(true);
+    expect(result.scaleYNeg).toBe(true);
+  });
+
+  it("should return false,false when no V commands exist", () => {
+    const result = getNegativeScale([], noLoops, 500);
+    expect(result.scaleXNeg).toBe(false);
+    expect(result.scaleYNeg).toBe(false);
   });
 });
