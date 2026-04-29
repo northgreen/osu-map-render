@@ -2,6 +2,15 @@ import { SbCommand, SbLoop, INFINITE_DURATION } from "../sbParser/types";
 import { applyEasing } from "./easing";
 import { getLoopCommandValue, getLoopOpacity, getLoopFlipState } from "./loop-evaluator";
 
+// Gamma correction constants (matching osu! Color4Extensions)
+const SRGB_TO_LINEAR_THRESHOLD = 0.04045;
+
+/** Convert sRGB channel value to linear space */
+function srgbToLinear(c: number): number {
+  if (c === 1) return 1;
+  return c <= SRGB_TO_LINEAR_THRESHOLD ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
 function interpolateWithEasing(
   startTime: number,
   endTime: number,
@@ -348,46 +357,65 @@ export function getColor(
 
   for (const cmd of cCommands) {
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
+      // Active command: interpolate in linear space (gamma-correct)
+      const rSrgb = getCommandValue(cmd, currentTime, 0) / 255;
+      const gSrgb = getCommandValue(cmd, currentTime, 1) / 255;
+      const bSrgb = getCommandValue(cmd, currentTime, 2) / 255;
       return {
-        r: getCommandValue(cmd, currentTime, 0) / 255,
-        g: getCommandValue(cmd, currentTime, 1) / 255,
-        b: getCommandValue(cmd, currentTime, 2) / 255,
+        r: srgbToLinear(rSrgb),
+        g: srgbToLinear(gSrgb),
+        b: srgbToLinear(bSrgb),
       };
     } else if (
       currentTime > cmd.endTime &&
       cmd.endTime !== INFINITE_DURATION
     ) {
+      // Command ended: return end value in linear space
+      const rSrgb = (cmd.params[3] ?? cmd.params[0]) / 255;
+      const gSrgb = (cmd.params[4] ?? cmd.params[1]) / 255;
+      const bSrgb = (cmd.params[5] ?? cmd.params[2]) / 255;
       return {
-        r: (cmd.params[3] ?? cmd.params[0]) / 255,
-        g: (cmd.params[4] ?? cmd.params[1]) / 255,
-        b: (cmd.params[5] ?? cmd.params[2]) / 255,
+        r: srgbToLinear(rSrgb),
+        g: srgbToLinear(gSrgb),
+        b: srgbToLinear(bSrgb),
       };
     } else if (
       cmd.endTime === INFINITE_DURATION &&
       currentTime >= cmd.startTime
     ) {
+      // Infinite duration: interpolate in linear space
+      const rSrgb = getCommandValue(cmd, currentTime, 0) / 255;
+      const gSrgb = getCommandValue(cmd, currentTime, 1) / 255;
+      const bSrgb = getCommandValue(cmd, currentTime, 2) / 255;
       return {
-        r: getCommandValue(cmd, currentTime, 0) / 255,
-        g: getCommandValue(cmd, currentTime, 1) / 255,
-        b: getCommandValue(cmd, currentTime, 2) / 255,
+        r: srgbToLinear(rSrgb),
+        g: srgbToLinear(gSrgb),
+        b: srgbToLinear(bSrgb),
       };
     } else if (currentTime < cmd.startTime) {
-      // Pre-read: use command start value before it starts (osu! behavior)
+      // Pre-read: use command start value in linear space (osu! behavior)
+      const rSrgb = cmd.params[0] / 255;
+      const gSrgb = cmd.params[1] / 255;
+      const bSrgb = cmd.params[2] / 255;
       return {
-        r: cmd.params[0] / 255,
-        g: cmd.params[1] / 255,
-        b: cmd.params[2] / 255,
+        r: srgbToLinear(rSrgb),
+        g: srgbToLinear(gSrgb),
+        b: srgbToLinear(bSrgb),
       };
     }
   }
 
-  // Also check loops for color values
+  // Also check loops for color values (in linear space)
   if (loops.length > 0) {
     const loopR = getLoopCommandValue(loops, "C", currentTime, 0);
     const loopG = getLoopCommandValue(loops, "C", currentTime, 1);
     const loopB = getLoopCommandValue(loops, "C", currentTime, 2);
     if (loopR !== null && loopG !== null && loopB !== null) {
-      return { r: loopR / 255, g: loopG / 255, b: loopB / 255 };
+      return {
+        r: srgbToLinear(loopR / 255),
+        g: srgbToLinear(loopG / 255),
+        b: srgbToLinear(loopB / 255),
+      };
     }
   }
 

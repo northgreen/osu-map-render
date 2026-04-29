@@ -52,13 +52,19 @@ function computeObjectColor(
   loops: SbLoop[],
   currentTime: number,
 ): { r: number; g: number; b: number } | null {
+  // First check object's direct commands (including loop handling inside getColor)
+  const directResult = getColor(object.commands, loops, currentTime);
+  if (directResult) return directResult;
+
+  // Fallback: check individual loops (for edge cases)
   if (loops.length > 0) {
     for (let i = loops.length - 1; i >= 0; i--) {
       const loopResult = getColor(loops[i].commands, [], currentTime);
       if (loopResult) return loopResult;
     }
   }
-  return getColor(object.commands, [], currentTime);
+
+  return null;
 }
 
 interface SbSpriteProps {

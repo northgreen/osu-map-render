@@ -18,8 +18,9 @@ describe("Loop C command interpolation", () => {
       createLoop(0, 2, [createCCommand(0, 500, 255, 0, 0, 0, 255, 0)], 500),
     ];
     const color = getColor([], loops, 250);
-    expect(color!.r).toBeCloseTo(0.5);
-    expect(color!.g).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(color!.r).toBeCloseTo(0.21404);
+    expect(color!.g).toBeCloseTo(0.21404);
     expect(color!.b).toBeCloseTo(0);
   });
 
@@ -29,9 +30,10 @@ describe("Loop C command interpolation", () => {
     ];
     // Iteration 1, 50% through
     const color = getColor([], loops, 1500);
-    expect(color!.r).toBeCloseTo(0.5);
-    expect(color!.g).toBeCloseTo(0.5);
-    expect(color!.b).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(color!.r).toBeCloseTo(0.21404);
+    expect(color!.g).toBeCloseTo(0.21404);
+    expect(color!.b).toBeCloseTo(0.21404);
   });
 });
 

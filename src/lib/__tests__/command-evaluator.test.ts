@@ -57,7 +57,10 @@ describe("getColor - Static C command (single color)", () => {
       createCCommand(1000, 2000, 255, 128, 64, 255, 128, 64),
     ];
     const result = getColor(commands, noLoops, 500);
-    expect(result).toEqual({ r: 255 / 255, g: 128 / 255, b: 64 / 255 });
+    // sRGB→linear: 255→1, 128→0.216, 64→0.0513
+    expect(result!.r).toBeCloseTo(1);
+    expect(result!.g).toBeCloseTo(0.21586);
+    expect(result!.b).toBeCloseTo(0.05127);
   });
 
   it("should return the static color during command", () => {
@@ -65,7 +68,9 @@ describe("getColor - Static C command (single color)", () => {
       createCCommand(1000, 2000, 255, 128, 64, 255, 128, 64),
     ];
     const result = getColor(commands, noLoops, 1500);
-    expect(result).toEqual({ r: 1, g: 128 / 255, b: 64 / 255 });
+    expect(result!.r).toBeCloseTo(1);
+    expect(result!.g).toBeCloseTo(0.21586);
+    expect(result!.b).toBeCloseTo(0.05127);
   });
 
   it("should return the static color after command ends", () => {
@@ -73,7 +78,9 @@ describe("getColor - Static C command (single color)", () => {
       createCCommand(1000, 2000, 255, 128, 64, 255, 128, 64),
     ];
     const result = getColor(commands, noLoops, 3000);
-    expect(result).toEqual({ r: 1, g: 128 / 255, b: 64 / 255 });
+    expect(result!.r).toBeCloseTo(1);
+    expect(result!.g).toBeCloseTo(0.21586);
+    expect(result!.b).toBeCloseTo(0.05127);
   });
 
   it("should return pure white when all channels are 255", () => {
@@ -97,9 +104,10 @@ describe("getColor - Static C command (single color)", () => {
       createCCommand(0, 1000, 128, 64, 32, 128, 64, 32),
     ];
     const result = getColor(commands, noLoops, 500);
-    expect(result!.r).toBeCloseTo(128 / 255);
-    expect(result!.g).toBeCloseTo(64 / 255);
-    expect(result!.b).toBeCloseTo(32 / 255);
+    // sRGB→linear: 128→0.216, 64→0.0513, 32→0.0124
+    expect(result!.r).toBeCloseTo(0.21586);
+    expect(result!.g).toBeCloseTo(0.05127);
+    expect(result!.b).toBeCloseTo(0.01237);
   });
 });
 
@@ -167,9 +175,10 @@ describe("getColor - Color transition (start to end)", () => {
       createCCommand(0, 1000, 0, 0, 0, 255, 255, 255),
     ];
     const result = getColor(commands, noLoops, 500);
-    expect(result!.r).toBeCloseTo(0.5);
-    expect(result!.g).toBeCloseTo(0.5);
-    expect(result!.b).toBeCloseTo(0.5);
+    // sRGB midpoint 127.5/255=0.5 → linear ≈ 0.214
+    expect(result!.r).toBeCloseTo(0.21404);
+    expect(result!.g).toBeCloseTo(0.21404);
+    expect(result!.b).toBeCloseTo(0.21404);
   });
 
   it("should interpolate each channel independently", () => {
@@ -177,12 +186,10 @@ describe("getColor - Color transition (start to end)", () => {
       createCCommand(0, 1000, 255, 0, 0, 0, 255, 255),
     ];
     const result = getColor(commands, noLoops, 500);
-    // r: 255 -> 0, at 50% = 127.5 / 255 = 0.5
-    expect(result!.r).toBeCloseTo(0.5);
-    // g: 0 -> 255, at 50% = 127.5 / 255 = 0.5
-    expect(result!.g).toBeCloseTo(0.5);
-    // b: 0 -> 255, at 50% = 127.5 / 255 = 0.5
-    expect(result!.b).toBeCloseTo(0.5);
+    // sRGB midpoint 127.5/255=0.5 → linear ≈ 0.214
+    expect(result!.r).toBeCloseTo(0.21404);
+    expect(result!.g).toBeCloseTo(0.21404);
+    expect(result!.b).toBeCloseTo(0.21404);
   });
 
   it("should handle multi-channel transition with different deltas", () => {
@@ -191,12 +198,10 @@ describe("getColor - Color transition (start to end)", () => {
     ];
     const result = getColor(commands, noLoops, 500);
 
-    // r: 255 -> 100, at 50% = (255 + 100) / 2 = 177.5 / 255 ≈ 0.696
-    expect(result!.r).toBeCloseTo(177.5 / 255);
-    // g: 100 -> 200, at 50% = (100 + 200) / 2 = 150 / 255 ≈ 0.588
-    expect(result!.g).toBeCloseTo(150 / 255);
-    // b: 50 -> 255, at 50% = (50 + 255) / 2 = 152.5 / 255 ≈ 0.598
-    expect(result!.b).toBeCloseTo(152.5 / 255);
+    // sRGB→linear at midpoint: r=177.5/255→0.442, g=150/255→0.305, b=152.5/255→0.316
+    expect(result!.r).toBeCloseTo(0.44242);
+    expect(result!.g).toBeCloseTo(0.30499);
+    expect(result!.b).toBeCloseTo(0.31626);
   });
 
   it("should interpolate to 25% at quarter point (linear easing)", () => {
@@ -204,7 +209,8 @@ describe("getColor - Color transition (start to end)", () => {
       createCCommand(0, 1000, 0, 0, 0, 255, 0, 0),
     ];
     const result = getColor(commands, noLoops, 250);
-    expect(result!.r).toBeCloseTo(0.25);
+    // sRGB=63.75/255≈0.25 → linear ≈ 0.0509
+    expect(result!.r).toBeCloseTo(0.05088);
     expect(result!.g).toBeCloseTo(0);
     expect(result!.b).toBeCloseTo(0);
   });
@@ -232,7 +238,7 @@ describe("getColor - Color transition (start to end)", () => {
 
 describe("getColor - Normalized values in [0, 1] range", () => {
   it("should always return values normalized to [0, 1] range", () => {
-    // Test with various color values to ensure division by 255 works correctly
+    // Test with various color values to ensure gamma correction works correctly
     const commands: SbCommand[] = [
       createCCommand(0, 1000, 0, 128, 255, 100, 200, 250),
     ];
@@ -247,10 +253,10 @@ describe("getColor - Normalized values in [0, 1] range", () => {
     expect(result!.b).toBeGreaterThanOrEqual(0);
     expect(result!.b).toBeLessThanOrEqual(1);
 
-    // Specific expected values at 50% interpolation
-    expect(result!.r).toBeCloseTo(0.5 * 100 / 255); // Interpolating 0->100
-    expect(result!.g).toBeCloseTo(0.5 * (200 - 128) / 255 + 128 / 255); // Interpolating 128->200
-    expect(result!.b).toBeCloseTo(0.5 * (250 - 255) / 255 + 255 / 255); // Interpolating 255->250
+    // sRGB→linear at midpoint: r=50/255→0.0319, g=164/255→0.371, b=252.5/255→0.978
+    expect(result!.r).toBeCloseTo(0.0319);
+    expect(result!.g).toBeCloseTo(0.37124);
+    expect(result!.b).toBeCloseTo(0.97784);
   });
 });
 
@@ -425,7 +431,8 @@ describe("getColor - Easing in color transitions", () => {
       createCCommand(0, 1000, 0, 0, 0, 255, 0, 0, 0),
     ];
     const result = getColor(commands, noLoops, 500);
-    expect(result!.r).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(result!.r).toBeCloseTo(0.21404);
   });
 });
 
@@ -446,7 +453,10 @@ describe("getColor - Edge cases", () => {
     ];
 
     const result = getColor(commands, noLoops, 999999999);
-    expect(result).toEqual({ r: 1, g: 128 / 255, b: 64 / 255 });
+    // sRGB→linear: 255→1, 128→0.216, 64→0.0513
+    expect(result!.r).toBeCloseTo(1);
+    expect(result!.g).toBeCloseTo(0.21586);
+    expect(result!.b).toBeCloseTo(0.05127);
   });
 
   it("should handle color at exact command boundary", () => {
@@ -466,9 +476,10 @@ describe("getColor - Edge cases", () => {
       createCCommand(100000, 200000, 255, 255, 255, 0, 0, 0),
     ];
     const result = getColor(commands, noLoops, 150000);
-    expect(result!.r).toBeCloseTo(0.5);
-    expect(result!.g).toBeCloseTo(0.5);
-    expect(result!.b).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(result!.r).toBeCloseTo(0.21404);
+    expect(result!.g).toBeCloseTo(0.21404);
+    expect(result!.b).toBeCloseTo(0.21404);
   });
 
   it("should handle partial color channels (some 0, some 255)", () => {
@@ -476,11 +487,9 @@ describe("getColor - Edge cases", () => {
       createCCommand(0, 1000, 255, 0, 255, 0, 255, 0),
     ];
     const result = getColor(commands, noLoops, 500);
-    // r: 255->0, 50% = 127.5/255
-    expect(result!.r).toBeCloseTo(0.5);
-    // g: 0->255, 50% = 127.5/255
-    expect(result!.g).toBeCloseTo(0.5);
-    // b: 255->0, 50% = 127.5/255
-    expect(result!.b).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(result!.r).toBeCloseTo(0.21404);
+    expect(result!.g).toBeCloseTo(0.21404);
+    expect(result!.b).toBeCloseTo(0.21404);
   });
 });

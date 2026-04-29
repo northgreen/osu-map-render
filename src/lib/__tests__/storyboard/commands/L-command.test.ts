@@ -823,8 +823,9 @@ describe("Integration - loop with mixed command types", () => {
     expect(pos.y).toBeCloseTo(100);
     expect(scale).toBeCloseTo(1.5);
     expect(opacity).toBeCloseTo(0.5);
-    expect(color!.r).toBeCloseTo(0.5);
-    expect(color!.g).toBeCloseTo(0.5);
+    // sRGB midpoint 0.5 → linear ≈ 0.214
+    expect(color!.r).toBeCloseTo(0.21404);
+    expect(color!.g).toBeCloseTo(0.21404);
     expect(rotation).toBeCloseTo(90);
   });
 
