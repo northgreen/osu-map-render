@@ -298,3 +298,88 @@ describe("getNegativeScale", () => {
     expect(result.scaleYNeg).toBe(false);
   });
 });
+
+// ============================================
+// 8. Instant V command (startTime == endTime)
+// ============================================
+
+describe("Instant V command (startTime == endTime)", () => {
+  it("should apply V command at exact startTime", () => {
+    // Instant V command: startTime == endTime
+    // Current implementation: currentTime <= startTime returns startValue
+    const commands = [createVCommand(1000, 1000, 1, 1, 3, 4)];
+    // Before instant command: pre-read start value
+    const before = getVectorScale(commands, noLoops, 500);
+    expect(before).toEqual({ x: 1, y: 1 });
+    // At instant command time: currentTime >= startTime && currentTime <= endTime (active)
+    // getCommandValue: currentTime <= startTime -> returns startValue
+    const at = getVectorScale(commands, noLoops, 1000);
+    expect(at).toEqual({ x: 1, y: 1 });
+    // After instant command: command ended, use end value
+    const after = getVectorScale(commands, noLoops, 2000);
+    expect(after).toEqual({ x: 3, y: 4 });
+  });
+
+  it("should handle instant V command at t=0", () => {
+    const commands = [createVCommand(0, 0, 1, 1, 2, 3)];
+    // At t=0: currentTime <= startTime -> startValue
+    const vs = getVectorScale(commands, noLoops, 0);
+    expect(vs).toEqual({ x: 1, y: 1 });
+    // After: command ended, use end value
+    const vsAfter = getVectorScale(commands, noLoops, 1000);
+    expect(vsAfter).toEqual({ x: 2, y: 3 });
+  });
+
+  it("should handle multiple instant V commands sequentially", () => {
+    const commands: SbCommand[] = [
+      createVCommand(0, 0, 1, 1, 2, 2),   // Instant at t=0
+      createVCommand(1000, 1000, 2, 2, 3, 3), // Instant at t=1000
+    ];
+    // At t=0: first active, startValue (1,1)
+    const at0 = getVectorScale(commands, noLoops, 0);
+    expect(at0).toEqual({ x: 1, y: 1 });
+    // At t=500: first ended (endValue=2,2), second not started
+    const at500 = getVectorScale(commands, noLoops, 500);
+    expect(at500).toEqual({ x: 2, y: 2 });
+    // At t=1000: second active, startValue (2,2)
+    const at1000 = getVectorScale(commands, noLoops, 1000);
+    expect(at1000).toEqual({ x: 2, y: 2 });
+    // After second: endValue (3,3)
+    const after = getVectorScale(commands, noLoops, 2000);
+    expect(after).toEqual({ x: 3, y: 3 });
+  });
+});
+
+// ============================================
+// 9. V command precise boundary times
+// ============================================
+
+describe("V command precise boundary times", () => {
+  it("should return startValue at exact startTime", () => {
+    const commands = [createVCommand(1000, 2000, 1, 2, 3, 4)];
+    const vs = getVectorScale(commands, noLoops, 1000);
+    expect(vs!.x).toBeCloseTo(1);
+    expect(vs!.y).toBeCloseTo(2);
+  });
+
+  it("should return endValue at exact endTime", () => {
+    const commands = [createVCommand(1000, 2000, 1, 2, 3, 4)];
+    const vs = getVectorScale(commands, noLoops, 2000);
+    expect(vs!.x).toBeCloseTo(3);
+    expect(vs!.y).toBeCloseTo(4);
+  });
+
+  it("should return pre-read value at startTime - 1ms", () => {
+    const commands = [createVCommand(1000, 2000, 1, 2, 3, 4)];
+    const vs = getVectorScale(commands, noLoops, 999);
+    // Pre-read: returns start value
+    expect(vs).toEqual({ x: 1, y: 2 });
+  });
+
+  it("should return endValue at endTime + 1ms (command ended)", () => {
+    const commands = [createVCommand(1000, 2000, 1, 2, 3, 4)];
+    const vs = getVectorScale(commands, noLoops, 2001);
+    // Command ended: use end value
+    expect(vs).toEqual({ x: 3, y: 4 });
+  });
+});

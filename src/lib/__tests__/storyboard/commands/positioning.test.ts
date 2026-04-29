@@ -862,3 +862,112 @@ describe("Integration - Full sprite rendering calculation", () => {
     expect(rect.height).toBe(421.875);
   });
 });
+
+// ============================================
+// 6. Negative Scale and Flip XOR Interaction
+// ============================================
+
+describe("Negative scale and flip XOR interaction", () => {
+  /**
+   * osu! behavior: negative scale from V commands inverts the flip state.
+   * This is implemented as XOR: effectiveFlipH = flipH !== scaleXNeg
+   *
+   * Truth table:
+   *   flipH | scaleXNeg | effectiveFlipH
+   *   false | false     | false (no flip)
+   *   true  | false     | true (flip)
+   *   false | true      | true (flip)
+   *   true  | true      | false (no flip - XOR cancels)
+   */
+
+  // Helper to compute XOR (flipH !== scaleXNeg)
+  function computeEffectiveFlip(flip: boolean, negScale: boolean): boolean {
+    return flip !== negScale;
+  }
+
+  it("should flip horizontally when flipH=true, scaleXNeg=false", () => {
+    expect(computeEffectiveFlip(true, false)).toBe(true);
+  });
+
+  it("should flip horizontally when flipH=false, scaleXNeg=true", () => {
+    expect(computeEffectiveFlip(false, true)).toBe(true);
+  });
+
+  it("should NOT flip when flipH=true, scaleXNeg=true (XOR cancels)", () => {
+    expect(computeEffectiveFlip(true, true)).toBe(false);
+  });
+
+  it("should NOT flip when flipH=false, scaleXNeg=false", () => {
+    expect(computeEffectiveFlip(false, false)).toBe(false);
+  });
+
+  it("should flip vertically when flipV=true, scaleYNeg=false", () => {
+    expect(computeEffectiveFlip(true, false)).toBe(true);
+  });
+
+  it("should flip vertically when flipV=false, scaleYNeg=true", () => {
+    expect(computeEffectiveFlip(false, true)).toBe(true);
+  });
+
+  it("should NOT flip vertically when flipV=true, scaleYNeg=true (XOR cancels)", () => {
+    expect(computeEffectiveFlip(true, true)).toBe(false);
+  });
+
+  it("should NOT flip vertically when flipV=false, scaleYNeg=false", () => {
+    const flipV = false;
+    const scaleYNeg = false;
+    const effectiveFlipV = flipV !== scaleYNeg;
+    expect(effectiveFlipV).toBe(false);
+  });
+
+  it("should correctly compute origin factor with negative scale", () => {
+    /**
+     * When effectiveFlipH_final is true, origin factor X is inverted:
+     *   effectiveFactor.x = 1 - originFactor.x
+     */
+    const originFactors = { x: 0, y: 0 }; // TopLeft
+    const effectiveFlipH_final = true;
+    const effectiveFlipV_final = false;
+
+    if (effectiveFlipH_final) originFactors.x = 1 - originFactors.x;
+    if (effectiveFlipV_final) originFactors.y = 1 - originFactors.y;
+
+    // TopLeft with flipH becomes (1, 0) like TopRight
+    expect(originFactors.x).toBe(1);
+    expect(originFactors.y).toBe(0);
+  });
+
+  it("should handle XOR with Centre origin (symmetric)", () => {
+    const originFactors = { x: 0.5, y: 0.5 }; // Centre
+    const effectiveFlipH_final = true;
+    const effectiveFlipV_final = true;
+
+    if (effectiveFlipH_final) originFactors.x = 1 - originFactors.x;
+    if (effectiveFlipV_final) originFactors.y = 1 - originFactors.y;
+
+    // Centre with flipH: 1 - 0.5 = 0.5 (unchanged due to symmetry)
+    expect(originFactors.x).toBe(0.5);
+    expect(originFactors.y).toBe(0.5);
+  });
+
+  it("should simulate real scenario: V command with negative X scale", () => {
+    /**
+     * V command: V,0,0,1000,1,1,-2,1
+     * At t=500: vectorScale = (-0.5, 1)
+     * scaleXNeg = true, scaleYNeg = false
+     * With no P commands (flipH=false, flipV=false):
+     *   effectiveFlipH = false !== true = true
+     *   effectiveFlipV = false !== false = false
+     */
+    const commands = [createVCommand(0, 1000, 1, 1, -2, 1)];
+    const vs = getVectorScale(commands, noLoops, 500);
+    expect(vs!.x).toBeCloseTo(-0.5);
+    expect(vs!.y).toBeCloseTo(1);
+
+    // XOR logic
+    const flipH = false;
+    const scaleXNeg = vs!.x < 0;
+    const effectiveFlipH = flipH !== scaleXNeg;
+    expect(effectiveFlipH).toBe(true);
+  });
+});

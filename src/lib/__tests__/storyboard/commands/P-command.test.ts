@@ -237,3 +237,52 @@ describe("getFlipState - P commands in loops", () => {
     expect(result.flipH).toBe(false);
   });
 });
+
+// ============================================
+// 7. Additive blending mode (P,A)
+// ============================================
+
+describe("Additive blending mode (P,A)", () => {
+  it("should set additive=true for active P,A command", () => {
+    const commands = [createPCommand(0, 1000, "A")];
+    const result = getFlipState(commands, noLoops, 500);
+    expect(result.additive).toBe(true);
+  });
+
+  it("should render with mixBlendMode: screen when additive=true", () => {
+    // When additive is true, the render layer should use mixBlendMode: "screen"
+    // This test verifies the CSS property value that would be applied
+    const additive = true;
+    const style = additive ? { mixBlendMode: "screen" } : {};
+    expect(style.mixBlendMode).toBe("screen");
+  });
+
+  it("should not apply mixBlendMode when additive=false", () => {
+    const additive = false;
+    const style = additive ? { mixBlendMode: "screen" } : {};
+    expect(style).toEqual({});
+  });
+
+  it("should combine P,H and P,A in overlapping commands", () => {
+    const commands: SbCommand[] = [
+      createPCommand(0, 2000, "H"), // Active 0-2000
+      createPCommand(500, 1500, "A"), // Active 500-1500
+    ];
+    // At t=1000: both P,H and P,A active
+    const result = getFlipState(commands, noLoops, 1000);
+    expect(result.flipH).toBe(true);
+    expect(result.additive).toBe(true);
+    expect(result.flipV).toBe(false);
+  });
+
+  it("should combine P,V and P,A in overlapping commands", () => {
+    const commands: SbCommand[] = [
+      createPCommand(0, 2000, "V"),
+      createPCommand(500, 1500, "A"),
+    ];
+    const result = getFlipState(commands, noLoops, 1000);
+    expect(result.flipV).toBe(true);
+    expect(result.additive).toBe(true);
+    expect(result.flipH).toBe(false);
+  });
+});

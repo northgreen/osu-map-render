@@ -985,3 +985,117 @@ describe("Integration - loop with INFINITE_DURATION handling", () => {
     expect(value).toBeNull();
   });
 });
+
+// ============================================
+// 6. Commands not spanning full loop duration
+// ============================================
+
+describe("Loop edge cases - commands shorter than loop duration", () => {
+  it("should repeat command in each iteration when loopDuration > command span", () => {
+    // Note: loop-evaluator recalculates loopDuration from command span
+    // So loopDuration = maxCmdEnd - minCmdStart = 200 - 0 = 200
+    // The passed loopDuration (500) is ignored by the evaluator
+    const loops: SbLoop[] = [
+      createLoop(0, 3, [
+        createMCommand("M", 0, 200, [0, 0, 100, 100]),
+      ], 500),
+    ];
+    // During command (iteration 0, t=100): mid-point
+    const pos100 = getPosition([], loops, 100, 0, 0);
+    expect(pos100.x).toBeCloseTo(50);
+    // At t=300: loopDuration recalculated to 200, iteration=1, command active at 200-400
+    const pos300 = getPosition([], loops, 300, 0, 0);
+    expect(pos300.x).toBeCloseTo(50);
+    // At t=500: iteration=2, command active at 400-600
+    const pos500 = getPosition([], loops, 500, 0, 0);
+    expect(pos500.x).toBeCloseTo(50);
+  });
+
+  it("should handle command starting later in loop", () => {
+    // Command starts at t=200 relative to loop start
+    const loops: SbLoop[] = [
+      createLoop(0, 3, [
+        createMCommand("M", 200, 500, [0, 0, 100, 100]),
+      ], 500),
+    ];
+    // Before command starts in iteration 0
+    const pos100 = getPosition([], loops, 100, 0, 0);
+    expect(pos100.x).toBe(0);
+    // During command in iteration 0 (t=350: 150ms into 200-500 command)
+    const pos350 = getPosition([], loops, 350, 0, 0);
+    expect(pos350.x).toBeCloseTo(50);
+  });
+
+  it("should use last end value after loop ends when command was shorter", () => {
+    const loops: SbLoop[] = [
+      createLoop(0, 1, [
+        createMCommand("M", 0, 200, [0, 0, 100, 100]),
+      ], 500),
+    ];
+    // repeatCount=1 means 2 iterations (0 and 1)
+    // After loop ends: use last end value (100)
+    const posAfter = getPosition([], loops, 1500, 0, 0);
+    expect(posAfter.x).toBe(100);
+    expect(posAfter.y).toBe(100);
+  });
+
+  it("should handle multiple non-contiguous commands in loop", () => {
+    // loopDuration recalculated from commands: max(100, 400) - min(0, 300) = 400 - 0 = 400
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [
+        createMCommand("M", 0, 100, [0, 0, 50, 50]),
+        createMCommand("M", 300, 400, [50, 50, 100, 100]),
+      ], 500),
+    ];
+    // First command in iteration 0
+    const pos50 = getPosition([], loops, 50, 0, 0);
+    expect(pos50.x).toBeCloseTo(25);
+    // Gap between commands in iteration 0 (t=200): no active command
+    // iteration=0, first cmd at 0-100 (ended), second cmd at 300-400 (not started)
+    const pos200 = getPosition([], loops, 200, 0, 0);
+    expect(pos200.x).toBe(0);
+    // Second command in iteration 0
+    const pos350 = getPosition([], loops, 350, 0, 0);
+    expect(pos350.x).toBeCloseTo(75);
+    // Gap after second command in iteration 0 (t=450)
+    // iteration = floor(450/400) = 1, but wait...
+    // Actually iteration=1 at t=400+, command at 400-500 and 700-800
+    // At t=450: iteration=1, first cmd at 400-500, t=450 is mid-point
+    const pos450 = getPosition([], loops, 450, 0, 0);
+    expect(pos450.x).toBeCloseTo(25);
+  });
+});
+
+// ============================================
+// 7. Zero loop duration
+// ============================================
+
+describe("Loop edge cases - zero loop duration", () => {
+  it("should skip loop when all commands are instant (loopDuration=0)", () => {
+    // When all commands have startTime === endTime, loopDuration = 0
+    // The loop evaluator skips loops with duration <= 0
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [createMCommand("M", 0, 0, [0, 0, 100, 100])], 1000),
+    ];
+    // Loop evaluator recalculates loopDuration from commands: 0 - 0 = 0
+    // Since loopDuration <= 0, the loop is skipped
+    const pos = getPosition([], loops, 500, 320, 240);
+    expect(pos.x).toBe(320);
+    expect(pos.y).toBe(240);
+  });
+
+  it("should default loopDuration to 1000 when all commands are instant (parser level)", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",320,240
+L,0,2
+  F,0,0,0,0,1
+  M,0,0,0,0,0,100,100
+`;
+    const result = parseStoryboard(content);
+    const loop = result.objects[0].loops[0];
+    // All commands have startTime === endTime (0-0 and 0-0)
+    // maxEnd - minStart = 0 - 0 = 0, which is <= 0, defaults to 1000
+    expect(loop.loopDuration).toBe(1000);
+  });
+});

@@ -219,3 +219,66 @@ describe("getRotation - Multiple R commands", () => {
     expect(r4).toBe(270);
   });
 });
+
+// ============================================
+// 8. Instant R command (startTime == endTime)
+// ============================================
+
+describe("Instant R command (startTime == endTime)", () => {
+  it("should apply R command at exact startTime", () => {
+    // Instant R command: startTime == endTime
+    // Current implementation: currentTime <= startTime returns startValue
+    const commands = [createRCommand(1000, 1000, 0, 180)];
+    // Before instant command: pre-read start value (0)
+    const before = getRotation(commands, noLoops, 500);
+    expect(before).toBe(0);
+    // At instant command time: currentTime <= startTime -> startValue (0)
+    const at = getRotation(commands, noLoops, 1000);
+    expect(at).toBe(0);
+    // After instant command: command ended, use end value (180)
+    const after = getRotation(commands, noLoops, 2000);
+    expect(after).toBe(180);
+  });
+
+  it("should handle instant R command at t=0", () => {
+    const commands = [createRCommand(0, 0, 0, 90)];
+    // At t=0: currentTime <= startTime -> startValue (0)
+    const rotation = getRotation(commands, noLoops, 0);
+    expect(rotation).toBe(0);
+    // After: command ended, use end value (90)
+    const rotationAfter = getRotation(commands, noLoops, 1000);
+    expect(rotationAfter).toBe(90);
+  });
+
+  it("should handle instant R command with negative rotation", () => {
+    const commands = [createRCommand(500, 500, 0, -90)];
+    // Before: pre-read start value (0)
+    const before = getRotation(commands, noLoops, 250);
+    expect(before).toBe(0);
+    // At instant: currentTime <= startTime -> startValue (0)
+    const at = getRotation(commands, noLoops, 500);
+    expect(at).toBe(0);
+    // After: command ended, use end value (-90)
+    const after = getRotation(commands, noLoops, 1000);
+    expect(after).toBe(-90);
+  });
+
+  it("should handle multiple instant R commands sequentially", () => {
+    const commands: SbCommand[] = [
+      createRCommand(0, 0, 0, 90),      // Instant at t=0: 0->90
+      createRCommand(1000, 1000, 90, 180), // Instant at t=1000: 90->180
+    ];
+    // At t=0: first active, startValue (0)
+    const at0 = getRotation(commands, noLoops, 0);
+    expect(at0).toBe(0);
+    // At t=500: first ended, endValue (90)
+    const at500 = getRotation(commands, noLoops, 500);
+    expect(at500).toBe(90);
+    // At t=1000: second active, startValue (90)
+    const at1000 = getRotation(commands, noLoops, 1000);
+    expect(at1000).toBe(90);
+    // After second: endValue (180)
+    const after = getRotation(commands, noLoops, 2000);
+    expect(after).toBe(180);
+  });
+});

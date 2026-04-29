@@ -640,3 +640,215 @@ describe("parseStoryboard - All origin types", () => {
     }
   });
 });
+
+// ============================================
+// Video Parsing Tests
+// ============================================
+
+describe("parseStoryboard - Video parsing", () => {
+  it("should parse Video definition with valid extension", () => {
+    // Note: parser expects Video,<unused>,"path",x,y format
+    // parts[1] is unused, parts[2] is the path
+    const content = `
+[Events]
+Video,0,"background.mp4",0,0
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(1);
+    const obj = result.objects[0];
+    expect(obj.type).toBe("video");
+    expect(obj.path).toBe("background.mp4");
+    expect(obj.layer).toBe("Background");
+    expect(obj.origin).toBe("TopLeft");
+  });
+
+  it("should filter out Video with invalid extension", () => {
+    const content = `
+[Events]
+Video,0,"background.txt",0,0
+`;
+    const result = parseStoryboard(content);
+    // Invalid extension -> no object created
+    expect(result.objects).toHaveLength(0);
+  });
+
+  it("should accept all valid video/image extensions", () => {
+    const validExts = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "mp4", "webm"];
+    for (const ext of validExts) {
+      const content = `\n[Events]\nVideo,0,"bg.${ext}",0,0\n`;
+      const result = parseStoryboard(content);
+      expect(result.objects).toHaveLength(1);
+      expect(result.objects[0].type).toBe("video");
+    }
+  });
+
+  it("should reject Video with unsupported extension", () => {
+    const content = `
+[Events]
+Video,0,"background.avi",0,0
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(0);
+  });
+
+  it("should handle Video followed by Sprite", () => {
+    const content = `
+[Events]
+Video,0,"bg.mp4",0,0
+Sprite,Pass,Centre,"sprite.png",320,240
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(2);
+    expect(result.objects[0].type).toBe("video");
+    expect(result.objects[1].type).toBe("sprite");
+  });
+});
+
+// ============================================
+// Comment Handling Tests
+// ============================================
+
+describe("parseStoryboard - Comment handling", () => {
+  it("should skip lines starting with //", () => {
+    const content = `
+[Events]
+// This is a comment
+Sprite,Pass,Centre,"img.png",320,240
+// Another comment
+F,0,0,1000,0,1
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(1);
+    expect(result.objects[0].commands).toHaveLength(1);
+    expect(result.objects[0].commands[0].type).toBe("F");
+  });
+
+  it("should skip file with only comments", () => {
+    const content = `
+// Comment 1
+// Comment 2
+// Comment 3
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(0);
+    expect(result.samples).toHaveLength(0);
+  });
+});
+
+// ============================================
+// Default loopType Tests
+// ============================================
+
+describe("parseStoryboard - Default loopType", () => {
+  it("should default to LoopForever when loopType is omitted", () => {
+    const content = `
+[Events]
+Animation,Pass,Centre,"anim.png",320,240,4,250
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].loopType).toBe("LoopForever");
+  });
+
+  it("should default to LoopForever when loopType is invalid", () => {
+    const content = `
+[Events]
+Animation,Pass,Centre,"anim.png",320,240,4,250,InvalidType
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].loopType).toBe("LoopForever");
+  });
+
+  it("should accept LoopOnce when specified", () => {
+    const content = `
+[Events]
+Animation,Pass,Centre,"anim.png",320,240,4,250,LoopOnce
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].loopType).toBe("LoopOnce");
+  });
+});
+
+// ============================================
+// Coordinate Clamping Tests
+// ============================================
+
+describe("parseStoryboard - Coordinate clamping", () => {
+  it("should clamp x coordinate to MAX_COORDINATE_VALUE (131072)", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",200000,100
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].x).toBe(131072);
+  });
+
+  it("should clamp y coordinate to -MAX_COORDINATE_VALUE (-131072)", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",100,-200000
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].y).toBe(-131072);
+  });
+
+  it("should clamp negative x coordinate to -MAX_COORDINATE_VALUE", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",-200000,100
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].x).toBe(-131072);
+  });
+
+  it("should clamp y coordinate to MAX_COORDINATE_VALUE (131072)", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",100,200000
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].y).toBe(131072);
+  });
+
+  it("should not clamp coordinates within valid range", () => {
+    const content = `
+[Events]
+Sprite,Pass,Centre,"img.png",640,480
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects[0].x).toBe(640);
+    expect(result.objects[0].y).toBe(480);
+  });
+});
+
+// ============================================
+// Empty Storyboard Tests
+// ============================================
+
+describe("parseStoryboard - Empty storyboard", () => {
+  it("should return empty objects array for empty file", () => {
+    const content = "";
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(0);
+    expect(result.samples).toHaveLength(0);
+    expect(result.duration).toBe(1000); // 0 + 1s buffer
+  });
+
+  it("should return empty objects array for file with only comments", () => {
+    const content = `
+// Just comments
+// Nothing else
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(0);
+    expect(result.samples).toHaveLength(0);
+  });
+
+  it("should return empty objects array for file with only section headers", () => {
+    const content = `
+[Events]
+[Variables]
+`;
+    const result = parseStoryboard(content);
+    expect(result.objects).toHaveLength(0);
+  });
+});
