@@ -69,8 +69,25 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
       {/* Storyboard layers - only rendered when storyboardEnabled is true */}
       {storyboardEnabled && (
         <>
-          {/* Storyboard layer - Background */}
-          <StoryboardLayer storyboard={storyboard} layer="Background" />
+          {/* Background layer with optional blur */}
+          {bgBlur > 0 ? (
+            <div style={{ position: "absolute", inset: 0, filter: `blur(${bgBlur}px)` }}>
+              <StoryboardLayer storyboard={storyboard} layer="Background" />
+            </div>
+          ) : (
+            <StoryboardLayer storyboard={storyboard} layer="Background" />
+          )}
+
+          {/* Darkening overlay - between Background and other layers */}
+          {bgDarken > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundColor: `rgba(0, 0, 0, ${bgDarken})`,
+              }}
+            />
+          )}
 
           {/* Storyboard layer - Fail (only when failing) */}
           <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />

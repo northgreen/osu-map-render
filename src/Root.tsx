@@ -163,9 +163,9 @@ export const RemotionRoot: React.FC = () => {
             replayCursor: false,
             sessionLine: true,
             storyboardEnabled: true,
-            bgDarken: 0.3,
-            bgBlur: 10,
-            stageBgOpacity: 0.85,
+            bgDarken: 0.4,
+            bgBlur: 7,
+            stageBgOpacity: 0.8,
           },
         }}
       />
