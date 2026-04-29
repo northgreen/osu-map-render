@@ -346,6 +346,57 @@ export function getRotation(
   return rotation;
 }
 
+/**
+ * Compute interpolated color at a given time for an active command.
+ * Converts sRGB to linear space for gamma-correct blending.
+ */
+function computeLinearColor(
+  cmd: SbCommand,
+  currentTime: number,
+): { r: number; g: number; b: number } {
+  const rSrgb = getCommandValue(cmd, currentTime, 0) / 255;
+  const gSrgb = getCommandValue(cmd, currentTime, 1) / 255;
+  const bSrgb = getCommandValue(cmd, currentTime, 2) / 255;
+  return {
+    r: srgbToLinear(rSrgb),
+    g: srgbToLinear(gSrgb),
+    b: srgbToLinear(bSrgb),
+  };
+}
+
+/**
+ * Extract the end color value from a C command in linear space.
+ * Uses params[3..5] if present, falls back to params[0..2].
+ */
+function computeLinearEndValue(
+  cmd: SbCommand,
+): { r: number; g: number; b: number } {
+  const rSrgb = (cmd.params[3] ?? cmd.params[0]) / 255;
+  const gSrgb = (cmd.params[4] ?? cmd.params[1]) / 255;
+  const bSrgb = (cmd.params[5] ?? cmd.params[2]) / 255;
+  return {
+    r: srgbToLinear(rSrgb),
+    g: srgbToLinear(gSrgb),
+    b: srgbToLinear(bSrgb),
+  };
+}
+
+/**
+ * Extract the start color value from a C command in linear space.
+ */
+function computeLinearStartValue(
+  cmd: SbCommand,
+): { r: number; g: number; b: number } {
+  const rSrgb = cmd.params[0] / 255;
+  const gSrgb = cmd.params[1] / 255;
+  const bSrgb = cmd.params[2] / 255;
+  return {
+    r: srgbToLinear(rSrgb),
+    g: srgbToLinear(gSrgb),
+    b: srgbToLinear(bSrgb),
+  };
+}
+
 export function getColor(
   commands: SbCommand[],
   loops: SbLoop[],
@@ -355,68 +406,69 @@ export function getColor(
     .filter((cmd) => cmd.type === "C")
     .sort((a, b) => a.startTime - b.startTime);
 
+  if (cCommands.length === 0) {
+    // No C commands — check loops
+    return getColorFromLoops(loops, currentTime);
+  }
+
+  let lastEndedCmd: SbCommand | null = null;
+  let lastActiveCmd: SbCommand | null = null;
+
   for (const cmd of cCommands) {
+    if (cmd.endTime === INFINITE_DURATION && currentTime >= cmd.startTime) {
+      // Infinite duration: interpolate and return immediately
+      return computeLinearColor(cmd, currentTime);
+    }
+
     if (currentTime >= cmd.startTime && currentTime <= cmd.endTime) {
-      // Active command: interpolate in linear space (gamma-correct)
-      const rSrgb = getCommandValue(cmd, currentTime, 0) / 255;
-      const gSrgb = getCommandValue(cmd, currentTime, 1) / 255;
-      const bSrgb = getCommandValue(cmd, currentTime, 2) / 255;
-      return {
-        r: srgbToLinear(rSrgb),
-        g: srgbToLinear(gSrgb),
-        b: srgbToLinear(bSrgb),
-      };
-    } else if (
-      currentTime > cmd.endTime &&
-      cmd.endTime !== INFINITE_DURATION
-    ) {
-      // Command ended: return end value in linear space
-      const rSrgb = (cmd.params[3] ?? cmd.params[0]) / 255;
-      const gSrgb = (cmd.params[4] ?? cmd.params[1]) / 255;
-      const bSrgb = (cmd.params[5] ?? cmd.params[2]) / 255;
-      return {
-        r: srgbToLinear(rSrgb),
-        g: srgbToLinear(gSrgb),
-        b: srgbToLinear(bSrgb),
-      };
-    } else if (
-      cmd.endTime === INFINITE_DURATION &&
-      currentTime >= cmd.startTime
-    ) {
-      // Infinite duration: interpolate in linear space
-      const rSrgb = getCommandValue(cmd, currentTime, 0) / 255;
-      const gSrgb = getCommandValue(cmd, currentTime, 1) / 255;
-      const bSrgb = getCommandValue(cmd, currentTime, 2) / 255;
-      return {
-        r: srgbToLinear(rSrgb),
-        g: srgbToLinear(gSrgb),
-        b: srgbToLinear(bSrgb),
-      };
-    } else if (currentTime < cmd.startTime) {
-      // Pre-read: use command start value in linear space (osu! behavior)
-      const rSrgb = cmd.params[0] / 255;
-      const gSrgb = cmd.params[1] / 255;
-      const bSrgb = cmd.params[2] / 255;
-      return {
-        r: srgbToLinear(rSrgb),
-        g: srgbToLinear(gSrgb),
-        b: srgbToLinear(bSrgb),
-      };
+      // Active command: track it (keep overwriting to get the latest)
+      lastActiveCmd = cmd;
+    }
+
+    if (currentTime > cmd.endTime && cmd.endTime !== INFINITE_DURATION) {
+      // Track the last ended command (keep overwriting to get the latest)
+      lastEndedCmd = cmd;
     }
   }
 
-  // Also check loops for color values (in linear space)
-  if (loops.length > 0) {
-    const loopR = getLoopCommandValue(loops, "C", currentTime, 0);
-    const loopG = getLoopCommandValue(loops, "C", currentTime, 1);
-    const loopB = getLoopCommandValue(loops, "C", currentTime, 2);
-    if (loopR !== null && loopG !== null && loopB !== null) {
-      return {
-        r: srgbToLinear(loopR / 255),
-        g: srgbToLinear(loopG / 255),
-        b: srgbToLinear(loopB / 255),
-      };
-    }
+  // Priority: last active command > last ended command > pre-read > loops
+  if (lastActiveCmd) {
+    return computeLinearColor(lastActiveCmd, currentTime);
+  }
+
+  // Return last ended command's end value
+  if (lastEndedCmd) {
+    return computeLinearEndValue(lastEndedCmd);
+  }
+
+  // Pre-read: first command's start value (all commands are in the future)
+  if (currentTime < cCommands[0].startTime) {
+    return computeLinearStartValue(cCommands[0]);
+  }
+
+  // No match — check loops
+  return getColorFromLoops(loops, currentTime);
+}
+
+/**
+ * Extract color from loop commands in linear space.
+ * Returns null if no valid loop color found.
+ */
+function getColorFromLoops(
+  loops: SbLoop[],
+  currentTime: number,
+): { r: number; g: number; b: number } | null {
+  if (loops.length === 0) return null;
+
+  const loopR = getLoopCommandValue(loops, "C", currentTime, 0);
+  const loopG = getLoopCommandValue(loops, "C", currentTime, 1);
+  const loopB = getLoopCommandValue(loops, "C", currentTime, 2);
+  if (loopR !== null && loopG !== null && loopB !== null) {
+    return {
+      r: srgbToLinear(loopR / 255),
+      g: srgbToLinear(loopG / 255),
+      b: srgbToLinear(loopB / 255),
+    };
   }
 
   return null;

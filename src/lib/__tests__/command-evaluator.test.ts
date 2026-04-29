@@ -305,9 +305,9 @@ describe("getColor - Multiple C commands", () => {
       createCCommand(0, 2000, 255, 0, 0, 255, 0, 0), // Red, 0-2000
       createCCommand(1000, 1500, 0, 255, 0, 0, 255, 0), // Green, 1000-1500
     ];
-    // At t=1200, first command is active (0 <= 1200 <= 2000) -> returns red
+    // At t=1200, both commands are active -> later command (green) takes precedence
     const result = getColor(commands, noLoops, 1200);
-    expect(result).toEqual({ r: 1, g: 0, b: 0 });
+    expect(result).toEqual({ r: 0, g: 1, b: 0 });
   });
 });
 
