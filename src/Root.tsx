@@ -31,7 +31,7 @@ export const maniaRenderContentsSchema = z.object({
   sessionLine: z.boolean().default(true),
   storyboardEnabled: z.boolean().default(false),
   bgDarken: z.number().min(0).max(1).multipleOf(0.01).default(0),
-  bgBlur: z.number().min(0).max(20).multipleOf(0.5).default(0),
+  bgBlur: z.number().min(0).max(20).default(0),
   stageBgOpacity: z.number().min(0).multipleOf(0.01).max(1).default(1),
 });
 
@@ -162,9 +162,9 @@ export const RemotionRoot: React.FC = () => {
             columnHighlights: true,
             replayCursor: false,
             sessionLine: true,
-            storyboardEnabled: false,
+            storyboardEnabled: true,
             bgDarken: 0.3,
-            bgBlur: 0.0,
+            bgBlur: 10,
             stageBgOpacity: 0.85,
           },
         }}
@@ -221,6 +221,7 @@ export const RemotionRoot: React.FC = () => {
             sessionLine: true,
             storyboardEnabled: false,
             bgDarken: 0.0,
+            bgBlur: 0.0,
             stageBgOpacity: 1.0,
           },
         }}
@@ -276,6 +277,7 @@ export const RemotionRoot: React.FC = () => {
             sessionLine: true,
             storyboardEnabled: false,
             bgDarken: 0.0,
+            bgBlur: 0.0,
             stageBgOpacity: 1.0,
           },
         }}

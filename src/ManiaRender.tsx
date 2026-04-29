@@ -39,6 +39,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     columnHighlights,
     storyboardEnabled,
     bgDarken,
+    bgBlur,
     stageBgOpacity,
   } = contentsWithDefaults;
 
@@ -63,7 +64,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       <Audio src={staticFile("audio.mp3")} />
 
       {/* Layer 1: Background (handles bg image or black bg + storyboard based on storyboardEnabled) */}
-      <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} />
+      <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} bgBlur={bgBlur} />
 
       {/* Layer 2: Stage (notes, judgment line, key presses, hit effects) */}
       <ManiaStageLayer
