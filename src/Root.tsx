@@ -30,6 +30,7 @@ export const maniaRenderContentsSchema = z.object({
   replayCursor: z.boolean().default(true),
   sessionLine: z.boolean().default(true),
   storyboardEnabled: z.boolean().default(false),
+  bgDarken: z.number().min(0).max(1).multipleOf(0.01).default(0),
 });
 
 export const maniaRenderSchema = z.object({
@@ -64,6 +65,7 @@ export const maniaRenderSchema = z.object({
     replayCursor: true,
     sessionLine: true,
     storyboardEnabled: false,
+    bgDarken: 0.0,
   }),
 });
 
@@ -155,7 +157,8 @@ export const RemotionRoot: React.FC = () => {
             columnHighlights: true,
             replayCursor: false,
             sessionLine: true,
-            storyboardEnabled: true,
+            storyboardEnabled: false,
+            bgDarken: 0.37,
           },
         }}
       />
@@ -172,7 +175,7 @@ export const RemotionRoot: React.FC = () => {
           return (
             <AbsoluteFill>
               <Audio src={staticFile("audio.mp3")} />
-              <ManiaBackground storyboardEnabled={parsed.storyboardEnabled} />
+              <ManiaBackground storyboardEnabled={parsed.storyboardEnabled} bgDarken={parsed.bgDarken} />
             </AbsoluteFill>
           );
         }}
@@ -210,6 +213,7 @@ export const RemotionRoot: React.FC = () => {
             replayCursor: true,
             sessionLine: true,
             storyboardEnabled: false,
+            bgDarken: 0.0,
           },
         }}
       />
@@ -263,6 +267,7 @@ export const RemotionRoot: React.FC = () => {
             replayCursor: true,
             sessionLine: true,
             storyboardEnabled: false,
+            bgDarken: 0.0,
           },
         }}
       />

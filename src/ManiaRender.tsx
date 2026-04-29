@@ -38,6 +38,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     sessionLine,
     columnHighlights,
     storyboardEnabled,
+    bgDarken,
   } = contentsWithDefaults;
 
   // Set judgment mode and custom windows
@@ -61,7 +62,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       <Audio src={staticFile("audio.mp3")} />
 
       {/* Layer 1: Background (handles bg image or black bg + storyboard based on storyboardEnabled) */}
-      <ManiaBackground storyboardEnabled={storyboardEnabled} />
+      <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} />
 
       {/* Layer 2: Stage (notes, judgment line, key presses, hit effects) */}
       <ManiaStageLayer

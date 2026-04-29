@@ -1,4 +1,4 @@
-import { replay } from "./replay";
+import { replay, hasReplay } from "./replay";
 import { HitObject } from "./osuParser";
 import { getKeyCount } from "../config";
 
@@ -45,6 +45,10 @@ export function getJudgmentOffset(): number {
 export function setCustomWindows(windows: CustomHitWindows): void {
   currentCustomWindows = windows;
   clearJudgmentCache();
+}
+
+export function isAutoplayMode(): boolean {
+  return !hasReplay;
 }
 
 export function getCustomWindows(): CustomHitWindows {
@@ -280,8 +284,23 @@ interface KeyInterval {
 
 let keyIntervalsCache: KeyInterval[] | null = null;
 
-function getKeyPressIntervals(): KeyInterval[] {
+function getKeyPressIntervals(hitObjects?: HitObject[]): KeyInterval[] {
   const intervals: KeyInterval[] = [];
+
+  // Autoplay mode: generate key intervals for all notes
+  if (isAutoplayMode()) {
+    if (hitObjects) {
+      const sortedNotes = [...hitObjects].sort((a, b) => a.time - b.time);
+      for (const note of sortedNotes) {
+        intervals.push({
+          start: note.time,
+          end: note.endTime ?? note.time + 100,
+          column: note.column,
+        });
+      }
+    }
+    return intervals;
+  }
 
   if (!replay?.replayData) return intervals;
 
@@ -327,9 +346,9 @@ function getKeyPressIntervals(): KeyInterval[] {
   return intervals;
 }
 
-export function getKeyIntervals(): KeyInterval[] {
+export function getKeyIntervals(hitObjects?: HitObject[]): KeyInterval[] {
   if (keyIntervalsCache) return keyIntervalsCache;
-  keyIntervalsCache = getKeyPressIntervals();
+  keyIntervalsCache = getKeyPressIntervals(hitObjects);
   return keyIntervalsCache;
 }
 
@@ -342,6 +361,38 @@ export function calculateJudgments(
   hitObjects: HitObject[],
   od: number,
 ): JudgmentResult[] {
+  // Autoplay mode: all notes hit as Perfect
+  if (isAutoplayMode()) {
+    const sortedNotes = [...hitObjects].sort((a, b) => a.time - b.time);
+    const results: JudgmentResult[] = [];
+
+    for (const note of sortedNotes) {
+      // Head judgment
+      results.push({
+        noteTime: note.time,
+        column: note.column,
+        judgment: "Perfect" as Judgment,
+        hitTime: note.time,
+        isLongNote: note.isLongNote,
+        endTime: note.endTime,
+      });
+      // LN tail judgment
+      if (note.isLongNote && note.endTime) {
+        results.push({
+          noteTime: note.endTime,
+          column: note.column,
+          judgment: "Perfect" as Judgment,
+          hitTime: note.endTime,
+          isLongNote: true,
+          endTime: note.endTime,
+        });
+      }
+    }
+
+    results.sort((a, b) => a.noteTime - b.noteTime);
+    return results;
+  }
+
   const events = getKeyPressEvents();
 
   // Get the hit windows

@@ -7,12 +7,14 @@ interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
   isFailing?: boolean; // Controls Pass/Fail storyboard layer visibility
   storyboardEnabled?: boolean; // When true, show storyboard with black bg; when false, show bg image only
+  bgDarken?: number; // 0 = no darkening, 1 = fully dark
 }
 
 export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
   beatmap = importedBeatmap,
   isFailing = false,
   storyboardEnabled = false,
+  bgDarken = 0,
 }) => {
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
@@ -45,6 +47,20 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
             }}
           />
         </div>
+      )}
+
+      {/* Background darkening overlay */}
+      {!storyboardEnabled && bgFileName && bgDarken > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: 1920,
+            height: 1080,
+            backgroundColor: `rgba(0, 0, 0, ${bgDarken})`,
+          }}
+        />
       )}
 
       {/* Storyboard layers - only rendered when storyboardEnabled is true */}

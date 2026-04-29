@@ -5,7 +5,7 @@ import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
 import { SequentialScrollAlgorithm } from "./lib/scrollVelocity";
 import { replay } from "./lib/replay";
-import { getHitWindows } from "./lib/judgment";
+import { getHitWindows, isAutoplayMode, getKeyIntervals } from "./lib/judgment";
 import {
   SCROLL_SPEED as DEFAULT_SCROLL_SPEED,
   NOTE_WIDTH,
@@ -146,53 +146,84 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     return lo - 1;
   }
 
-  // Get pressed keys from replay
+  // Get pressed keys from replay or autoplay
   const pressedKeys = useMemo(() => {
     const keyCount = getKeyCount();
     const pressedColumns = new Array(keyCount).fill(false) as boolean[];
-    if (!replay?.replayData || cumulativeTimes.length === 0)
-      return pressedColumns;
 
-    const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
-
-    if (lastFrameIndex >= 0) {
-      const keys = replay.replayData[lastFrameIndex].x;
-      for (let col = 0; col < keyCount; col++) {
-        if ((keys & (1 << col)) !== 0) {
-          pressedColumns[col] = true;
+    if (isAutoplayMode()) {
+      // Autoplay: use key intervals from judgment module
+      const intervals = getKeyIntervals(hitObjects);
+      for (const interval of intervals) {
+        if (currentTime >= interval.start && currentTime <= interval.end) {
+          pressedColumns[interval.column] = true;
+        }
+      }
+    } else if (replay?.replayData && cumulativeTimes.length > 0) {
+      const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
+      if (lastFrameIndex >= 0) {
+        const keys = replay.replayData[lastFrameIndex].x;
+        for (let col = 0; col < keyCount; col++) {
+          if ((keys & (1 << col)) !== 0) {
+            pressedColumns[col] = true;
+          }
         }
       }
     }
 
     return pressedColumns;
-  }, [cumulativeTimes, currentTime]);
+  }, [cumulativeTimes, currentTime, hitObjects]);
 
   // Get key release times for fade-out effect
   const releaseTimes = useMemo(() => {
     const keyCount = getKeyCount();
     const result = new Array(keyCount).fill(0) as number[];
-    if (!replay?.replayData || cumulativeTimes.length === 0) return result;
 
-    const keyState = new Array(keyCount).fill(false) as boolean[];
+    if (isAutoplayMode()) {
+      // Autoplay: track when keys are released based on intervals
+      const intervals = getKeyIntervals(hitObjects);
+      const keyState = new Array(keyCount).fill(false) as boolean[];
 
-    for (let i = 0; i < cumulativeTimes.length; i++) {
-      const time = cumulativeTimes[i];
-      if (time > currentTime) break;
+      // Sort intervals by start time
+      const sortedIntervals = [...intervals].sort((a, b) => a.start - b.start);
 
-      const keys = replay.replayData[i].x;
+      for (const interval of sortedIntervals) {
+        if (interval.start > currentTime) break;
 
-      for (let col = 0; col < keyCount; col++) {
-        const isPressed = (keys & (1 << col)) !== 0;
-
-        if (!isPressed && keyState[col]) {
-          result[col] = time;
+        const col = interval.column;
+        if (interval.end <= currentTime) {
+          // Key was released
+          if (keyState[col]) {
+            result[col] = interval.end;
+            keyState[col] = false;
+          }
+        } else if (interval.start <= currentTime) {
+          // Key is currently pressed
+          keyState[col] = true;
         }
-        keyState[col] = isPressed;
+      }
+    } else if (replay?.replayData && cumulativeTimes.length > 0) {
+      const keyState = new Array(keyCount).fill(false) as boolean[];
+
+      for (let i = 0; i < cumulativeTimes.length; i++) {
+        const time = cumulativeTimes[i];
+        if (time > currentTime) break;
+
+        const keys = replay.replayData[i].x;
+
+        for (let col = 0; col < keyCount; col++) {
+          const isPressed = (keys & (1 << col)) !== 0;
+
+          if (!isPressed && keyState[col]) {
+            result[col] = time;
+          }
+          keyState[col] = isPressed;
+        }
       }
     }
 
     return result;
-  }, [cumulativeTimes, currentTime]);
+  }, [cumulativeTimes, currentTime, hitObjects]);
 
   const COLUMN_FADE_DURATION = 150;
 

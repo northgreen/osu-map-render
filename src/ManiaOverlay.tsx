@@ -9,6 +9,7 @@ import {
   setJudgmentMode,
   getJudgmentMode,
   setJudgmentOffset,
+  isAutoplayMode,
 } from "./lib/judgment";
 import { config, STAGE_X } from "./config";
 
@@ -194,7 +195,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
 
         {/* Current judgment mode indicator */}
         <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
-          {mode.toUpperCase()} (offset: {judgmentOffset})
+          {mode.toUpperCase()} {isAutoplayMode() ? "(Autoplay)" : `(offset: ${judgmentOffset})`}
         </div>
       </div>
 

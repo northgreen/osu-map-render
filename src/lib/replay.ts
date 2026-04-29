@@ -30,3 +30,6 @@ export interface ReplayInfo {
 }
 
 export const replay: ReplayInfo = replayData as ReplayInfo;
+
+// 判断 replay 是否存在且有效
+export const hasReplay: boolean = !!(replay?.replayData && replay.replayData.length > 0);

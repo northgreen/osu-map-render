@@ -11,7 +11,35 @@ import {
 import type { ParsedBeatmap } from "../src/lib/osuParser";
 import beatmapData from "../src/generated/beatmap.json";
 
-const DEFAULT_REPLAY = "solo-replay-mania_5205935_6395917723.osr";
+function writeEmptyReplay() {
+  const emptyReplay = {
+    mode: 3,
+    gameVersion: 0,
+    beatmapHash: "",
+    playerName: "",
+    replayHash: "",
+    count300: 0,
+    count100: 0,
+    count50: 0,
+    countGeki: 0,
+    countKatu: 0,
+    countMiss: 0,
+    totalScore: 0,
+    maxCombo: 0,
+    perfect: false,
+    mods: 0,
+    lifeData: [],
+    timestamp: 0,
+    replayData: [],
+    onlineScoreId: 0,
+  };
+
+  fs.writeFileSync(
+    path.join(process.cwd(), "src", "generated", "replay.json"),
+    JSON.stringify(emptyReplay, null, 2),
+  );
+  console.log("No replay file found. Generated empty replay.json (Autoplay mode).");
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -35,17 +63,18 @@ async function main() {
   let replayPath: string | null = null;
 
   if (allOsrFiles.length === 0 && !searchTerm) {
-    // No .osr files found, try default path
-    replayPath = path.join(replayDir, DEFAULT_REPLAY);
-    console.log("No .osr files found, trying default:", DEFAULT_REPLAY);
+    // No .osr files found - generate empty replay for autoplay mode
+    writeEmptyReplay();
+    return;
   } else if (searchTerm) {
     // Try to match the search term
     selectedFile = matchFile(searchTerm, allOsrFiles);
     if (!selectedFile && allOsrFiles.length > 0) {
       selectedFile = await selectFile("Available replays:", allOsrFiles);
     } else if (!selectedFile && allOsrFiles.length === 0) {
-      console.log("No .osr files found, using default:", DEFAULT_REPLAY);
-      replayPath = path.join(replayDir, DEFAULT_REPLAY);
+      console.log("No .osr files found. Generating empty replay.json (Autoplay mode).");
+      writeEmptyReplay();
+      return;
     }
   } else if (allOsrFiles.length > 0) {
     // No argument - show menu
@@ -62,7 +91,9 @@ async function main() {
       replayPath = path.join(process.cwd(), selectedFile);
     }
   } else if (!replayPath) {
-    replayPath = path.join(replayDir, DEFAULT_REPLAY);
+    // User cancelled selection - generate empty replay
+    writeEmptyReplay();
+    return;
   }
 
   console.log(`\nLooking for file: ${path.basename(replayPath)}`);
@@ -70,7 +101,9 @@ async function main() {
   if (!fs.existsSync(replayPath)) {
     console.error(`Error: Replay file not found: ${replayPath}`);
     console.log("Place your .osr file in the replay/ folder.");
-    process.exit(1);
+    console.log("Generating empty replay.json (Autoplay mode) instead.");
+    writeEmptyReplay();
+    return;
   }
 
   let replay;
