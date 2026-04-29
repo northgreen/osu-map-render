@@ -304,10 +304,6 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
   };
 }
 
-// Default beatmap (fallback)
-const DEFAULT_BEATMAP =
-  "void (Mournfinale) feat. Hoshikuma Minami - Testify (Akasha-) [Transcend your Limit Fatal End].osu";
-
 async function main() {
   const args = process.argv.slice(2);
   const searchTerm = args[0];
@@ -322,24 +318,23 @@ async function main() {
   let selectedFile: string | null = null;
 
   if (searchTerm) {
-    // Try to match the search term
     selectedFile = matchFile(searchTerm, osuFiles);
-    if (!selectedFile && osuFiles.length <= 3) {
-      // If match failed and only a few files, don't ask - just use default
-      console.log("Using default beatmap.");
-    } else if (!selectedFile) {
-      // Multiple matches or no match - let user choose
-      selectedFile = await selectFile("Available beatmaps:", osuFiles);
+    if (!selectedFile) {
+      console.error(`Error: No beatmap found matching "${searchTerm}"`);
+      process.exit(1);
     }
   } else {
-    // No argument - show menu
     selectedFile = await selectFile("Select a beatmap:", osuFiles);
   }
 
-  const beatmapFile = selectedFile || DEFAULT_BEATMAP;
-  const beatmapPath = path.join(cheartDir, beatmapFile);
+  if (!selectedFile) {
+    console.error("Error: No beatmap selected");
+    process.exit(1);
+  }
 
-  console.log(`\nLooking for file: ${beatmapFile}`);
+  const beatmapPath = path.join(cheartDir, selectedFile);
+
+  console.log(`\nLooking for file: ${selectedFile}`);
 
   if (!fs.existsSync(beatmapPath)) {
     console.error(`Error: Beatmap file not found: ${beatmapPath}`);
@@ -396,10 +391,10 @@ async function main() {
 
   // Copy .osb storyboard file if exists
   // Try different possible locations: same directory as .osu, or base directory
-  let osbSrc = path.join(sourceDir, beatmapFile.replace(".osu", ".osb"));
+  let osbSrc = path.join(sourceDir, selectedFile.replace(".osu", ".osb"));
   if (!fs.existsSync(osbSrc)) {
     // Try base directory (osb might be in parent folder without difficulty suffix)
-    const baseName = beatmapFile.replace(/\s*\[[^\]]+\]\.osu$/, ".osb");
+    const baseName = selectedFile.replace(/\s*\[[^\]]+\]\.osu$/, ".osb");
     osbSrc = path.join(cheartDir, baseName);
   }
   const osbDest = path.join(publicDir, "storyboard.osb");
