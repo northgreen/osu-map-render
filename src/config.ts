@@ -257,6 +257,13 @@ export const hitsoundConfig = {
     return `${sampleSet}-hit${soundType}.wav`;
   },
 
+  // Available hitsound files in public/
+  availableFiles: new Set([
+    "soft-hitnormal.wav",
+    "soft-hitwhistle.wav",
+    "soft-hitfinish.wav",
+  ]),
+
   // Fallback sound files (used when custom files are missing)
   fallbackSounds: {
     normal: "soft-hitnormal.wav",

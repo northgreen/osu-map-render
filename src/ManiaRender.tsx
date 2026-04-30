@@ -1,4 +1,5 @@
-import { AbsoluteFill, Audio, staticFile } from "remotion";
+import { AbsoluteFill, staticFile } from "remotion";
+import { Audio } from "remotion";
 import { ManiaBackground } from "./ManiaBackground";
 import { ManiaStageLayer } from "./ManiaStageLayer";
 import { ManiaOverlay } from "./ManiaOverlay";

@@ -1,5 +1,5 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { useEffect, useMemo, useRef } from "react";
+import { AbsoluteFill, Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { useMemo } from "react";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
 import { ReplayCursor } from "./ReplayCursor";
@@ -98,74 +98,42 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   };
   const currentTime = beatmap ? (frame / fps) * 1000 : 0;
 
-  // Track played hitsounds to avoid duplicate playback - use string for composite key
-  const playedHitsoundsRef = useRef<Set<string>>(new Set());
-
-  // Find timing point for current time (for hitsound sample set)
-  const currentTimingPoint = useMemo(() => {
-    if (timingPoints.length === 0) return undefined;
-    let tp = timingPoints[0];
-    for (let i = 0; i < timingPoints.length; i++) {
-      if (timingPoints[i].time <= currentTime) {
-        tp = timingPoints[i];
-      } else {
-        break;
-      }
+  // Pre-compute all hitsounds: frame -> HitsoundInfo[]
+  // This runs ONCE when beatmap/hitsounds config changes, not every frame
+  const hitsoundMap = useMemo(() => {
+    if (!hitsounds.enabled || hitsounds.trigger !== "auto") {
+      return new Map<number, { id: string; filename: string; volume: number }[]>();
     }
-    return tp;
-  }, [timingPoints, currentTime]);
 
-  // Auto hitsound trigger: play when note reaches judgment line
-  // Use binary search to find notes within the current frame window
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[hitsound] useEffect triggered", {
-        enabled: hitsounds.enabled,
-        trigger: hitsounds.trigger,
-        volume: hitsounds.volume,
-        currentTime,
-        hitObjectsCount: hitObjects.length,
-        hasBeatmap: !!beatmap,
-      });
-    }
-    if (!hitsounds.enabled || hitsounds.trigger !== "auto") return;
+    const map = new Map<number, { id: string; filename: string; volume: number }[]>();
 
-    const frameInterval = 1000 / fps;
-    const playedSet = playedHitsoundsRef.current;
-    const windowStart = currentTime - frameInterval;
+    for (const note of hitObjects) {
+      const noteFrame = Math.round((note.time / 1000) * fps);
 
-    // Binary search: find first note with time > windowStart
-    let lo = 0;
-    let hi = hitObjects.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (hitObjects[mid].time <= windowStart) lo = mid + 1;
-      else hi = mid;
-    }
-    const startIndex = lo;
-
-    // Only iterate over notes within the frame window
-    for (let i = startIndex; i < hitObjects.length; i++) {
-      const note = hitObjects[i];
-      const noteTime = note.time;
-      const noteColumn = note.column;
-
-      // Stop once we pass the current time
-      if (noteTime > currentTime) break;
-
-      // Skip if already played - use composite key to handle chords/stacked notes
-      const playedKey = `${noteTime}-${noteColumn}`;
-      if (playedSet.has(playedKey)) continue;
-
-      // Play hitsound
-      hitsoundManager.playHitObjectHitSound(
+      const infos = hitsoundManager.getHitsoundsForNote(
         note,
-        currentTimingPoint,
+        timingPoints.find((tp) => tp.time <= note.time),
         hitsounds.volume,
       );
-      playedSet.add(playedKey);
+
+      if (infos.length === 0) continue;
+
+      const existing = map.get(noteFrame) || [];
+      for (const info of infos) {
+        existing.push({
+          id: `${note.time}-${note.column}-${info.filename}`,
+          filename: info.filename,
+          volume: info.volume,
+        });
+      }
+      map.set(noteFrame, existing);
     }
-  }, [currentTime, hitObjects, hitsounds, currentTimingPoint, fps]);
+
+    return map;
+  }, [hitObjects, timingPoints, hitsounds, fps]);
+
+  // Per-frame lookup: O(1)
+  const currentHitsounds = hitsoundMap.get(frame) || [];
 
   const durationMs =
     hitObjects.length > 0
@@ -406,6 +374,16 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         stageX={stageX}
         judgmentY={judgmentY}
       />
+
+      {/* Hitsounds */}
+      {currentHitsounds.map((hs) => (
+        <Audio
+          key={hs.id}
+          src={staticFile(hs.filename)}
+          volume={() => hs.volume}
+          startFrom={0}
+        />
+      ))}
     </AbsoluteFill>
   );
 };

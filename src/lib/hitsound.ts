@@ -1,6 +1,11 @@
 import { hitsoundConfig } from "../config";
 import type { HitObject, TimingPoint } from "./osuParser";
 
+export interface HitsoundInfo {
+  filename: string;
+  volume: number;
+}
+
 /**
  * Resolve effective volume using priority chain:
  * hitSample.volume > timingPoint.volume > globalVolume
@@ -65,12 +70,19 @@ export class HitsoundManager {
     const files: string[] = [];
 
     for (const soundType of soundTypes) {
-      const filename = hitsoundConfig.soundFileTemplate(
+      let filename = hitsoundConfig.soundFileTemplate(
         sampleSetName,
         soundType,
         hitSample?.index,
       );
-      files.push(filename);
+      // Map to soft- prefix if original doesn't exist
+      if (!hitsoundConfig.availableFiles.has(filename)) {
+        filename = filename.replace(/^(normal|drum|inherit)-/, "soft-");
+      }
+      // Only add if file exists
+      if (hitsoundConfig.availableFiles.has(filename)) {
+        files.push(filename);
+      }
     }
 
     return files;
@@ -200,19 +212,6 @@ export class HitsoundManager {
     timingPoint: TimingPoint | undefined,
     globalVolume: number,
   ): void {
-    if (process.env.NODE_ENV !== "production") {
-      const sampleSet = hitObject.parsedHitSample?.normalSet ?? timingPoint?.sampleSet ?? 1;
-      const files = this.getHitSoundFiles(hitObject.hitSound, sampleSet);
-      console.log("[hitsound] playHitObjectHitSound()", {
-        hitSound: hitObject.hitSound,
-        sampleSet,
-        files,
-        volume: globalVolume,
-      });
-    }
-    const hitSound = hitObject.hitSound;
-    if (hitSound === 0) return;
-
     // Determine sample set to use with proper inheritance
     let sampleSet = 1; // Default to normal
     if (hitObject.parsedHitSample) {
@@ -225,20 +224,81 @@ export class HitsoundManager {
       sampleSet = timingPoint.sampleSet ?? 1;
     }
 
-    const files = this.getHitSoundFiles(
-      hitSound,
-      sampleSet,
-      hitObject.parsedHitSample,
-    );
+    const hitSound = hitObject.hitSound;
     const volume = resolveVolume(
       hitObject.parsedHitSample?.volume,
       timingPoint?.volume,
       globalVolume,
     );
 
+    if (hitSound === 0) {
+      // Default hit sound when hitSound is 0 (osu! standard)
+      this.play("soft-hitnormal.wav", volume);
+      return;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      const files = this.getHitSoundFiles(hitSound, sampleSet);
+      console.log("[hitsound] playHitObjectHitSound()", {
+        hitSound,
+        sampleSet,
+        files,
+        volume,
+      });
+    }
+
+    const files = this.getHitSoundFiles(
+      hitSound,
+      sampleSet,
+      hitObject.parsedHitSample,
+    );
+
     for (const file of files) {
       this.play(file, volume);
     }
+  }
+
+  /**
+   * Get hitsound info for a hit object without playing.
+   * Used by React <Audio> components for proper Remotion integration.
+   */
+  getHitsoundsForNote(
+    hitObject: HitObject,
+    timingPoint: TimingPoint | undefined,
+    globalVolume: number,
+  ): HitsoundInfo[] {
+    // Determine sample set first
+    let sampleSet = 1;
+    if (hitObject.parsedHitSample) {
+      if (hitObject.parsedHitSample.normalSet > 0) {
+        sampleSet = hitObject.parsedHitSample.normalSet;
+      } else if (timingPoint) {
+        sampleSet = timingPoint.sampleSet ?? 1;
+      }
+    } else if (timingPoint) {
+      sampleSet = timingPoint.sampleSet ?? 1;
+    }
+
+    const hitSound = hitObject.hitSound;
+
+    // Default hit sound when hitSound is 0 (osu! standard)
+    if (hitSound === 0) {
+      const volume = resolveVolume(
+        hitObject.parsedHitSample?.volume,
+        timingPoint?.volume,
+        globalVolume,
+      );
+      return [{ filename: "soft-hitnormal.wav", volume }];
+    }
+
+    const files = this.getHitSoundFiles(hitSound, sampleSet, hitObject.parsedHitSample);
+    const volume = resolveVolume(
+      hitObject.parsedHitSample?.volume,
+      timingPoint?.volume,
+      globalVolume,
+    );
+
+    return files.map(filename => ({ filename, volume }));
   }
 
   /**
