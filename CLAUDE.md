@@ -189,4 +189,4 @@ When unsure about storyboard behavior or osu! specific implementation details:
    - StoryBoard Logic
    - and so on
 
-3. **Parsed JSON outputs** - Check `src/generated/storyboard.json` for actual parsed data structure and command sequences
+3. **Parsed JSON outputs** - Check `src/generated/storyboard.json` for actual parsed data structure and command sequences,`jq`is also available

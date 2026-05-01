@@ -211,7 +211,7 @@ export const RemotionRoot: React.FC = () => {
           time: { beatOffset: 0, timeOffset: 0 },
           scroll: { scrollSpeed: 27 },
           judgment: { mode: "v2" as const, offset: 0, showZones: false },
-          layout: { stageOffset: 508, judgmentLineY: 946, judgmentTextY: 850 },
+          layout: { stageOffset: 637, judgmentLineY: 946, judgmentTextY: 850 },
           contents: {
             trackHeight: true,
             columnHighlights: true,

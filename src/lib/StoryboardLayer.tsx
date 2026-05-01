@@ -259,6 +259,10 @@ const SbSprite: React.FC<SbSpriteProps> = ({
 
   // Screen bounds check - skip rendering if sprite is completely off-screen
   const isOffScreen = useMemo(() => {
+    // If image dimensions are not yet loaded, assume on-screen to avoid
+    // incorrectly culling large sprites during async loading or SSR rendering.
+    if (!imageSize) return false;
+
     const screenBounds = {
       left: -200,
       right: RENDER_WIDTH + 200,
@@ -279,7 +283,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({
       spriteBottom < screenBounds.top ||
       spriteTop > screenBounds.bottom
     );
-  }, [finalX, finalY, baseWidth, baseHeight]);
+  }, [imageSize, finalX, finalY, baseWidth, baseHeight]);
 
   // Time visibility check - skip if object is outside its time range
   const isTimeVisible = useMemo(() => {
