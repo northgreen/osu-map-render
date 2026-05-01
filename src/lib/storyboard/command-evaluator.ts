@@ -79,6 +79,7 @@ function evaluateSequence<T>(
 
   return loopReader(loops, currentTime) ?? handler.defaultValue;
 }
+
 const SRGB_TO_LINEAR_THRESHOLD = 0.04045;
 
 /** Convert sRGB channel value to linear space */
@@ -354,11 +355,6 @@ export function getVectorScale(
     },
     getVectorScaleFromLoops,
   );
-  // Return null when no V commands and no loop values (distinguish from default 1,1)
-  const vCommands = commands.filter((cmd) => cmd.type === "V");
-  if (vCommands.length === 0) {
-    return getVectorScaleFromLoops(loops, currentTime);
-  }
   return result;
 }
 

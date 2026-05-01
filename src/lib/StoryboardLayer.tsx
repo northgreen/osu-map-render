@@ -293,7 +293,7 @@ const SbSprite: React.FC<SbSpriteProps> = ({
 
     for (const loop of loops) {
       minTime = Math.min(minTime, loop.startTime);
-      maxTime = Math.max(maxTime, loop.endTime);
+      maxTime = Math.max(maxTime, loop.startTime + (loop.repeatCount + 1) * loop.loopDuration);
     }
 
     // If no commands found, object is always visible in time

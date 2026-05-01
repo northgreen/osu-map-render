@@ -15,13 +15,33 @@ function resolveVolume(
   timingPointVolume: number | undefined,
   globalVolume: number,
 ): number {
-  if (hitSampleVolume !== undefined && hitSampleVolume > 0) {
+  if (hitSampleVolume !== undefined && hitSampleVolume !== null) {
     return hitSampleVolume / 100; // Convert osu! 0-100 to 0-1
   }
-  if (timingPointVolume !== undefined && timingPointVolume > 0) {
+  if (timingPointVolume !== undefined && timingPointVolume !== null) {
     return timingPointVolume / 100;
   }
   return globalVolume;
+}
+
+/**
+ * Resolve sample set using priority chain:
+ * hitObject.normalSet > timingPoint.sampleSet > default (1)
+ */
+function resolveSampleSet(
+  hitObject: HitObject,
+  timingPoint: TimingPoint | undefined,
+): number {
+  if (hitObject.parsedHitSample) {
+    if (hitObject.parsedHitSample.normalSet > 0) {
+      return hitObject.parsedHitSample.normalSet;
+    } else if (timingPoint) {
+      return timingPoint.sampleSet ?? 1;
+    }
+  } else if (timingPoint) {
+    return timingPoint.sampleSet ?? 1;
+  }
+  return 1;
 }
 
 /**
@@ -78,6 +98,10 @@ export class HitsoundManager {
       // Map to soft- prefix if original doesn't exist
       if (!hitsoundConfig.availableFiles.has(filename)) {
         filename = filename.replace(/^(normal|drum|inherit)-/, "soft-");
+      }
+      // Try normal- as last resort fallback
+      if (!hitsoundConfig.availableFiles.has(filename)) {
+        filename = filename.replace(/^(soft|drum|inherit)-/, "normal-");
       }
       // Only add if file exists
       if (hitsoundConfig.availableFiles.has(filename)) {
@@ -212,18 +236,7 @@ export class HitsoundManager {
     timingPoint: TimingPoint | undefined,
     globalVolume: number,
   ): void {
-    // Determine sample set to use with proper inheritance
-    let sampleSet = 1; // Default to normal
-    if (hitObject.parsedHitSample) {
-      if (hitObject.parsedHitSample.normalSet > 0) {
-        sampleSet = hitObject.parsedHitSample.normalSet;
-      } else if (timingPoint) {
-        sampleSet = timingPoint.sampleSet ?? 1; // Inherit from timing point
-      }
-    } else if (timingPoint) {
-      sampleSet = timingPoint.sampleSet ?? 1;
-    }
-
+    const sampleSet = resolveSampleSet(hitObject, timingPoint);
     const hitSound = hitObject.hitSound;
     const volume = resolveVolume(
       hitObject.parsedHitSample?.volume,
@@ -267,18 +280,7 @@ export class HitsoundManager {
     timingPoint: TimingPoint | undefined,
     globalVolume: number,
   ): HitsoundInfo[] {
-    // Determine sample set first
-    let sampleSet = 1;
-    if (hitObject.parsedHitSample) {
-      if (hitObject.parsedHitSample.normalSet > 0) {
-        sampleSet = hitObject.parsedHitSample.normalSet;
-      } else if (timingPoint) {
-        sampleSet = timingPoint.sampleSet ?? 1;
-      }
-    } else if (timingPoint) {
-      sampleSet = timingPoint.sampleSet ?? 1;
-    }
-
+    const sampleSet = resolveSampleSet(hitObject, timingPoint);
     const hitSound = hitObject.hitSound;
 
     // Default hit sound when hitSound is 0 (osu! standard)

@@ -2,6 +2,8 @@
 
 对于toolcall不要直接输出xml
 
+所有行为都以osu原版的行为为准，如果不确定某个行为的话请参考osu的行为，另外也可以阅读提供的文档来理解osu的行为
+
 ## Project
 
 Remotion 4.x project for rendering osu!mania beatmap videos. React + TypeScript + Tailwind v4.
