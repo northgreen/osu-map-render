@@ -408,10 +408,10 @@ describe("getColor - C command with loop", () => {
         loopDuration: 500,
       },
     ];
-    // At t=600: regular C has ended -> returns end value (red)
-    // Loop is still active but regular command returned first
+    // At t=600: regular C has ended, loop C iteration 1 is active (500-1000)
+    // Loop commands take priority over ended direct commands (matching osu! behavior)
     const result = getColor(commands, loops, 600);
-    expect(result).toEqual({ r: 1, g: 0, b: 0 });
+    expect(result).toEqual({ r: 0, g: 0, b: 1 }); // Blue from loop
   });
 });
 

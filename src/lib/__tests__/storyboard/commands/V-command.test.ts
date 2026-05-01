@@ -15,9 +15,11 @@ import {
 // ============================================
 
 describe("getVectorScale - Default (no V commands)", () => {
-  it("should return null when no V commands exist", () => {
+  it("should return default {x:1, y:1} when no V commands exist", () => {
+    // osu! behavior: VectorScale is non-nullable Vector2, defaults to Vector2.One (1,1)
+    // when no V commands exist (DrawableStoryboardSprite.cs:50)
     const vs = getVectorScale([], noLoops, 0);
-    expect(vs).toBeNull();
+    expect(vs).toEqual({ x: 1, y: 1 });
   });
 
   it("should default to {x:1, y:1} when null is returned", () => {

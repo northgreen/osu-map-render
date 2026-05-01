@@ -64,9 +64,17 @@ function evaluateSequence<T>(
     }
   }
 
-  // Priority: last active > last ended > pre-read > loops
+  // Priority: active direct > active loop > ended direct > pre-read > default
+  // Matching osu! behavior where all commands (direct + loop) are interleaved by time
   if (lastActiveCmd) {
     return handler.handleActive(lastActiveCmd, currentTime);
+  }
+
+  // Check loops before ended/pre-read — a loop command may be active even when
+  // the direct command has ended or hasn't started yet
+  const loopValue = loopReader(loops, currentTime);
+  if (loopValue !== null) {
+    return loopValue;
   }
 
   if (lastEndedCmd) {
@@ -77,7 +85,7 @@ function evaluateSequence<T>(
     return handler.handlePreRead(filtered[0]);
   }
 
-  return loopReader(loops, currentTime) ?? handler.defaultValue;
+  return handler.defaultValue;
 }
 
 const SRGB_TO_LINEAR_THRESHOLD = 0.04045;

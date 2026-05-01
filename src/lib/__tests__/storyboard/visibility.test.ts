@@ -169,5 +169,33 @@ describe("isObjectVisible", () => {
       expect(isObjectVisible(commands, loops, 8000)).toBe(true);
       expect(isObjectVisible(commands, loops, 8001)).toBe(false);
     });
+
+    it("should handle loops with commands at absolute times (s2.png scenario)", () => {
+      // Real scenario: L,0,14 with R commands at 106490+
+      const commands: SbCommand[] = [
+        createFCommand(105142, 106490, 0, 1),
+      ];
+      const loops: SbLoop[] = [
+        {
+          startTime: 0,
+          endTime: 18872,
+          repeatCount: 13,
+          commands: [
+            { type: "R", easing: 19, startTime: 106490, endTime: 106827, params: [0, 45] },
+            { type: "R", easing: 19, startTime: 106827, endTime: 107164, params: [45, 90] },
+            { type: "R", easing: 18, startTime: 107164, endTime: 107501, params: [90, 135] },
+            { type: "R", easing: 19, startTime: 107501, endTime: 107838, params: [135, 180] },
+          ],
+          loopDuration: 1348,
+        },
+      ];
+      // minCmdStart = 106490, effectiveStart = Math.max(0, 106490) = 106490
+      // loopEnd = 106490 + 1348 * 14 = 125362
+      // lifetimeEnd = max(106490, 125362) = 125362
+      expect(isObjectVisible(commands, loops, 106490)).toBe(true);  // loop starts
+      expect(isObjectVisible(commands, loops, 107000)).toBe(true);  // mid-loop
+      expect(isObjectVisible(commands, loops, 125362)).toBe(true);  // loop ends
+      expect(isObjectVisible(commands, loops, 125363)).toBe(false); // after loop
+    });
   });
 });

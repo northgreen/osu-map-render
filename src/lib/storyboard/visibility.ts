@@ -55,9 +55,15 @@ export function isObjectVisible(
   );
 
   for (const loop of loops) {
-    // osu! EndTimeForDisplay: loop.startTime + loop.loopDuration * (loop.repeatCount + 1)
-    const loopEnd =
-      loop.startTime + loop.loopDuration * (loop.repeatCount + 1);
+    // osu! EndTimeForDisplay: the loop's effective start is the earliest child command,
+    // because child command times are absolute and loop.startTime (from L command) may be 0.
+    // EndTimeForDisplay = effectiveStart + loopDuration * TotalIterations
+    const minCmdStart =
+      loop.commands.length > 0
+        ? Math.min(...loop.commands.map((c) => c.startTime))
+        : loop.startTime;
+    const effectiveStart = Math.max(loop.startTime, minCmdStart);
+    const loopEnd = effectiveStart + loop.loopDuration * (loop.repeatCount + 1);
     lifetimeEnd = Math.max(lifetimeEnd, loopEnd);
   }
 

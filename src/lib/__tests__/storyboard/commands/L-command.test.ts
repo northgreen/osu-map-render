@@ -1100,3 +1100,221 @@ L,0,2
     expect(loop.loopDuration).toBe(1000);
   });
 });
+
+// ============================================
+// 8. evaluateSequence loop priority (osu! interleaved commands)
+// ============================================
+
+describe("evaluateSequence - loop priority over ended/pre-read (osu! interleaved commands)", () => {
+  it("should return loop rotation when direct R command has ended", () => {
+    // At t=600: direct R ended (0-500), loop R iteration 1 active (500-1000)
+    // osu! behavior: loop commands are interleaved with direct commands by absolute time
+    const commands: SbCommand[] = [
+      createRCommand(0, 500, 0, 180),
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [createRCommand(0, 500, 0, 360)], 500),
+    ];
+    // Direct R ended at 500, endValue=180. Loop R iteration 1 active at 500-1000.
+    // At t=600: loop R at 600-600 offset in iteration 1 → 100ms into 500ms → 20% → 72°
+    const rotation = getRotation(commands, loops, 600);
+    expect(rotation).toBeCloseTo(72); // Loop wins over ended direct
+  });
+
+  it("should return loop scale when direct S command hasn't started yet", () => {
+    // At t=120480: direct S starts at 125366, loop S iteration 4 active
+    // This is the exact scenario from void (Mournfinale) s2.png
+    const commands: SbCommand[] = [
+      createSCommand(125366, 125704, 179.99, 134.99), // Future direct S
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 6, [
+        createSCommand(106490, 106490, 0.4, 0.4),
+        createSCommand(107501, 107838, 0.4, 0.75),
+        createSCommand(107838, 108850, 0.75, 0.75),
+        createSCommand(108850, 109187, 0.75, 0.4),
+      ], 2697),
+    ];
+    // At t=120480:
+    // - Direct S hasn't started (125366 > 120480) → would return pre-read 179.99
+    // - Loop S: iteration = floor((120480-106490)/2697) = floor(13990/2697) = 5
+    //   iteration 5 ≤ repeatCount 6 → active
+    //   In iteration 5, local time = 120480 - (106490 + 5*2697) = 120480 - 120025 = 455
+    //   S1 active at local 1011-1348 (455 is before that)
+    //   Actually: iterationStart = 106490 + 5*2697 = 120025
+    //   S1: local 106490→cmdStartAbs = 120025+(106490-106490) = 120025, cmdEndAbs = 120025+(106490-106490) = 120025
+    //   S2: cmdStartAbs = 120025+(107501-106490) = 121036, cmdEndAbs = 121036+(107838-107501) = 121373
+    //   At t=120480: between S1 (instant at 120025) and S2 (121036-121373)
+    //   S1 is instant (duration=0), returns startValue=0.4
+    //   So scale = 0.4
+    const scale = getScale(commands, loops, 120480);
+    expect(scale).toBeCloseTo(0.4);
+  });
+
+  it("should return loop opacity when direct F command hasn't started", () => {
+    const commands: SbCommand[] = [
+      createFCommand(10000, 11000, 0, 1), // Direct F in the future
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 3, [
+        createFCommand(0, 500, 0, 1),
+        createFCommand(500, 1000, 1, 0),
+      ], 1000),
+    ];
+    // At t=250: Direct F hasn't started (10000), loop F iteration 0 active
+    // Loop opacity at t=250: 250/500 = 0.5 → opacity = 0.5
+    const opacity = getOpacity(commands, loops, 250);
+    expect(opacity).toBeCloseTo(0.5);
+  });
+
+  it("should return loop color when direct C command hasn't started", () => {
+    const commands: SbCommand[] = [
+      createCCommand(10000, 11000, 255, 0, 0, 0, 255, 0), // Future direct C
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [
+        createCCommand(0, 500, 0, 0, 255, 0, 0, 255),
+      ], 500),
+    ];
+    // At t=250: Direct C hasn't started, loop C iteration 0 active
+    // Loop C: linear interpolation at 50% → (0, 0, 255) → { r: 0, g: 0, b: 1 }
+    const color = getColor(commands, loops, 250);
+    expect(color!.r).toBeCloseTo(0);
+    expect(color!.g).toBeCloseTo(0);
+    expect(color!.b).toBeCloseTo(1);
+  });
+
+  it("should prefer active direct command over active loop command", () => {
+    // When both direct and loop commands are active, direct wins
+    const commands: SbCommand[] = [
+      createRCommand(0, 1000, 0, 360),
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 2, [createRCommand(0, 500, 0, 180)], 500),
+    ];
+    // At t=250: Direct R active (0-1000, 25% → 90°), loop R also active
+    // Direct should win
+    const rotation = getRotation(commands, loops, 250);
+    expect(rotation).toBeCloseTo(90);
+  });
+
+  it("should prefer active direct command over ended loop command", () => {
+    const commands: SbCommand[] = [
+      createRCommand(1000, 2000, 0, 360),
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 1, [createRCommand(0, 500, 0, 180)], 500),
+    ];
+    // At t=1500: Direct R active (1000-2000, 50% → 180°), loop ended
+    const rotation = getRotation(commands, loops, 1500);
+    expect(rotation).toBeCloseTo(180);
+  });
+});
+
+// ============================================
+// 9. Absolute command times in loops (L,0,N pattern)
+// ============================================
+
+describe("Absolute command times in loops (L,0,N pattern from real beatmaps)", () => {
+  it("should handle s2.png sprite from void (Mournfinale)", () => {
+    // Real pattern from the beatmap:
+    // Sprite,Background,Centre,"Storyboard\s2.png",320,240
+    //  L,0,14
+    //   R,19,106490,106827,3.141592,2.356194
+    //   R,19,106827,107164,2.356194,1.570796
+    //   R,18,107164,107501,1.570796,0.785398
+    //   R,19,107501,107838,0.785398,0
+    //  L,0,7
+    //   S,0,106490,107501,0.4
+    //   S,19,107501,107838,0.4,0.75
+    //   S,0,107838,108850,0.75
+    //   S,19,108850,109187,0.75,0.4
+    //  F,18,105142,106490,0,1
+    //  S,18,105142,106490,1.5,0.4
+    //  F,18,125366,125704,1,0
+    //  R,19,125366,125704,3.141592,2.356194
+
+    const commands: SbCommand[] = [
+      createFCommand(105142, 106490, 0, 1, 18),
+      createSCommand(105142, 106490, 1.5, 0.4, 18),
+      createFCommand(125366, 125704, 1, 0, 18),
+      createRCommand(125366, 125704, 179.99, 134.99), // 3.141592 rad ≈ 180°, 2.356194 ≈ 135°
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 13, [
+        createRCommand(106490, 106827, 179.99, 134.99, 19),
+        createRCommand(106827, 107164, 134.99, 89.99, 19),
+        createRCommand(107164, 107501, 89.99, 44.99, 18),
+        createRCommand(107501, 107838, 44.99, 0, 19),
+      ], 1348),
+      createLoop(0, 6, [
+        createSCommand(106490, 107501, 0.4, 0.4),
+        createSCommand(107501, 107838, 0.4, 0.75, 19),
+        createSCommand(107838, 108850, 0.75, 0.75),
+        createSCommand(108850, 109187, 0.75, 0.4, 19),
+      ], 2697),
+    ];
+
+    // At t=106490: First loop starts, R1 active (106490-106827)
+    const rot1 = getRotation(commands, loops, 106490);
+    expect(rot1).toBeCloseTo(179.99);
+
+    // At t=107000: Mid R1, R1 at 510/337 = ~1.5 → past end, use endValue
+    // Actually: 107000 - 106490 = 510, cmd end = 106827, so R1 ended
+    // R2 active at 106827-107164: 107000-106827 = 173, 173/337 ≈ 0.513
+    // R2: 134.99 + (89.99-134.99) * easeOut(0.513) ≈ 134.99 - 45*0.513 ≈ 111.9
+    const rot2 = getRotation(commands, loops, 107000);
+    expect(rot2).toBeGreaterThan(89);
+    expect(rot2).toBeLessThan(135);
+
+    // At t=120480: Loop iteration 10, should still be active
+    // Loop 1: iteration = floor((120480-106490)/1348) = floor(13990/1348) = 10
+    // 10 ≤ 13 → active
+    const rot3 = getRotation(commands, loops, 120480);
+    expect(rot3).toBeGreaterThanOrEqual(0);
+    expect(rot3).toBeLessThanOrEqual(180);
+
+    // Scale at t=120480: Loop 2 iteration 5, should be active
+    // S1 (instant at 106490) → scale = 0.4
+    const scale = getScale(commands, loops, 120480);
+    expect(scale).toBeCloseTo(0.4);
+
+    // Opacity at t=120480: Direct F ended (105142-106490), endValue=1
+    const opacity = getOpacity(commands, loops, 120480);
+    expect(opacity).toBeCloseTo(1);
+  });
+
+  it("should handle s3.png sprite from void (Mournfinale)", () => {
+    // Similar to s2.png but different rotation direction
+    const commands: SbCommand[] = [
+      createFCommand(105142, 106490, 0, 1, 18),
+      createSCommand(105142, 106490, 2, 0.45, 18),
+      createFCommand(125366, 125704, 1, 0, 18),
+      createRCommand(125366, 125704, 0, 44.99),
+    ];
+    const loops: SbLoop[] = [
+      createLoop(0, 13, [
+        createRCommand(106490, 106827, 0, 44.99, 18),
+        createRCommand(106827, 107164, 44.99, 89.99, 19),
+        createRCommand(107164, 107501, 89.99, 134.99, 19),
+        createRCommand(107501, 107838, 134.99, 179.99, 19),
+      ], 1348),
+      createLoop(0, 6, [
+        createSCommand(106490, 106490, 0.45, 0.45),
+        createSCommand(107501, 107838, 0.45, 0.75, 19),
+        createSCommand(107838, 108850, 0.75, 0.75),
+        createSCommand(108850, 109187, 0.75, 0.45, 19),
+      ], 2697),
+    ];
+
+    // At t=107000: R2 active (106827-107164)
+    const rot = getRotation(commands, loops, 107000);
+    expect(rot).toBeGreaterThan(44);
+    expect(rot).toBeLessThan(90);
+
+    // At t=120480: Both loops still active
+    const rot2 = getRotation(commands, loops, 120480);
+    expect(rot2).toBeGreaterThanOrEqual(0);
+    expect(rot2).toBeLessThanOrEqual(180);
+  });
+});
