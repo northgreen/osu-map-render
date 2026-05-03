@@ -10,10 +10,10 @@ out
 src/generated/
 
 build
-/.playwright-cli
-/replay/*
-/.ocx
-/.opencode
+.playwright-cli/
+/replay/
+.ocx/
+.opencode/
 /cheart/
 /cheart/*
 /public/
