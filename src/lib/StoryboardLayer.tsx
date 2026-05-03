@@ -3,12 +3,10 @@ import {
   useCurrentFrame,
   useVideoConfig,
   staticFile,
-  Audio,
-  interpolate,
   Img,
 } from "remotion";
 import { useMemo, useState, useCallback } from "react";
-import { SbObject, SbSample, SbLoop } from "./sbParser/types";
+import { SbObject, SbLoop } from "./sbParser/types";
 import storyboardData from "../generated/storyboard.json";
 import {
   getOpacity,
@@ -464,37 +462,4 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
 };
 
 export const storyboard = storyboardData.objects as SbObject[];
-export const storyboardDuration = storyboardData.duration;
-export const storyboardSamples =
-  (storyboardData as unknown as { samples?: SbSample[] }).samples || [];
 
-// StoryboardAudioLayer: plays storyboard sound effects
-interface StoryboardAudioLayerProps {
-  samples?: SbSample[];
-}
-
-export const StoryboardAudioLayer: React.FC<StoryboardAudioLayerProps> = ({
-  samples = [],
-}) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const currentTime = (frame / fps) * 1000;
-
-  // Find samples that should play at current time (within 50ms tolerance)
-  const activeSamples = useMemo(() => {
-    return samples.filter((sample) => Math.abs(sample.time - currentTime) < 50);
-  }, [samples, currentTime]);
-
-  return (
-    <>
-      {activeSamples.map((sample, index) => (
-        <Audio
-          key={`${sample.id}-${index}`}
-          src={staticFile(sample.path)}
-          volume={(f) => interpolate(f, [0, 1], [0, sample.volume / 100])}
-          startFrom={0}
-        />
-      ))}
-    </>
-  );
-};

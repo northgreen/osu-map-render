@@ -135,6 +135,21 @@ export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
             boxShadow: headIsHit ? `0 0 20px ${color}` : "none",
           }}
         />
+        {/* Head approach circle */}
+        {!headIsHit && (
+          <div
+            style={{
+              position: "absolute",
+              left: x + NOTE_WIDTH / 2 - 15,
+              top: headY - 20,
+              width: 30,
+              height: 30,
+              borderRadius: "70%",
+              border: `5px solid ${color}`,
+              opacity: Math.max(0, Math.min(1, 1 - clampedHeadProgress)),
+            }}
+          />
+        )}
         {/* LN Body - connects head to tail */}
         {showBody && bodyHeight > 10 && (
           <div
@@ -150,24 +165,21 @@ export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
             }}
           />
         )}
-        {/* Tail - LN release indicator at judgment line */}
-        {
-          //   timeUntilEnd < VISIBLE_TIME && timeUntilEnd > -200 && (
-          //   <div
-          //     style={{
-          //       position: "absolute",
-          //       left: x + 5,
-          //       top: tailY,
-          //       width: NOTE_WIDTH - 10,
-          //       height: 20,
-          //       backgroundColor: color,
-          //       clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
-          //       opacity: 0.4,
-          //       boxShadow: tailIsHit ? `0 0 15px ${color}` : `0 0 5px ${color}`,
-          //     }}
-          //   />
-          // )
-        }
+        {/* Tail approach circle */}
+        {timeUntilEnd > -50 && (
+          <div
+            style={{
+              position: "absolute",
+              left: x + NOTE_WIDTH / 2 - 15,
+              top: tailY - 20,
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `2px solid ${color}`,
+              opacity: Math.max(0, Math.min(1, 1 - clampedTailProgress)),
+            }}
+          />
+        )}
       </>
     );
   }
@@ -210,8 +222,8 @@ export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
             transform: "translateX(-50%)",
             width: 30,
             height: 30,
-            borderRadius: "50%",
-            border: `2px solid ${color}`,
+            borderRadius: "80%",
+            border: `5px solid ${color}`,
             opacity: Math.max(0, Math.min(1, 1 - progress)),
           }}
         />

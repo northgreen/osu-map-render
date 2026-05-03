@@ -48,7 +48,7 @@ describe("Loop F command interpolation (opacity)", () => {
       createLoop(0, 2, [createFCommand(0, 500, 0, 1)], 500),
     ];
     const opacity = getLoopOpacity(loops, 250);
-    expect(opacity).toBeCloseTo(0.5);
+    expect(opacity!.value).toBeCloseTo(0.5);
   });
 });
 

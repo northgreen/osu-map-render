@@ -79,19 +79,6 @@ export function parseHitSample(hitSample: string): HitSample | undefined {
 }
 
 /**
- * Create a default HitSample with all zeros (inherits from timing point).
- */
-export function createDefaultHitSample(): HitSample {
-  return {
-    normalSet: 0,
-    additionSet: 0,
-    index: 0,
-    volume: 0,
-    filename: "",
-  };
-}
-
-/**
  * A single hit object (note) in the beatmap.
  * Parsed from the `[HitObjects]` section. For mania, `column` is computed from `x` position.
  * `isLongNote` and `endTime` apply to hold notes (type bit 128).

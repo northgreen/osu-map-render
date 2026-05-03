@@ -51,10 +51,6 @@ export function isAutoplayMode(): boolean {
   return !hasReplay;
 }
 
-export function getCustomWindows(): CustomHitWindows {
-  return currentCustomWindows;
-}
-
 // ============================================
 // DifficultyRange algorithm from osu
 // ============================================

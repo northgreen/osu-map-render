@@ -623,15 +623,15 @@ describe("Loop edge cases - commands not spanning full loop duration", () => {
     // First command in iteration 0
     const pos50 = getPosition([], loops, 50, 0, 0);
     expect(pos50.x).toBeCloseTo(25);
-    // Gap between commands: no active command, returns default
+    // Gap between commands: first command ended at (50,50), second not started
+    // osu! behavior: end value of last started command persists
     const pos200 = getPosition([], loops, 200, 0, 0);
-    expect(pos200.x).toBe(0);
+    expect(pos200.x).toBe(50);
     // Second command in iteration 0
     const pos350 = getPosition([], loops, 350, 0, 0);
     expect(pos350.x).toBeCloseTo(75);
   });
 });
-
 describe("Loop edge cases - multiple sequential loops", () => {
   it("should handle two sequential loops on same sprite", () => {
     const loops: SbLoop[] = [
@@ -658,28 +658,12 @@ describe("Loop edge cases - multiple sequential loops", () => {
     // Only first loop active at t=250 (25% through iteration 0)
     const scale0 = getScale([], loops, 250);
     expect(scale0).toBeCloseTo(1.25);
-    // At t=750: first loop iteration=0, second loop iteration=0
-    // Second loop: S command at 750-1000, t=750 is at start (scale=2)
-    // But loop evaluator recalculates loopDuration = 500 - 0 = 500
-    // firstCmdAbs = 500 + 0 = 500, timeSinceFirstCmd = 750 - 500 = 250
-    // iteration = floor(250/500) = 0
-    // iterationStart = 500 + 0*500 = 500
-    // cmdStartAbs = 500 + 0 = 500, cmdEndAbs = 500 + 500 = 1000
-    // At t=750: relTimeInCmd = 250, t = 250/500 = 0.5, scale = 2 + (3-2)*0.5 = 2.5
-    // Wait, but the result is 1.75... Let me check the first loop:
-    // First loop: loopDuration = 1000, firstCmdAbs = 0, timeSinceFirstCmd = 750
-    // iteration = floor(750/1000) = 0
-    // cmdStartAbs = 0, cmdEndAbs = 1000, at t=750: relTimeInCmd = 750, t = 0.75
-    // scale = 1 + (2-1)*0.75 = 1.75
-    // Second loop also active, overrides with scale = 2.5
-    // But getScale returns first match... let me check the order
-    // Actually getScale checks regular commands first, then loops
-    // For loops, getLoopCommandValue iterates through loops and returns first match
-    // First loop returns 1.75, second loop returns 2.5
-    // The second loop overrides because it's processed last
-    // But the actual result is 1.75, so first loop takes precedence
+    // At t=750: both loops active, latest startTime wins
+    // First loop: cmdStartAbs=0, scale=1+(2-1)*0.75=1.75
+    // Second loop: cmdStartAbs=500, scale=2+(3-2)*0.5=2.5
+    // Second loop has later startTime (500 > 0), so it wins
     const scale1 = getScale([], loops, 750);
-    expect(scale1).toBeCloseTo(1.75);
+    expect(scale1).toBeCloseTo(2.5);
   });
 });
 
@@ -721,19 +705,21 @@ describe("Loop edge cases - instant commands in loop", () => {
 // ============================================
 
 describe("Integration - loop commands vs regular commands priority", () => {
-  it("should prefer regular commands over loop commands", () => {
-    // Loop commands OVERRIDE regular commands in getPosition
-    // This is because loop values are applied after regular commands
+  it("should prefer direct commands over loop commands with equal startTime", () => {
+    // When direct and loop commands have the same effective startTime (t=0),
+    // the direct command wins (osu! processes loops first, then direct commands,
+    // so direct is "last registered" for equal startTimes)
     const commands: SbCommand[] = [
       createMCommand("M", 0, 1000, [0, 0, 500, 500]),
     ];
     const loops: SbLoop[] = [
       createLoop(0, 2, [createMCommand("M", 0, 500, [0, 0, 100, 100])], 500),
     ];
-    // At t=250: regular command would give x=125 (25% of 0->500)
-    // But loop command gives x=50 (50% of 0->100) and OVERRIDES
+    // At t=250: direct command gives x=125 (25% of 0->500)
+    // Loop command gives x=50 (50% of 0->100)
+    // Direct wins because it's the latest registered for startTime=0
     const pos = getPosition(commands, loops, 250, 0, 0);
-    expect(pos.x).toBeCloseTo(50);
+    expect(pos.x).toBeCloseTo(125);
   });
 
   it("should fall back to loop commands when regular commands have ended", () => {
@@ -875,15 +861,15 @@ L,60000,30
     ];
     // At t=60000 + 168 (midpoint of first fade in, iteration 0)
     const op1 = getLoopOpacity(loops, 60168);
-    expect(op1).toBeCloseTo(0.5);
+    expect(op1!.value).toBeCloseTo(0.5);
 
     // At t=60000 + 505 (midpoint of second fade out, iteration 0)
     const op2 = getLoopOpacity(loops, 60505);
-    expect(op2).toBeCloseTo(0.5);
+    expect(op2!.value).toBeCloseTo(0.5);
 
     // At t=60000 + 674 (start of iteration 1)
     const op3 = getLoopOpacity(loops, 60674);
-    expect(op3).toBeCloseTo(0);
+    expect(op3!.value).toBeCloseTo(0);
   });
 
   it("should handle loop with Animation object", () => {
@@ -927,8 +913,8 @@ describe("Integration - getLoopCommandValue direct API", () => {
     ];
     const x = getLoopCommandValue(loops, "M", 250, 0);
     const y = getLoopCommandValue(loops, "M", 250, 1);
-    expect(x).toBeCloseTo(50);
-    expect(y).toBeCloseTo(100);
+    expect(x!.value).toBeCloseTo(50);
+    expect(y!.value).toBeCloseTo(100);
   });
 
   it("should return correct paramIndex for C command", () => {
@@ -938,9 +924,9 @@ describe("Integration - getLoopCommandValue direct API", () => {
     const r = getLoopCommandValue(loops, "C", 250, 0);
     const g = getLoopCommandValue(loops, "C", 250, 1);
     const b = getLoopCommandValue(loops, "C", 250, 2);
-    expect(r).toBeCloseTo(127.5);
-    expect(g).toBeCloseTo(191.5);
-    expect(b).toBeCloseTo(96);
+    expect(r!.value).toBeCloseTo(127.5);
+    expect(g!.value).toBeCloseTo(191.5);
+    expect(b!.value).toBeCloseTo(96);
   });
 
   it("should return correct paramIndex for V command", () => {
@@ -951,8 +937,8 @@ describe("Integration - getLoopCommandValue direct API", () => {
     ];
     const x = getLoopCommandValue(loops, "V", 250, 0);
     const y = getLoopCommandValue(loops, "V", 250, 1);
-    expect(x).toBeCloseTo(2);
-    expect(y).toBeCloseTo(3);
+    expect(x!.value).toBeCloseTo(2);
+    expect(y!.value).toBeCloseTo(3);
   });
 });
 
@@ -1051,10 +1037,10 @@ describe("Loop edge cases - commands shorter than loop duration", () => {
     // First command in iteration 0
     const pos50 = getPosition([], loops, 50, 0, 0);
     expect(pos50.x).toBeCloseTo(25);
-    // Gap between commands in iteration 0 (t=200): no active command
-    // iteration=0, first cmd at 0-100 (ended), second cmd at 300-400 (not started)
+    // Gap between commands in iteration 0 (t=200): first cmd at 0-100 ended
+    // osu! behavior: end value of last started command persists (50)
     const pos200 = getPosition([], loops, 200, 0, 0);
-    expect(pos200.x).toBe(0);
+    expect(pos200.x).toBe(50);
     // Second command in iteration 0
     const pos350 = getPosition([], loops, 350, 0, 0);
     expect(pos350.x).toBeCloseTo(75);

@@ -15,9 +15,6 @@ export {
   getVectorScale,
   getRotation,
   getColor,
-  calculateHue,
-  calculateSaturation,
-  calculateBrightness,
   getFlipState,
   getNegativeScale,
 } from "./command-evaluator";

@@ -19,14 +19,10 @@ export const NOTE_HEIGHT = 40;
 // Stage dimensions (for rendering background)
 export const STAGE_X = 64;
 export const STAGE_WIDTH_BASE = 512;
-export const STAGE_HEIGHT = 1080;
 export const JUDGMENT_LINE_Y = 900;
 
 // Hit effect duration (in milliseconds)
 export const HIT_EFFECT_DURATION = 30;
-
-// LN body opacity
-export const LN_BODY_OPACITY = 0.4;
 
 // ============================================
 // Key Count Configuration (1K - 18K + Wildcard)
@@ -180,7 +176,6 @@ let _keyCount = 4;
 
 // Mutable exports - will be updated when setKeyCount is called
 export let KEY_COUNT = 4;
-export const STAGE_WIDTH = STAGE_WIDTH_BASE;
 export let COLUMN_WIDTH = STAGE_WIDTH_BASE / 4;
 export let COLUMN_POSITIONS_STAGE = COLUMN_POSITIONS_STAGE_MAP[4];
 export let COLUMN_POSITIONS_NOTE = COLUMN_POSITIONS_NOTE_MAP[4];

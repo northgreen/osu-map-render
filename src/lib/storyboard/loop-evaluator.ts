@@ -1,15 +1,17 @@
 import { SbLoop, INFINITE_DURATION } from "../sbParser/types";
 import { applyEasing } from "./easing";
 
-// Get command value within loops - handles iteration timing
-// Each iteration continues from where the previous one ended (continuous animation)
+// Get command value within loops - returns value with timing info
+// Uses "latest startTime wins" rule matching osu! behavior:
+// all commands (direct + loop iterations) are sorted by startTime,
+// and the one with the latest startTime at any given time determines the value.
 export function getLoopCommandValue(
   loops: SbLoop[],
   cmdType: string,
   currentTime: number,
   paramIndex: number,
-): number | null {
-  let preReadValue: number | null = null;
+): { value: number; startTime: number; endTime: number } | null {
+  let latest: { value: number; startTime: number; endTime: number } | null = null;
 
   for (const loop of loops) {
     if (currentTime < loop.startTime) continue;
@@ -21,25 +23,29 @@ export function getLoopCommandValue(
       ),
     );
     const loopDuration = maxCmdEnd - minCmdStart;
-
     if (loopDuration <= 0) continue;
 
-    // Compute iteration relative to when the first command iteration actually starts
     const firstCmdAbs = loop.startTime + minCmdStart;
     const timeSinceFirstCmd = currentTime - firstCmdAbs;
 
-    // osu! behavior: ApplyInitialValue sets StartValue immediately when loop starts
-    // (StoryboardSprite.cs:149, StoryboardLoopingGroup.cs:54)
-    // When loop has started but first command hasn't, return the command's start value
+    // Pre-read: loop has started but first command hasn't
     if (timeSinceFirstCmd < 0) {
       for (const cmd of loop.commands) {
         if (cmd.type !== cmdType) continue;
         const value = cmd.params[paramIndex];
-        if (
-          value !== undefined &&
-          (preReadValue === null || cmd.startTime < minCmdStart)
-        ) {
-          preReadValue = value;
+        if (value !== undefined) {
+          // Only set if no later result found (pre-read is earliest possible time)
+          if (!latest) {
+            latest = {
+              value,
+              startTime: firstCmdAbs,
+              endTime:
+                firstCmdAbs +
+                (cmd.endTime === INFINITE_DURATION
+                  ? 0
+                  : cmd.endTime - cmd.startTime),
+            };
+          }
         }
       }
       continue;
@@ -49,18 +55,32 @@ export function getLoopCommandValue(
 
     if (loop.repeatCount > 0 && iteration > loop.repeatCount) {
       // After loop ends, use the end value of the last matching command
-      let lastEndValue: number | null = null;
+      // The endValue persists with the last command's absolute endTime
       for (const cmd of loop.commands) {
         if (cmd.type !== cmdType) continue;
         const endIndex =
           cmdType === "C"
-            ? paramIndex + 3 // C commands: [r1, g1, b1, r2, g2, b2]
+            ? paramIndex + 3
             : cmdType === "M" || cmdType === "V"
               ? paramIndex + 2
-              : paramIndex + 1; // MX, MY, F, S, R 等
-        lastEndValue = cmd.params[endIndex] ?? cmd.params[paramIndex] ?? null;
+              : paramIndex + 1;
+        const value = cmd.params[endIndex] ?? cmd.params[paramIndex];
+        if (value !== undefined) {
+          const cmdEffectiveEnd =
+            cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
+          const cmdStartAbs =
+            firstCmdAbs +
+            loop.repeatCount * loopDuration +
+            (cmd.startTime - minCmdStart);
+          const cmdEndAbs =
+            firstCmdAbs +
+            loop.repeatCount * loopDuration +
+            (cmdEffectiveEnd - minCmdStart);
+          if (!latest || cmdStartAbs > latest.startTime) {
+            latest = { value, startTime: cmdStartAbs, endTime: cmdEndAbs };
+          }
+        }
       }
-      if (lastEndValue !== null) preReadValue = lastEndValue;
       continue;
     }
 
@@ -71,45 +91,65 @@ export function getLoopCommandValue(
 
       const cmdEffectiveEnd =
         cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
-
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
-      if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
-        const cmdDuration = cmdEndAbs - cmdStartAbs;
-        if (cmdDuration <= 0) {
-          // Instant command: return the start value (osu! ApplyInitialValue behavior)
-          // Position persists after the instant change
-          return cmd.params[paramIndex];
+      if (currentTime >= cmdStartAbs) {
+        // Command has started (active or ended)
+        let value: number;
+        if (currentTime <= cmdEndAbs) {
+          // Active: interpolate
+          const cmdDuration = cmdEndAbs - cmdStartAbs;
+          if (cmdDuration <= 0) {
+            value = cmd.params[paramIndex];
+          } else {
+            const relTimeInCmd = currentTime - cmdStartAbs;
+            const t = relTimeInCmd / cmdDuration;
+            const endIndex =
+              cmdType === "C"
+                ? paramIndex + 3
+                : cmdType === "M" || cmdType === "V"
+                  ? paramIndex + 2
+                  : paramIndex + 1;
+            const iterStartValue = cmd.params[paramIndex];
+            const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
+            const easedT = applyEasing(t, cmd.easing);
+            value =
+              iterStartValue +
+              (iterEndValue - iterStartValue) * easedT;
+          }
+        } else {
+          // Ended: use end value (persists)
+          const endIndex =
+            cmdType === "C"
+              ? paramIndex + 3
+              : cmdType === "M" || cmdType === "V"
+                ? paramIndex + 2
+                : paramIndex + 1;
+          value = cmd.params[endIndex] ?? cmd.params[paramIndex];
         }
 
-        const relTimeInCmd = currentTime - cmdStartAbs;
-        const t = relTimeInCmd / cmdDuration;
-
-        const endIndex =
-          cmdType === "C"
-            ? paramIndex + 3 // C commands: [r1, g1, b1, r2, g2, b2]
-            : cmdType === "M" || cmdType === "V"
-              ? paramIndex + 2
-              : paramIndex + 1; // MX, MY, F, S, R 等
-        const iterStartValue = cmd.params[paramIndex];
-        const iterEndValue = cmd.params[endIndex] ?? iterStartValue;
-
-        const easedT = applyEasing(t, cmd.easing);
-        return iterStartValue + (iterEndValue - iterStartValue) * easedT;
-      } else if (currentTime > cmdEndAbs && cmdEndAbs - cmdStartAbs === 0) {
-        // Instant command has ended - position persists (osu! behavior)
-        preReadValue = cmd.params[paramIndex];
+        if (!latest || cmdStartAbs > latest.startTime) {
+          latest = { value, startTime: cmdStartAbs, endTime: cmdEndAbs };
+        }
       }
     }
   }
 
-  return preReadValue;
+  return latest;
 }
 
-// Get loop opacity - handles both active loops and loops that have finished
-export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | null {
-  let lastLoopOpacity: number | null = null;
+// Get loop opacity - returns value with timing info
+// Uses "latest startTime wins" rule matching osu! behavior
+export function getLoopOpacity(
+  loops: SbLoop[],
+  currentTime: number,
+): { value: number; startTime: number; endTime: number } | null {
+  let latest: {
+    value: number;
+    startTime: number;
+    endTime: number;
+  } | null = null;
 
   for (const loop of loops) {
     if (currentTime < loop.startTime) continue;
@@ -123,18 +163,14 @@ export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | n
         c.endTime === INFINITE_DURATION ? c.startTime : c.endTime,
       ),
     );
-
     const loopDuration = maxCmdEnd - minCmdStart;
-
     if (loopDuration <= 0) continue;
 
-    // Compute iteration relative to when the first command iteration actually starts
     const firstCmdAbs = loop.startTime + minCmdStart;
     const timeSinceFirstCmd = currentTime - firstCmdAbs;
     if (timeSinceFirstCmd < 0) continue;
 
     const iteration = Math.floor(timeSinceFirstCmd / loopDuration);
-
     if (loop.repeatCount > 0 && iteration > loop.repeatCount) continue;
 
     const iterationStart = firstCmdAbs + iteration * loopDuration;
@@ -142,26 +178,37 @@ export function getLoopOpacity(loops: SbLoop[], currentTime: number): number | n
     for (const cmd of fCommands) {
       const cmdEffectiveEnd =
         cmd.endTime === INFINITE_DURATION ? cmd.startTime : cmd.endTime;
-
       const cmdStartAbs = iterationStart + (cmd.startTime - minCmdStart);
       const cmdEndAbs = iterationStart + (cmdEffectiveEnd - minCmdStart);
 
-      if (currentTime >= cmdStartAbs && currentTime <= cmdEndAbs) {
-        const duration = cmdEndAbs - cmdStartAbs;
-        if (duration <= 0) continue;
+      if (currentTime >= cmdStartAbs) {
+        let value: number;
+        if (currentTime <= cmdEndAbs) {
+          const duration = cmdEndAbs - cmdStartAbs;
+          if (duration <= 0) continue;
+          const relTimeInCmd = currentTime - cmdStartAbs;
+          const t = relTimeInCmd / duration;
+          const iterStartValue = cmd.params[0];
+          const iterEndValue = cmd.params[1] ?? iterStartValue;
+          value =
+            iterStartValue +
+            (iterEndValue - iterStartValue) * applyEasing(t, cmd.easing);
+        } else {
+          value = cmd.params[1] ?? cmd.params[0];
+        }
 
-        const relTimeInCmd = currentTime - cmdStartAbs;
-        const t = relTimeInCmd / duration;
-        const iterStartValue = cmd.params[0];
-        const iterEndValue = cmd.params[1] ?? iterStartValue;
-        lastLoopOpacity =
-          iterStartValue +
-          (iterEndValue - iterStartValue) * applyEasing(t, cmd.easing);
+        if (!latest || cmdStartAbs > latest.startTime) {
+          latest = {
+            value,
+            startTime: cmdStartAbs,
+            endTime: cmdEndAbs,
+          };
+        }
       }
     }
   }
 
-  return lastLoopOpacity;
+  return latest;
 }
 
 interface FlipState {

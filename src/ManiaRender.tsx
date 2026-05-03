@@ -7,7 +7,7 @@ import {
   beatmap as importedBeatmap,
   getBeatmapDuration,
 } from "./lib/osuParser";
-import { ManiaRenderProps, maniaRenderContentsSchema } from "./Root";
+import { ManiaRenderProps, maniaRenderContentsSchema } from "./schema";
 import {
   setJudgmentMode,
   setJudgmentOffset,

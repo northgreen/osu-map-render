@@ -13,6 +13,7 @@ import {
   JUDGMENT_LINE_Y,
   config,
   getKeyCount,
+  BASE_VISIBLE_TIME,
   type HitsoundsConfig,
 } from "./config";
 import {
@@ -21,7 +22,7 @@ import {
   KeyIndicatorsLayer,
   ColumnHighlightsLayer,
   HitEffectsLayer,
-} from "./ManiaStageSubComponents";
+} from "./components/stage";
 
 interface ManiaStageLayerProps {
   beatmap?: ParsedBeatmap;
@@ -142,7 +143,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       : 60000;
 
   // Calculate visible time based on AR and scroll speed - use consistent BASE_VISIBLE_TIME
-  const baseVisibleTime = 1800; // Same as config.ts BASE_VISIBLE_TIME
+  const baseVisibleTime = BASE_VISIBLE_TIME;
   const visibleTime = baseVisibleTime * (10 / scrollSpeed);
 
   const scrollAlgorithm = useMemo(() => {
