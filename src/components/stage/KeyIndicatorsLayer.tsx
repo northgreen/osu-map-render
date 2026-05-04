@@ -41,7 +41,6 @@ export const KeyIndicatorsLayer: React.FC<KeyIndicatorsLayerProps> = ({
               left: stageX + pos - config.columnWidth / 2,
               top: judgmentY + 10,
               width: config.columnWidth,
-              height: 60,
               backgroundColor: isPressed ? config.columnColors[i] : undefined,
               borderColor: isPressed ? config.columnColors[i] : undefined,
               boxShadow: isPressed

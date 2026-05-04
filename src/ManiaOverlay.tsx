@@ -199,27 +199,20 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ fontSize: 36, fontWeight: "bold", marginBottom: 8 }}>
+        <div className="overlay-title">
           {metadata.titleUnicode || metadata.title}
         </div>
-        <div style={{ fontSize: 24, color: "#aaa", marginBottom: 4 }}>
+        <div className="overlay-artist">
           {metadata.artistUnicode || metadata.artist}
         </div>
-        <div style={{ fontSize: 18, color: "#666", marginBottom: 4 }}>
+        <div className="overlay-creator">
           {metadata.creator} [{metadata.version}]
         </div>
-        <div style={{ fontSize: 16, color: "#555", marginTop: 8 }}>
+        <div className="overlay-difficulty">
           {difficulty.circleSize}K | AR {difficulty.approachRate} | OD{" "}
           {difficulty.overallDifficulty}
         </div>
-        <div
-          style={{
-            fontSize: 16,
-            color: "#FFD700",
-            marginTop: 8,
-            fontWeight: "bold",
-          }}
-        >
+        <div className="overlay-stars">
           ★ {difficultyResult.stars.toFixed(1)}
         </div>
       </div>
@@ -236,8 +229,8 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
           textAlign: "right",
         }}
       >
-        <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
-        <div style={{ fontSize: 18, color: "#666" }}>x{counts.maxCombo}</div>
+        <div className="overlay-pp">{realtimePP} pp</div>
+        <div className="overlay-combo">x{counts.maxCombo}</div>
       </div>
 
       {/* Judgment stats - below score */}
@@ -251,16 +244,16 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
           textAlign: "right",
         }}
       >
-        <div style={{ color: "#FF00FF" }}>{countPerfect}x320</div>
-        <div style={{ color: "#00FF88" }}>{countGreat}x300</div>
-        <div style={{ color: "#00AAFF" }}>{countGood}x200</div>
-        <div style={{ color: "#FFAA00" }}>{countOk}x100</div>
-        <div style={{ color: "#FF6666" }}>{countMeh}x50</div>
-        <div style={{ color: "#888888" }}>{countMiss}xMiss</div>
-        <div style={{ color: "#888", marginTop: 8 }}>Total: {totalScore}</div>
+        <div className="judgment-stat perfect">{countPerfect}x320</div>
+        <div className="judgment-stat great">{countGreat}x300</div>
+        <div className="judgment-stat good">{countGood}x200</div>
+        <div className="judgment-stat ok">{countOk}x100</div>
+        <div className="judgment-stat meh">{countMeh}x50</div>
+        <div className="judgment-stat miss">{countMiss}xMiss</div>
+        <div className="overlay-total">Total: {totalScore}</div>
 
         {/* Current judgment mode indicator */}
-        <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
+        <div className="overlay-mode">
           {mode.toUpperCase()} {isAutoplayMode() ? "(Autoplay)" : `(offset: ${judgmentOffset})`}
         </div>
       </div>
@@ -268,16 +261,14 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
       {/* Last judgment indicator - center of track */}
       {lastJudgment && currentTime - lastJudgment.hitTime < 500 && (
         <div
+          className="judgment-text"
           style={{
-            position: "absolute",
             top: judgmentTextY,
             left: STAGE_X + config.stageWidth / 2 + stageOffset,
             transform: "translateX(-50%)",
             fontSize: 64,
-            fontWeight: "bold",
             color: getJudgmentColor(lastJudgment.judgment),
             textShadow: `0 0 20px ${getJudgmentColor(lastJudgment.judgment)}`,
-            zIndex: 200,
           }}
         >
           {lastJudgment.judgment}

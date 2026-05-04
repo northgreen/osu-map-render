@@ -369,10 +369,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
           <div
             key={i}
             className="column-divider"
-            style={{
-              left: pos - STAGE_X,
-              width: 2,
-            }}
+            style={{ left: pos - STAGE_X }}
           />
         ))}
       </div>
@@ -385,9 +382,6 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
             left: stageX,
             top: judgmentY,
             width: config.stageWidth,
-            height: 4,
-            backgroundColor: "#00ff88",
-            boxShadow: "0 0 15px #00ff88",
           }}
         />
       )}

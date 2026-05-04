@@ -82,7 +82,6 @@ export const BeatLinesLayer: React.FC<BeatLinesLayerProps> = ({
             style={{
               left: stageX,
               top: y,
-              height: isBarLine ? 3 : 1,
             }}
           />
         );
