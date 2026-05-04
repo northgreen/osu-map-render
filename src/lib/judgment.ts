@@ -211,21 +211,25 @@ interface KeyPressEvent {
   isRelease: boolean;
 }
 
+// Shared helper: compute cumulative times from replay data
+function computeCumulativeTimes(): number[] {
+  if (!replay?.replayData) return [];
+  const times: number[] = [];
+  let cumulativeTime = 0;
+  for (let i = 0; i < replay.replayData.length; i++) {
+    cumulativeTime += replay.replayData[i].timeOffset;
+    times.push(cumulativeTime);
+  }
+  return times;
+}
+
 // Extract key press events from replay
 function getKeyPressEvents(): KeyPressEvent[] {
   if (!replay?.replayData) return [];
 
   const events: KeyPressEvent[] = [];
   const keyCount = getKeyCount();
-
-  // Calculate cumulative times
-  let cumulativeTime = 0;
-  const times: number[] = [];
-
-  for (let i = 0; i < replay.replayData.length; i++) {
-    cumulativeTime += replay.replayData[i].timeOffset;
-    times.push(cumulativeTime);
-  }
+  const times = computeCumulativeTimes();
 
   // Track key state per column
   const keyState = new Array(keyCount).fill(false);
@@ -301,15 +305,7 @@ function getKeyPressIntervals(hitObjects?: HitObject[]): KeyInterval[] {
   if (!replay?.replayData) return intervals;
 
   const keyCount = getKeyCount();
-
-  // Calculate cumulative times
-  let cumulativeTime = 0;
-  const times: number[] = [];
-
-  for (let i = 0; i < replay.replayData.length; i++) {
-    cumulativeTime += replay.replayData[i].timeOffset;
-    times.push(cumulativeTime);
-  }
+  const times = computeCumulativeTimes();
 
   // Track key state per column
   const keyState = new Array(keyCount).fill(false);
