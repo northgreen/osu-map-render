@@ -1,4 +1,4 @@
-import { AbsoluteFill, Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { useMemo } from "react";
 import { ParsedBeatmap, TimingPoint } from "./lib/osuParser";
 import { ManiaNote } from "./ManiaNote";
@@ -15,7 +15,10 @@ import {
   getKeyCount,
   BASE_VISIBLE_TIME,
   type HitsoundsConfig,
+  hitsoundConfig,
+  MAX_HITSOUNDS_CONCURRENT,
 } from "./config";
+import { bisectRight } from "./lib/utils";
 import {
   BeatLinesLayer,
   JudgmentZonesLayer,
@@ -99,42 +102,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   };
   const currentTime = beatmap ? (frame / fps) * 1000 : 0;
 
-  // Pre-compute all hitsounds: frame -> HitsoundInfo[]
-  // This runs ONCE when beatmap/hitsounds config changes, not every frame
-  const hitsoundMap = useMemo(() => {
-    if (!hitsounds.enabled || hitsounds.trigger !== "auto") {
-      return new Map<number, { id: string; filename: string; volume: number }[]>();
-    }
 
-    const map = new Map<number, { id: string; filename: string; volume: number }[]>();
-
-    for (const note of hitObjects) {
-      const noteFrame = Math.round((note.time / 1000) * fps);
-
-      const infos = hitsoundManager.getHitsoundsForNote(
-        note,
-        timingPoints.find((tp) => tp.time <= note.time),
-        hitsounds.volume,
-      );
-
-      if (infos.length === 0) continue;
-
-      const existing = map.get(noteFrame) || [];
-      for (const info of infos) {
-        existing.push({
-          id: `${note.time}-${note.column}-${info.filename}`,
-          filename: info.filename,
-          volume: info.volume,
-        });
-      }
-      map.set(noteFrame, existing);
-    }
-
-    return map;
-  }, [hitObjects, timingPoints, hitsounds, fps]);
-
-  // Per-frame lookup: O(1)
-  const currentHitsounds = hitsoundMap.get(frame) || [];
 
   const durationMs =
     hitObjects.length > 0
@@ -182,50 +150,135 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
     return times;
   }, []);
 
-  // Binary search helper: find rightmost index where arr[i] <= value
-  function bisectRight(arr: number[], value: number): number {
-    let lo = 0;
-    let hi = arr.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (arr[mid] <= value) lo = mid + 1;
-      else hi = mid;
-    }
-    return lo - 1;
-  }
+  // Pre-filter visible notes to avoid mounting 3000+ ManiaNote components
+  const visibleNotes = useMemo(() => {
+    if (hitObjects.length === 0) return hitObjects;
 
-  // Get key state: returns both pressedKeys and releaseTimes in a single pass
+    const times = hitObjects.map(n => n.time);
+    const margin = 500; // ms buffer (notes slightly off-screen)
+    const earliestTime = currentTime - margin;
+    const latestTime = currentTime + visibleTime + margin;
+
+    // bisectRight returns last index where arr[i] <= value
+    // For earliest: find first index where time >= earliestTime
+    const leftIdx = Math.max(0, bisectRight(times, earliestTime - 0.001) + 1);
+    // For latest: find last index where time <= latestTime
+    const rightIdx = bisectRight(times, latestTime);
+
+    if (leftIdx > rightIdx || rightIdx < 0) return [];
+    return hitObjects.slice(leftIdx, rightIdx + 1);
+  }, [hitObjects, currentTime, visibleTime]);
+
+  // Cache hitsound metadata (computed once, no dependency on currentTime/frame)
+  const hitsoundMeta = useMemo(() => {
+    if (!hitsounds.enabled || hitsounds.trigger !== "auto") return [];
+
+    const result: {
+      noteFrame: number;
+      key: string;
+      filename: string;
+      volume: number;
+    }[] = [];
+
+    for (const note of hitObjects) {
+      const noteFrame = Math.round((note.time / 1000) * fps);
+      const tp = timingPoints.length > 0
+        ? timingPoints.reduce((prev, curr) =>
+            curr.time <= note.time && curr.time > prev.time ? curr : prev,
+          )
+        : undefined;
+
+      const infos = hitsoundManager.getHitsoundsForNote(
+        note,
+        tp,
+        hitsounds.volume,
+      );
+
+      for (const info of infos) {
+        if (!hitsoundConfig.availableFiles.has(info.filename)) continue;
+        result.push({
+          noteFrame,
+          key: `${note.time}-${note.column}-${info.filename}`,
+          filename: info.filename,
+          volume: info.volume,
+        });
+      }
+    }
+
+    return result;
+  }, [hitObjects, timingPoints, hitsounds.enabled, hitsounds.trigger, hitsounds.volume, fps]);
+
+  // Only create Audio for notes whose 4-frame window includes the current frame
+  const activeHitsounds = useMemo(() => {
+    if (hitsoundMeta.length === 0) return null;
+
+    const elements: React.ReactNode[] = [];
+    let count = 0;
+
+    for (const meta of hitsoundMeta) {
+      const framesSinceHit = frame - meta.noteFrame;
+      if (framesSinceHit >= 0 && framesSinceHit < 4) {
+        elements.push(
+          <Sequence key={meta.key} from={meta.noteFrame} durationInFrames={40}>
+            <Audio
+              src={staticFile(meta.filename)}
+              volume={() => meta.volume}
+            />
+          </Sequence>,
+        );
+        if (++count >= MAX_HITSOUNDS_CONCURRENT) break;
+      }
+    }
+
+    return elements.length > 0 ? elements : null;
+  }, [frame, hitsoundMeta]);
+
+  // Pre-compute sorted intervals (no currentTime dependency - computed once)
+  const sortedIntervals = useMemo(() => {
+    if (!isAutoplayMode()) return [];
+    const intervals = getKeyIntervals(hitObjects);
+    return [...intervals].sort((a, b) => a.start - b.start);
+  }, [hitObjects]);
+
+  // Pre-compute interval start times for binary search
+  const intervalTimes = useMemo(() => {
+    return sortedIntervals.map((i) => i.start);
+  }, [sortedIntervals]);
+
+  // Get key state: uses bisectRight for efficient lookup
   const { pressedKeys, releaseTimes } = useMemo(() => {
     const keyCount = getKeyCount();
     const pressedColumns = new Array(keyCount).fill(false) as boolean[];
     const releaseTimeArray = new Array(keyCount).fill(0) as number[];
 
     if (isAutoplayMode()) {
-      // Autoplay: use key intervals from judgment module
-      const intervals = getKeyIntervals(hitObjects);
+      if (sortedIntervals.length === 0) return { pressedKeys: pressedColumns, releaseTimes: releaseTimeArray };
+
+      // Find the last interval that has started
+      const lastActiveIdx = bisectRight(intervalTimes, currentTime);
+
+      if (lastActiveIdx < 0) return { pressedKeys: pressedColumns, releaseTimes: releaseTimeArray };
+
       const keyState = new Array(keyCount).fill(false) as boolean[];
 
-      // Sort intervals by start time
-      const sortedIntervals = [...intervals].sort((a, b) => a.start - b.start);
-
-      for (const interval of sortedIntervals) {
-        if (interval.start > currentTime) break;
-
+      // Only scan from (lastActiveIdx - keyCount * 2) to lastActiveIdx
+      // This is enough because at most keyCount keys can be pressed at once
+      const scanStart = Math.max(0, lastActiveIdx - keyCount * 4);
+      for (let i = scanStart; i <= lastActiveIdx; i++) {
+        const interval = sortedIntervals[i];
         const col = interval.column;
+
         if (interval.end <= currentTime) {
-          // Key was released
           if (keyState[col]) {
             releaseTimeArray[col] = interval.end;
             keyState[col] = false;
           }
         } else if (interval.start <= currentTime) {
-          // Key is currently pressed
           pressedColumns[col] = true;
           keyState[col] = true;
         }
       }
     } else if (replay?.replayData && cumulativeTimes.length > 0) {
-      const keyState = new Array(keyCount).fill(false) as boolean[];
       const lastFrameIndex = bisectRight(cumulativeTimes, currentTime);
 
       // Get current key state from replay
@@ -238,26 +291,48 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         }
       }
 
-      // Track release times
-      for (let i = 0; i < cumulativeTimes.length; i++) {
-        const time = cumulativeTimes[i];
-        if (time > currentTime) break;
+      // Track release times: scan backwards from lastFrameIndex
+      // Find the most recent key-up event for each column
+      const keysFound = new Array(keyCount).fill(false) as boolean[];
+      // Mark pressed columns as already found (visual opacity handled by isPressed)
+      for (let col = 0; col < keyCount; col++) {
+        keysFound[col] = pressedColumns[col];
+      }
 
-        const keys = replay.replayData[i].x;
-
+      if (lastFrameIndex >= 0) {
+        // Initialize prevKeyState from the closest frame (current time)
+        const prevKeyState = new Array(keyCount).fill(false) as boolean[];
+        const currKeys = replay.replayData[lastFrameIndex].x;
         for (let col = 0; col < keyCount; col++) {
-          const isPressed = (keys & (1 << col)) !== 0;
+          prevKeyState[col] = (currKeys & (1 << col)) !== 0;
+        }
 
-          if (!isPressed && keyState[col]) {
-            releaseTimeArray[col] = time;
+        // Scan backwards to find release events
+        // A release (going forward): key is pressed at frame i, not pressed at frame i+1
+        // Going backward: check if isPressed at frame i, but !prevKeyState at frame i+1
+        const scanEnd = Math.max(0, lastFrameIndex - 60);
+        for (let i = lastFrameIndex - 1; i >= scanEnd; i--) {
+          const frameKeys = replay.replayData[i].x;
+
+          for (let col = 0; col < keyCount; col++) {
+            if (!keysFound[col]) {
+              const isPressed = (frameKeys & (1 << col)) !== 0;
+              if (isPressed && !prevKeyState[col]) {
+                // Going forward: pressed at i, not_pressed at i+1 => release at i+1
+                releaseTimeArray[col] = cumulativeTimes[i + 1];
+                keysFound[col] = true;
+              }
+            }
+            prevKeyState[col] = (frameKeys & (1 << col)) !== 0;
           }
-          keyState[col] = isPressed;
+
+          if (keysFound.every((kf) => kf)) break;
         }
       }
     }
 
     return { pressedKeys: pressedColumns, releaseTimes: releaseTimeArray };
-  }, [cumulativeTimes, currentTime, hitObjects]);
+  }, [cumulativeTimes, currentTime, sortedIntervals, intervalTimes]);
 
   // Early return after all hooks
   if (!beatmap) {
@@ -329,8 +404,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         />
       )}
 
-      {/* Notes */}
-      {hitObjects.map((note, index) => (
+      {/* Notes (pre-filtered to visible window) */}
+      {visibleNotes.map((note, index) => (
         <ManiaNote
           key={`${note.time}-${note.column}-${index}`}
           note={note}
@@ -374,17 +449,11 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
         currentTime={currentTime}
         stageX={stageX}
         judgmentY={judgmentY}
+        visibleTime={visibleTime}
       />
 
       {/* Hitsounds */}
-      {currentHitsounds.map((hs) => (
-        <Audio
-          key={hs.id}
-          src={staticFile(hs.filename)}
-          volume={() => hs.volume}
-          startFrom={0}
-        />
-      ))}
+      {activeHitsounds}
     </AbsoluteFill>
   );
 };

@@ -14,7 +14,6 @@ import {
   setCustomWindows,
 } from "./lib/judgment";
 import { config, STAGE_X } from "./config";
-import "./lib/replay"; // Force import replay.json
 
 // Create a wrapper component with default props handled via destructuring
 const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {

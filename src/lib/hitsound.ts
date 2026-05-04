@@ -90,20 +90,11 @@ export class HitsoundManager {
     const files: string[] = [];
 
     for (const soundType of soundTypes) {
-      let filename = hitsoundConfig.soundFileTemplate(
+      const filename = hitsoundConfig.soundFileTemplate(
         sampleSetName,
         soundType,
         hitSample?.index,
       );
-      // Map to soft- prefix if original doesn't exist
-      if (!hitsoundConfig.availableFiles.has(filename)) {
-        filename = filename.replace(/^(normal|drum|inherit)-/, "soft-");
-      }
-      // Try normal- as last resort fallback
-      if (!hitsoundConfig.availableFiles.has(filename)) {
-        filename = filename.replace(/^(soft|drum|inherit)-/, "normal-");
-      }
-      // Only add if file exists
       if (hitsoundConfig.availableFiles.has(filename)) {
         files.push(filename);
       }
@@ -290,6 +281,10 @@ export class HitsoundManager {
         timingPoint?.volume,
         globalVolume,
       );
+      // Check if default file exists before returning
+      if (!hitsoundConfig.availableFiles.has("soft-hitnormal.wav")) {
+        return [];
+      }
       return [{ filename: "soft-hitnormal.wav", volume }];
     }
 

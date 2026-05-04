@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { SequentialScrollAlgorithm } from "../../lib/scrollVelocity";
 import { TimingPoint } from "../../lib/osuParser";
+import { bisectRight } from "../../lib/utils";
 
 // ============================================
 // BeatLinesLayer
@@ -27,8 +29,8 @@ export interface BeatLinesLayerProps {
 
 /**
  * Render beat lines — horizontal lines marking beat boundaries.
- * Bar lines (every 4 beats) are thicker. Lines outside the visible
- * time window are culled.
+ * Bar lines (every `meter` beats per the active timing point) are thicker.
+ * Lines outside the visible time window are culled.
  */
 export const BeatLinesLayer: React.FC<BeatLinesLayerProps> = ({
   beatLines,
@@ -40,6 +42,15 @@ export const BeatLinesLayer: React.FC<BeatLinesLayerProps> = ({
   scrollAlgorithm,
   timingPoints,
 }) => {
+  // Pre-compute uninherited timing points for binary search
+  const { uninheritedPoints, uninheritedTimes } = useMemo(() => {
+    const points = timingPoints.filter(tp => tp.uninherited);
+    return {
+      uninheritedPoints: points,
+      uninheritedTimes: points.map(p => p.time),
+    };
+  }, [timingPoints]);
+
   return (
     <>
       {beatLines.map((time) => {
@@ -52,10 +63,17 @@ export const BeatLinesLayer: React.FC<BeatLinesLayerProps> = ({
           ? scrollAlgorithm.getProgress(time, currentTime)
           : 1 - timeUntilHit / visibleTime;
         const y = progress * judgmentY;
+
+        // Find active timing point via binary search on pre-sorted uninherited points
+        const tpIdx = bisectRight(uninheritedTimes, time);
+        const activeTp = tpIdx >= 0 ? uninheritedPoints[tpIdx] : null;
+        const beatLength = activeTp ? Math.abs(activeTp.beatLength) : 0;
+        const meter = activeTp?.meter ?? 4;
         const isBarLine =
           time === 0 ||
-          (timingPoints.length > 0 &&
-            time % (Math.abs(timingPoints[0].beatLength) * 4) === 0);
+          (beatLength > 0 &&
+            meter > 0 &&
+            Math.abs(time % Math.round(beatLength * meter)) < 0.001);
 
         return (
           <div

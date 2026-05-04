@@ -174,20 +174,10 @@ export function getColumnWidth(keyCount: number): number {
 // Current key count (can be changed dynamically)
 let _keyCount = 4;
 
-// Mutable exports - will be updated when setKeyCount is called
-export let KEY_COUNT = 4;
-export let COLUMN_WIDTH = STAGE_WIDTH_BASE / 4;
-export let COLUMN_POSITIONS_STAGE = COLUMN_POSITIONS_STAGE_MAP[4];
-export let COLUMN_POSITIONS_NOTE = COLUMN_POSITIONS_NOTE_MAP[4];
-export let COLUMN_COLORS = COLUMN_COLORS_MAP[4];
+// Note: use getter functions (getKeyCount, config, etc.) instead of mutable exports
 
 export function setKeyCount(count: number) {
   _keyCount = Math.max(1, count);
-  KEY_COUNT = _keyCount;
-  COLUMN_WIDTH = getColumnWidth(_keyCount);
-  COLUMN_POSITIONS_STAGE = getColumnPositionsStage(_keyCount);
-  COLUMN_POSITIONS_NOTE = getColumnPositionsNote(_keyCount);
-  COLUMN_COLORS = getColumnColors(_keyCount);
 }
 
 export function getKeyCount(): number {
@@ -268,5 +258,11 @@ export const hitsoundConfig = {
   },
 
   // Concurrency limit (0 = unlimited)
-  maxConcurrentSounds: 10,
+  maxConcurrentSounds: 0,
 } as const;
+
+/**
+ * Maximum number of hitsound `<Audio>` elements that can be mounted simultaneously.
+ * Controls how many concurrent WebMediaPlayers Chromium creates.
+ */
+export const MAX_HITSOUNDS_CONCURRENT = 20;

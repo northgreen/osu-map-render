@@ -168,56 +168,6 @@
   border: 1px solid var(--zone-meh-border);
 }
 
-/* Hit effect - column */
-.hit-effect-column {
-  position: absolute;
-  top: 0;
-  height: 1080px;
-  pointer-events: none;
-}
-
-/* Hit effect - flash */
-.hit-effect-flash {
-  position: absolute;
-  border-radius: 4px;
-  box-shadow: 0 0 20px currentColor;
-}
-
-/* Replay cursor */
-.replay-cursor-bar {
-  position: absolute;
-  border-radius: 4px;
-  opacity: 0.6;
-}
-
-/* Replay cursor circle */
-.cursor-circle {
-  position: absolute;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* Note styles */
-.note {
-  position: absolute;
-  border-radius: 4px;
-}
-
-.note-head, .note-tail {
-  position: absolute;
-  border-radius: 4px;
-}
-
-.note-body {
-  position: absolute;
-  border-radius: 0;
-}
-
-.note.column-0 { background-color: var(--column-color-1); }
-.note.column-1 { background-color: var(--column-color-2); }
-.note.column-2 { background-color: var(--column-color-3); }
-.note.column-3 { background-color: var(--column-color-4); }
-
 /* Judgment indicator (center text) */
 .judgment-text {
   position: absolute;

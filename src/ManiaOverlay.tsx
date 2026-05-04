@@ -11,6 +11,7 @@ import {
   setJudgmentOffset,
   isAutoplayMode,
 } from "./lib/judgment";
+import { bisectRight } from "./lib/utils";
 import { config, STAGE_X } from "./config";
 import { HitOffsetIndicator } from "./HitOffsetIndicator";
 
@@ -59,11 +60,12 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
 
   const mode = judgmentMode || getJudgmentMode();
 
-  // Memoized judgments array (static per beatmap)
+  // Memoized judgments array (re-evaluated when mode or offset changes;
+  // deps include mode/judgmentOffset because getJudgmentResults reads globals)
   const judgments = useMemo(() => {
     if (!beatmap) return [];
     return getJudgmentResults(beatmap.hitObjects, beatmap.difficulty.overallDifficulty);
-  }, [beatmap]);
+  }, [beatmap, mode, judgmentOffset]);
 
   // Incremental score calculation using binary search and cached counts
   const prevCountsRef = useRef<{
@@ -74,6 +76,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
     countMeh: number;
     countMiss: number;
     maxCombo: number;
+    tempCombo: number;
     lastJudgment: JudgmentResult | null;
     processedCount: number;
     lastJudgmentTime: number;
@@ -85,6 +88,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
     countMeh: 0,
     countMiss: 0,
     maxCombo: 0,
+    tempCombo: 0,
     lastJudgment: null,
     processedCount: 0,
     lastJudgmentTime: 0,
@@ -99,20 +103,8 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
 
   if (!difficultyResult) return null;
 
-  // Binary search: find rightmost index where judgment.hitTime <= currentTime
-  function findLastHitJudgment(arr: JudgmentResult[], time: number): number {
-    let lo = 0;
-    let hi = arr.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (arr[mid].hitTime <= time) lo = mid + 1;
-      else hi = mid;
-    }
-    return lo - 1;
-  }
-
   // Get counts up to current time
-  const currentIndex = findLastHitJudgment(judgments, currentTime);
+  const currentIndex = bisectRight(judgments.map(j => j.hitTime), currentTime);
   const counts = prevCountsRef.current;
 
   // Reset if time went backwards (seeking)
@@ -124,6 +116,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
     counts.countMeh = 0;
     counts.countMiss = 0;
     counts.maxCombo = 0;
+    counts.tempCombo = 0;
     counts.lastJudgment = null;
     counts.processedCount = 0;
     counts.lastJudgmentTime = 0;
@@ -144,26 +137,19 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
       counts.countMeh++;
     } else if (j.judgment === "Miss") {
       counts.countMiss++;
+      if (counts.tempCombo > counts.maxCombo) counts.maxCombo = counts.tempCombo;
+      counts.tempCombo = 0;
+    } else {
+      counts.tempCombo++;
     }
     counts.lastJudgment = j;
   }
 
+  // Check if current streak is new max
+  if (counts.tempCombo > counts.maxCombo) counts.maxCombo = counts.tempCombo;
+
   // Update processed count
   counts.processedCount = currentIndex + 1;
-
-  // Calculate max combo (scan all processed judgments)
-  let maxCombo = 0;
-  let tempCombo = 0;
-  for (let i = 0; i <= currentIndex && i < judgments.length; i++) {
-    const j = judgments[i];
-    if (j.judgment === "Miss") {
-      if (tempCombo > maxCombo) maxCombo = tempCombo;
-      tempCombo = 0;
-    } else {
-      tempCombo++;
-    }
-  }
-  if (tempCombo > maxCombo) maxCombo = tempCombo;
 
   // Extract counts for rendering
   const {
@@ -185,7 +171,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
     countMeh * 50;
 
   // Calculate real-time PP
-  const realtimePP = calculateRealtimePP(beatmap, currentTime, maxCombo, {
+  const realtimePP = calculateRealtimePP(beatmap, currentTime, counts.maxCombo, {
     countPerfect,
     countGreat,
     countGood,
@@ -251,7 +237,7 @@ export const ManiaOverlay: React.FC<ManiaOverlayProps> = ({
         }}
       >
         <div style={{ color: "#00ff88" }}>{realtimePP} pp</div>
-        <div style={{ fontSize: 18, color: "#666" }}>x{maxCombo}</div>
+        <div style={{ fontSize: 18, color: "#666" }}>x{counts.maxCombo}</div>
       </div>
 
       {/* Judgment stats - below score */}

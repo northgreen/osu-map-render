@@ -15,8 +15,6 @@ import {
 } from "./lib/judgment";
 import { setKeyCount } from "./config";
 import { maniaRenderSchema, maniaRenderContentsSchema, ManiaRenderProps } from "./schema";
-import "./lib/replay"; // Force import replay.json
-
 // Set key count from beatmap on module load
 const keyCountFromBeatmap = beatmap?.difficulty?.circleSize || 4;
 setKeyCount(keyCountFromBeatmap);

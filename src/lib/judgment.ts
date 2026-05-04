@@ -48,7 +48,7 @@ export function setCustomWindows(windows: CustomHitWindows): void {
 }
 
 export function isAutoplayMode(): boolean {
-  return !hasReplay;
+  return !hasReplay();
 }
 
 // ============================================
@@ -534,21 +534,28 @@ export function calculateJudgments(
   return results;
 }
 
-// Cache for judgment results
-let judgmentCache: JudgmentResult[] | null = null;
+// Cache for judgment results, keyed by mode:offset:customWindows
+const judgmentCache = new Map<string, JudgmentResult[]>();
+
+function getJudgmentCacheKey(): string {
+  return `${currentJudgmentMode}:${currentJudgmentOffset}:${JSON.stringify(currentCustomWindows)}`;
+}
 
 export function getJudgmentResults(
   hitObjects: HitObject[],
   od: number,
 ): JudgmentResult[] {
-  if (judgmentCache) return judgmentCache;
-  judgmentCache = calculateJudgments(hitObjects, od);
-  return judgmentCache;
+  const key = getJudgmentCacheKey();
+  const cached = judgmentCache.get(key);
+  if (cached) return cached;
+  const results = calculateJudgments(hitObjects, od);
+  judgmentCache.set(key, results);
+  return results;
 }
 
 // Clear cache (call when beatmap changes or mode changes)
 export function clearJudgmentCache(): void {
-  judgmentCache = null;
+  judgmentCache.clear();
   keyIntervalsCache = null;
 }
 

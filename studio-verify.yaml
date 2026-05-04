@@ -1,0 +1,162 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - button [ref=e5]:
+        - img [ref=e7]
+      - button "File" [ref=e9]
+      - button "View" [ref=e10]
+      - button "Tools" [ref=e11]
+      - button "Packages" [ref=e12]
+      - button "Help" [ref=e13]
+    - generic "/home/ictye/Projects/osu-map-render" [ref=e14]:
+      - generic "Open in VS Code" [ref=e15] [cursor=pointer]: osu-map-render
+      - generic [ref=e16]: /
+      - generic "Open in VS Code" [ref=e201] [cursor=pointer]: ManiaRender
+    - generic [ref=e18]:
+      - button [ref=e19]:
+        - generic "Toggle Left Sidebar (Ctrl+B)" [ref=e20]
+      - button [ref=e22]:
+        - generic "Toggle Right Sidebar (Ctrl+J)" [ref=e23]
+  - generic [ref=e25]:
+    - generic [ref=e27]:
+      - generic [ref=e29]:
+        - generic [ref=e31]:
+          - generic [ref=e33]:
+            - button "Compositions" [ref=e34]
+            - button "Assets" [ref=e35]
+          - generic [ref=e36]:
+            - generic [ref=e39]:
+              - generic [ref=e40]: ManiaRender
+              - generic [ref=e41]: 1920x1080, 60 FPS
+              - generic [ref=e42]: Duration 03:01.57
+            - button "Search... Ctrl+K" [ref=e44] [cursor=pointer]:
+              - text: Search...
+              - generic [ref=e45]: Ctrl+K
+            - generic [ref=e46]:
+              - generic "ManiaRender" [ref=e49]:
+                - img [ref=e50]
+                - generic [ref=e52]: ManiaRender
+              - generic "ManiaBackground" [ref=e55]:
+                - img [ref=e56]
+                - generic [ref=e58]: ManiaBackground
+              - generic "ManiaStageOnly" [ref=e61]:
+                - img [ref=e62]
+                - generic [ref=e64]: ManiaStageOnly
+              - generic "ManiaOverlayOnly" [ref=e67]:
+                - img [ref=e68]
+                - generic [ref=e70]: ManiaOverlayOnly
+              - generic "ManiaReplayCursorOnly" [ref=e73]:
+                - img [ref=e74]
+                - generic [ref=e76]: ManiaReplayCursorOnly
+        - generic [ref=e86]:
+          - generic [ref=e88]:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - img
+                - generic:
+                  - generic:
+                    - img
+          - generic [ref=e90]:
+            - generic [ref=e96]: D
+            - generic [ref=e97]: F
+            - generic [ref=e98]: J
+            - generic [ref=e99]: K
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]: Testify
+              - generic [ref=e103]: void (Mournfinale) feat. 星熊南巫
+              - generic [ref=e104]: Akasha- [Take her Hand | Maxim's Hard]
+              - generic [ref=e105]: 4K | AR 5 | OD 7.5
+              - generic [ref=e106]: ★ 4.5
+            - generic [ref=e107]:
+              - generic [ref=e108]: 0 pp
+              - generic [ref=e109]: x0
+            - generic [ref=e110]:
+              - generic [ref=e111]: "0x320"
+              - generic [ref=e112]: "0x300"
+              - generic [ref=e113]: "0x200"
+              - generic [ref=e114]: "0x100"
+              - generic [ref=e115]: "0x50"
+              - generic [ref=e116]: 0xMiss
+              - generic [ref=e117]: "Total: 0"
+              - generic [ref=e118]: "V2 (offset: 0)"
+            - generic [ref=e119]:
+              - generic [ref=e121]: Early
+              - generic [ref=e122]: Late
+      - generic [ref=e123]:
+        - generic [ref=e125]:
+          - button "Zoom out timeline" [disabled] [ref=e126]:
+            - img [ref=e127]
+          - slider "Timeline zoom (1x)" [ref=e129]: "1"
+          - button "Zoom in timeline" [ref=e130]:
+            - img [ref=e131]
+        - generic "Preview Size" [ref=e133]:
+          - button "Fit" [ref=e134]:
+            - generic "Fit" [ref=e135]
+            - img [ref=e136]
+        - generic "Change the playback rate" [ref=e138]:
+          - button "1x" [ref=e139]:
+            - generic "1x" [ref=e140]
+            - img [ref=e141]
+        - button "Jump to beginning" [disabled] [ref=e143]:
+          - img [ref=e144]
+        - button "Step back one frame" [disabled] [ref=e146]:
+          - img [ref=e147]
+        - button "Play" [ref=e149]:
+          - img [ref=e150]
+        - button "Step forward one frame" [ref=e152]:
+          - img [ref=e153]
+        - button "Loop video" [ref=e155]:
+          - img [ref=e156]
+        - button "Mute video" [ref=e158]:
+          - img [ref=e159]
+        - button "Mark In (I) - right click to clear" [disabled] [ref=e161]:
+          - img [ref=e162]
+        - button "Mark Out (O) - right click to clear" [ref=e164]:
+          - img [ref=e165]
+        - button "Show transparency as checkerboard (T)" [ref=e167]:
+          - img [ref=e168]
+        - button "Enter fullscreen preview (F)" [ref=e170]:
+          - img [ref=e171]
+        - generic "Export the current composition (R)" [ref=e174] [cursor=pointer]:
+          - button "Render" [ref=e175]:
+            - generic [ref=e176]:
+              - img [ref=e177]
+              - generic [ref=e179]: Render
+    - generic [ref=e184]:
+      - generic [ref=e186]:
+        - generic [ref=e204]:
+          - generic [ref=e205]:
+            - img
+          - generic "ManiaRender.tsx:68" [ref=e206]: audio.ogg
+          - generic [ref=e207] [cursor=pointer]: ManiaRender.tsx:68
+        - generic [ref=e210]:
+          - generic [ref=e211]:
+            - img
+          - generic "StoryboardLayer.tsx:322" [ref=e212]: playfield-bw-blur.jpg
+          - generic [ref=e213] [cursor=pointer]: StoryboardLayer.tsx:322
+        - generic [ref=e216]:
+          - generic [ref=e217]:
+            - img
+          - generic "StoryboardLayer.tsx:322" [ref=e218]: vig.png
+          - generic [ref=e219] [cursor=pointer]: StoryboardLayer.tsx:322
+      - generic [ref=e189]:
+        - generic [ref=e190]: 00:00.00
+        - button "0" [ref=e191]
+      - generic [ref=e195]:
+        - generic [ref=e197]:
+          - generic "audio.ogg" [ref=e222]
+          - generic "playfield-bw-blur.jpg" [ref=e227]
+          - generic "vig.png" [ref=e232]
+        - generic:
+          - generic:
+            - generic: 00:56.00
+          - generic:
+            - generic: 01:52.00
+          - generic:
+            - generic: 02:48.00
+        - generic:
+          - generic:
+            - img

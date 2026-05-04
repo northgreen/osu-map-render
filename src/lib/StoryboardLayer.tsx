@@ -7,6 +7,7 @@ import {
 } from "remotion";
 import { useMemo, useState, useCallback } from "react";
 import { SbObject, SbLoop } from "./sbParser/types";
+import { z } from "zod";
 import storyboardData from "../generated/storyboard.json";
 import {
   getOpacity,
@@ -150,141 +151,18 @@ const SbSprite: React.FC<SbSpriteProps> = ({
     [],
   );
 
-  const loops = object.loops || [];
+  // ── Unified sprite state: evaluates all commands in one pass ──
+  const spriteState = useMemo(() => {
+    const loops = object.loops || [];
 
-  // Position in storyboard space (640x480)
-  const rawPos = getPosition(
-    object.commands,
-    loops,
-    currentTime,
-    object.x,
-    object.y,
-  );
+    // Container offset (centered on screen)
+    const containerOffsetX =
+      (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2;
+    const containerOffsetY =
+      (RENDER_HEIGHT - SB_BASE_HEIGHT * STORYBOARD_SCALE) / 2;
 
-  // Position in render space (1920x1080)
-  // osu! storyboard container centered on screen
-  // DrawScale = screenH / 480 = 2.25 for 1080p
-  // Container: 640x480 storyboard space -> 1440x1080 screen space
-  // Container centered: horizontal offset = (1920-1440)/2 = 240
-  // Formula: screenPos = (storyboardPos - centerOffset) * scale + screenCenter
-  // Which simplifies to: screenX = 240 + rawPos.x * 2.25, screenY = rawPos.y * 2.25
-  // Container offset (container is centered on screen)
-  const containerOffsetX =
-    (RENDER_WIDTH - SB_BASE_WIDTH * STORYBOARD_SCALE) / 2;
-  const containerOffsetY =
-    (RENDER_HEIGHT - SB_BASE_HEIGHT * STORYBOARD_SCALE) / 2;
-
-  // Storyboard coordinates scaled by STORYBOARD_SCALE (matching osu! DrawScale)
-  const x = containerOffsetX + rawPos.x * STORYBOARD_SCALE;
-  const y = containerOffsetY + rawPos.y * STORYBOARD_SCALE;
-
-  // Image dimensions in render space
-  // V command (vector scale): sets absolute size in storyboard units
-  // S command (scale): multiplier applied to the base size
-  const vectorScale = getVectorScale(object.commands, loops, currentTime);
-  const rawScale = getScale(object.commands, loops, currentTime);
-
-  const nativeWidth = imageSize?.width ?? 640;
-  const nativeHeight = imageSize?.height ?? 480;
-
-  const vectorScaleX = vectorScale ? vectorScale.x : 1;
-  const vectorScaleY = vectorScale ? vectorScale.y : 1;
-
-  // Size = nativeSize * STORYBOARD_SCALE * VectorScale * Scale
-  // STORYBOARD_SCALE converts from storyboard space to render space (matching osu! DrawScale)
-  const baseWidth = nativeWidth * STORYBOARD_SCALE * vectorScaleX * rawScale;
-  const baseHeight = nativeHeight * STORYBOARD_SCALE * vectorScaleY * rawScale;
-
-  const calculatedOpacity = getOpacity(object.commands, loops, currentTime);
-  let opacity = calculatedOpacity;
-  if (opacity > 1) opacity = opacity % 1;
-  const rotation = getRotation(object.commands, loops, currentTime);
-
-  // Check visibility early (before expensive calculations)
-  const isVisible = isObjectVisible(object.commands, loops, currentTime);
-
-  const originFactors: Record<string, { x: number; y: number }> = {
-    TopLeft: { x: 0, y: 0 },
-    Centre: { x: 0.5, y: 0.5 },
-    CentreLeft: { x: 0, y: 0.5 },
-    TopRight: { x: 1, y: 0 },
-    BottomCentre: { x: 0.5, y: 1 },
-    TopCentre: { x: 0.5, y: 0 },
-    CentreRight: { x: 1, y: 0.5 },
-    BottomLeft: { x: 0, y: 1 },
-    BottomRight: { x: 1, y: 1 },
-    Custom: { x: 0, y: 0 },
-  };
-  const originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
-
-  const staticFlipH = object.flipH || false;
-  const staticFlipV = object.flipV || false;
-  const staticAdditive = object.additive || false;
-
-  // Get dynamic flip state from command system
-  const dynamicFlip = getFlipState(object.commands, loops || [], currentTime);
-
-  // Merge: static OR dynamic
-  const effectiveFlipH = staticFlipH || dynamicFlip.flipH;
-  const effectiveFlipV = staticFlipV || dynamicFlip.flipV;
-  const effectiveAdditive = staticAdditive || dynamicFlip.additive;
-
-  // Detect negative scale from V commands (osu! mirrors origin on negative scale)
-  const negScale = getNegativeScale(object.commands, loops || [], currentTime);
-
-  // XOR: negative scale inverts the flip state (osu! behavior)
-  // osu! StoryboardExtensions.cs: if (flipH ^ (vectorScale.X < 0))
-  const effectiveFlipH_final = effectiveFlipH !== negScale.scaleXNeg;
-  const effectiveFlipV_final = effectiveFlipV !== negScale.scaleYNeg;
-
-  if (effectiveFlipH_final) originFactor.x = 1 - originFactor.x;
-  if (effectiveFlipV_final) originFactor.y = 1 - originFactor.y;
-
-  const finalX = x - baseWidth * originFactor.x;
-  const finalY = y - baseHeight * originFactor.y;
-
-  // CSS transforms for rotation and flip
-  // Flip must use CSS transform because origin factor adjustment doesn't work for symmetric origins
-  // (e.g., Centre: 0.5 -> 1-0.5 = 0.5, no change)
-  const transforms: string[] = [];
-
-  if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
-  if (effectiveFlipH_final) transforms.push('scaleX(-1)');
-  if (effectiveFlipV_final) transforms.push('scaleY(-1)');
-
-  const cssOriginX = originFactor.x * 100;
-  const cssOriginY = originFactor.y * 100;
-
-  // Screen bounds check - skip rendering if sprite is completely off-screen
-  const isOffScreen = useMemo(() => {
-    // If image dimensions are not yet loaded, assume on-screen to avoid
-    // incorrectly culling large sprites during async loading or SSR rendering.
-    if (!imageSize) return false;
-
-    const screenBounds = {
-      left: -200,
-      right: RENDER_WIDTH + 200,
-      top: -200,
-      bottom: RENDER_HEIGHT + 200,
-    };
-
-    // Calculate sprite bounds using final position and dimensions
-    const spriteLeft = finalX;
-    const spriteRight = finalX + baseWidth;
-    const spriteTop = finalY;
-    const spriteBottom = finalY + baseHeight;
-
-    // Completely off-screen
-    return (
-      spriteRight < screenBounds.left ||
-      spriteLeft > screenBounds.right ||
-      spriteBottom < screenBounds.top ||
-      spriteTop > screenBounds.bottom
-    );
-  }, [imageSize, finalX, finalY, baseWidth, baseHeight]);
-
-  // Time visibility check - skip if object is outside its time range
-  const isTimeVisible = useMemo(() => {
+    // 1. Time visibility check (cheap — just scans command times)
+    //     Moved BEFORE expensive evaluations
     let minTime = Infinity;
     let maxTime = -Infinity;
 
@@ -304,17 +182,122 @@ const SbSprite: React.FC<SbSpriteProps> = ({
     }
 
     // If no commands found, object is always visible in time
-    if (minTime === Infinity) return true;
+    const timeVisible =
+      minTime === Infinity ||
+      (currentTime >= minTime - 500 && currentTime <= maxTime + 500);
 
-    // Add 500ms tolerance
-    return currentTime >= minTime - 500 && currentTime <= maxTime + 500;
-  }, [object.commands, loops, currentTime]);
+    if (!timeVisible) return null;
 
-  // Early exit: skip rendering if any visibility check fails
-  if (!isVisible) return null;
+    // 2. Evaluate ALL commands (avoiding duplicate calls)
+    const rawPos = getPosition(object.commands, loops, currentTime, object.x, object.y);
+    const vectorScale = getVectorScale(object.commands, loops, currentTime);
+    const rawScale = getScale(object.commands, loops, currentTime);
+    const calculatedOpacity = getOpacity(object.commands, loops, currentTime);
+    const rotation = getRotation(object.commands, loops, currentTime);
+
+    // 3. Visibility check
+    const isVisible = isObjectVisible(object.commands, loops, currentTime);
+
+    // 4. Flip state
+    const dynamicFlip = getFlipState(object.commands, loops, currentTime);
+
+    // 5. Negative scale
+    const negScale = getNegativeScale(object.commands, loops, currentTime);
+
+    // 6. Position in render space
+    const x = containerOffsetX + rawPos.x * STORYBOARD_SCALE;
+    const y = containerOffsetY + rawPos.y * STORYBOARD_SCALE;
+
+    // 7. Dimensions
+    const vectorScaleX = vectorScale ? vectorScale.x : 1;
+    const vectorScaleY = vectorScale ? vectorScale.y : 1;
+    const nativeW = imageSize?.width ?? 640;
+    const nativeH = imageSize?.height ?? 480;
+    const baseWidth = nativeW * STORYBOARD_SCALE * vectorScaleX * rawScale;
+    const baseHeight = nativeH * STORYBOARD_SCALE * vectorScaleY * rawScale;
+
+    // 8. Off-screen check (moved early instead of separate useMemo below)
+    let opacity = calculatedOpacity;
+    if (opacity > 1) opacity = opacity % 1;
+
+    const screenBounds = { left: -200, right: RENDER_WIDTH + 200, top: -200, bottom: RENDER_HEIGHT + 200 };
+    const spriteLeft = x;
+    const spriteRight = x + baseWidth;
+    const spriteTop = y;
+    const spriteBottom = y + baseHeight;
+    const isOffScreen =
+      spriteRight < screenBounds.left ||
+      spriteLeft > screenBounds.right ||
+      spriteBottom < screenBounds.top ||
+      spriteTop > screenBounds.bottom;
+
+    // Skip if invisible or off-screen
+    if (opacity <= 0 || !isVisible || isOffScreen) return null;
+
+    // 9. Origin & flip
+    const originFactors: Record<string, { x: number; y: number }> = {
+      TopLeft: { x: 0, y: 0 },
+      Centre: { x: 0.5, y: 0.5 },
+      CentreLeft: { x: 0, y: 0.5 },
+      TopRight: { x: 1, y: 0 },
+      BottomCentre: { x: 0.5, y: 1 },
+      TopCentre: { x: 0.5, y: 0 },
+      CentreRight: { x: 1, y: 0.5 },
+      BottomLeft: { x: 0, y: 1 },
+      BottomRight: { x: 1, y: 1 },
+      Custom: { x: 0, y: 0 },
+    };
+    const originFactor = { ...(originFactors[object.origin] || { x: 0, y: 0 }) };
+
+    const staticFlipH = object.flipH || false;
+    const staticFlipV = object.flipV || false;
+    const staticAdditive = object.additive || false;
+
+    const effectiveFlipH = staticFlipH || dynamicFlip.flipH;
+    const effectiveFlipV = staticFlipV || dynamicFlip.flipV;
+    const effectiveAdditive = staticAdditive || dynamicFlip.additive;
+
+    // XOR: negative scale inverts the flip state (osu! behavior)
+    const effectiveFlipH_final = effectiveFlipH !== negScale.scaleXNeg;
+    const effectiveFlipV_final = effectiveFlipV !== negScale.scaleYNeg;
+
+    if (effectiveFlipH_final) originFactor.x = 1 - originFactor.x;
+    if (effectiveFlipV_final) originFactor.y = 1 - originFactor.y;
+
+    const finalX = x - baseWidth * originFactor.x;
+    const finalY = y - baseHeight * originFactor.y;
+
+    // CSS transforms
+    const transforms: string[] = [];
+    if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+    if (effectiveFlipH_final) transforms.push('scaleX(-1)');
+    if (effectiveFlipV_final) transforms.push('scaleY(-1)');
+
+    const cssOriginX = originFactor.x * 100;
+    const cssOriginY = originFactor.y * 100;
+
+    return {
+      finalX,
+      finalY,
+      baseWidth,
+      baseHeight,
+      opacity,
+      transforms,
+      cssOriginX,
+      cssOriginY,
+      effectiveAdditive,
+    };
+  }, [object, currentTime, imageSize]);
+
+  // Early exit if invisible
+  if (!spriteState) return null;
   if (imgError) return null;
-  if (!isTimeVisible) return null;
-  if (isOffScreen) return null;
+
+  // Unpack state for rendering
+  const {
+    finalX, finalY, baseWidth, baseHeight,
+    opacity, transforms, cssOriginX, cssOriginY, effectiveAdditive,
+  } = spriteState;
 
   return (
     <div
@@ -461,5 +444,18 @@ export const StoryboardLayer: React.FC<StoryboardLayerProps> = ({
   );
 };
 
-export const storyboard = storyboardData.objects as SbObject[];
+const storyboardSchema = z.object({
+  objects: z.array(z.object({
+    type: z.enum(["sprite", "animation", "sample", "video"]),
+    path: z.string(),
+    x: z.number(),
+    y: z.number(),
+    layer: z.string(),
+    origin: z.string(),
+  }).passthrough()),
+  duration: z.number(),
+}).passthrough();
+
+const parsedStoryboard = storyboardSchema.parse(storyboardData);
+export const storyboard = parsedStoryboard.objects as unknown as SbObject[];
 

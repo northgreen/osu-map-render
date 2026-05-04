@@ -1,3 +1,4 @@
+import { z } from "zod";
 import beatmapData from "../generated/beatmap.json";
 import type { ScrollVelocitySegment } from "./scrollVelocity";
 
@@ -108,12 +109,71 @@ export interface ParsedBeatmap {
   audioFile: string;
   mode: number;
   backgroundImage?: string;
+  storyboardEvents?: string[];
   scrollVelocitySegments?: ScrollVelocitySegment[];
   fileHash?: string;
 }
 
+const beatmapSchema = z.object({
+  metadata: z.object({
+    title: z.string(),
+    titleUnicode: z.string(),
+    artist: z.string(),
+    artistUnicode: z.string(),
+    creator: z.string(),
+    version: z.string(),
+    source: z.string(),
+    tags: z.array(z.string()),
+  }),
+  difficulty: z.object({
+    hpDrainRate: z.number(),
+    circleSize: z.number(),
+    overallDifficulty: z.number(),
+    approachRate: z.number(),
+    sliderMultiplier: z.number(),
+    sliderTickRate: z.number(),
+  }),
+  timingPoints: z.array(z.object({
+    time: z.number(),
+    beatLength: z.number(),
+    meter: z.number(),
+    sampleSet: z.number(),
+    sampleIndex: z.number(),
+    volume: z.number(),
+    uninherited: z.boolean(),
+    effects: z.number(),
+  })),
+  hitObjects: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    time: z.number(),
+    type: z.number(),
+    hitSound: z.number(),
+    hitSample: z.string(),
+    parsedHitSample: z.object({
+      normalSet: z.number(),
+      additionSet: z.number(),
+      index: z.number(),
+      volume: z.number(),
+      filename: z.string(),
+    }).nullable().optional(),
+    column: z.number(),
+    endTime: z.number().nullable().optional(),
+    isLongNote: z.boolean(),
+  })),
+  audioFile: z.string(),
+  mode: z.number(),
+  backgroundImage: z.string().nullable().optional(),
+  storyboardEvents: z.array(z.string()).nullable().optional(),
+  scrollVelocitySegments: z.array(z.object({
+    startTime: z.number(),
+    scrollVelocity: z.number(),
+  })).nullable().optional(),
+  fileHash: z.string().nullable().optional(),
+});
+
 // Export the pre-loaded beatmap data
-export const beatmap: ParsedBeatmap = beatmapData as ParsedBeatmap;
+export const beatmap: ParsedBeatmap = beatmapSchema.parse(beatmapData) as ParsedBeatmap;
 
 export function getBeatmapDuration(beatmap: ParsedBeatmap): number {
   if (beatmap.hitObjects.length === 0) return 60000;

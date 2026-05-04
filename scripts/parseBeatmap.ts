@@ -4,72 +4,8 @@ import * as crypto from "crypto";
 import { listFiles, selectFile, matchFile, getCheartDir } from "./selectFile";
 import { parseStoryboardFile } from "../src/lib/sbParser";
 import { extractScrollVelocitySegments } from "../src/lib/scrollVelocity";
-import type { ScrollVelocitySegment } from "../src/lib/scrollVelocity";
-
-interface BeatmapMetadata {
-  title: string;
-  titleUnicode: string;
-  artist: string;
-  artistUnicode: string;
-  creator: string;
-  version: string;
-  source: string;
-  tags: string[];
-}
-
-interface BeatmapDifficulty {
-  hpDrainRate: number;
-  circleSize: number;
-  overallDifficulty: number;
-  approachRate: number;
-  sliderMultiplier: number;
-  sliderTickRate: number;
-}
-
-interface TimingPoint {
-  time: number;
-  beatLength: number;
-  meter: number;
-  sampleSet: number;
-  sampleIndex: number;
-  volume: number;
-  uninherited: boolean;
-  effects: number;
-}
-
-interface HitSample {
-  normalSet: number;
-  additionSet: number;
-  index: number;
-  volume: number;
-  filename: string;
-}
-
-interface HitObject {
-  x: number;
-  y: number;
-  time: number;
-  type: number;
-  hitSound: number;
-  hitSample: string;
-  parsedHitSample?: HitSample;
-  column: number;
-  endTime?: number; // For long notes
-  isLongNote: boolean;
-}
-
-interface ParsedBeatmap {
-  metadata: BeatmapMetadata;
-  difficulty: BeatmapDifficulty;
-  timingPoints: TimingPoint[];
-  hitObjects: HitObject[];
-  audioFile: string;
-  mode: number;
-  backgroundImage?: string;
-  storyboardEvents?: string[];
-  scrollVelocitySegments?: ScrollVelocitySegment[];
-  fileHash?: string;
-}
+import type { ParsedBeatmap, BeatmapMetadata, BeatmapDifficulty, TimingPoint, HitObject } from "../src/lib/osuParser";
+import { parseHitSample } from "../src/lib/osuParser";
 
 function parseSection(content: string, section: string): string[] {
   const lines = content.split("\n");
@@ -93,22 +29,6 @@ function parseKeyValue(line: string): [string, string] {
   const key = line.substring(0, colonIndex).trim();
   const value = line.substring(colonIndex + 1).trim();
   return [key, value];
-}
-
-/**
- * Parse hitSample format: "normalSet:additionSet:index:volume:filename"
- */
-function parseHitSample(hitSample: string): HitSample | undefined {
-  if (!hitSample || hitSample.trim() === "") return undefined;
-  const parts = hitSample.split(":");
-  if (parts.length < 2) return undefined;
-  return {
-    normalSet: parseInt(parts[0], 10) || 0,
-    additionSet: parseInt(parts[1], 10) || 0,
-    index: parseInt(parts[2], 10) || 0,
-    volume: parseInt(parts[3], 10) || 0,
-    filename: parts[4] || "",
-  };
 }
 
 function parseOsuFile(filePath: string): ParsedBeatmap {
@@ -140,7 +60,7 @@ function parseOsuFile(filePath: string): ParsedBeatmap {
     if (line.startsWith("[") && line !== `[Events]`) break;
 
     // Background: 0,0,"filename",x,y
-    if (line.startsWith("0,") || line.startsWith("0,")) {
+    if (line.startsWith("0,")) {
       const match = line.match(/^0,0,"([^"]+)"/);
       if (match) {
         backgroundImage = match[1];

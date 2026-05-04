@@ -9,11 +9,6 @@ import {
   getColumnColors,
   setKeyCount,
   getKeyCount,
-  KEY_COUNT,
-  COLUMN_WIDTH,
-  COLUMN_POSITIONS_STAGE,
-  COLUMN_POSITIONS_NOTE,
-  COLUMN_COLORS,
   config,
 } from "../../../config";
 
@@ -155,30 +150,19 @@ describe("setKeyCount / getKeyCount", () => {
     setKeyCount(4); // Reset to default
   });
 
-  it("should update KEY_COUNT when setKeyCount is called", () => {
+  it("should update getKeyCount when setKeyCount is called", () => {
     setKeyCount(7);
     expect(getKeyCount()).toBe(7);
-    expect(KEY_COUNT).toBe(7);
   });
 
-  it("should update COLUMN_WIDTH when setKeyCount is called", () => {
+  it("should update config getters when setKeyCount is called", () => {
     setKeyCount(7);
-    expect(COLUMN_WIDTH).toBe(getColumnWidth(7));
-  });
-
-  it("should update COLUMN_POSITIONS_STAGE when setKeyCount is called", () => {
-    setKeyCount(7);
-    expect(COLUMN_POSITIONS_STAGE).toEqual(getColumnPositionsStage(7));
-  });
-
-  it("should update COLUMN_POSITIONS_NOTE when setKeyCount is called", () => {
-    setKeyCount(7);
-    expect(COLUMN_POSITIONS_NOTE).toEqual(getColumnPositionsNote(7));
-  });
-
-  it("should update COLUMN_COLORS when setKeyCount is called", () => {
-    setKeyCount(7);
-    expect(COLUMN_COLORS).toEqual(getColumnColors(7));
+    expect(config.keyCount).toBe(7);
+    expect(config.stageWidth).toBe(getStageWidth(7));
+    expect(config.columnWidth).toBe(getColumnWidth(7));
+    expect(config.columnPositionsStage).toEqual(getColumnPositionsStage(7));
+    expect(config.columnPositionsNote).toEqual(getColumnPositionsNote(7));
+    expect(config.columnColors).toEqual(getColumnColors(7));
   });
 
   it("should clamp key count to minimum 1", () => {
