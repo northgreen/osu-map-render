@@ -6,7 +6,7 @@ import {
   Img,
 } from "remotion";
 import { useMemo, useState, useCallback } from "react";
-import { SbObject, SbLoop } from "./sbParser/types";
+import { SbObject, SbLoop, SbSample } from "./sbParser/types";
 import { z } from "zod";
 import storyboardData from "../generated/storyboard.json";
 import {
@@ -453,9 +453,19 @@ const storyboardSchema = z.object({
     layer: z.string(),
     origin: z.string(),
   }).passthrough()),
+  samples: z.array(z.object({
+    id: z.string(),
+    time: z.number(),
+    layer: z.string(),
+    path: z.string(),
+    volume: z.number(),
+    duration: z.number().nullable().optional(),
+  })),
+  variables: z.record(z.string(), z.string()).nullable().optional(),
   duration: z.number(),
 }).passthrough();
 
 const parsedStoryboard = storyboardSchema.parse(storyboardData);
 export const storyboard = parsedStoryboard.objects as unknown as SbObject[];
+export const storyboardSamples = parsedStoryboard.samples as unknown as SbSample[];
 

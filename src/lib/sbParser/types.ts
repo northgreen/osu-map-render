@@ -95,6 +95,8 @@ export interface SbSample {
   layer: Layer;
   path: string;
   volume: number;
+  /** Duration in milliseconds, populated at parse time via ffprobe. Optional for backward compatibility. */
+  duration?: number;
 }
 
 export interface ParsedStoryboard {

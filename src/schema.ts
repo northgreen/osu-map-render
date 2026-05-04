@@ -20,6 +20,9 @@ export const maniaRenderContentsSchema = z.object({
       trigger: "auto",
       volume: 1.0,
     }),
+  sbManualLayer: z
+    .enum(["all", "Background", "Fail", "Pass", "Foreground", "Overlay"])
+    .optional(),
   hitOffsetIndicator: z
     .object({
       enabled: z.boolean().default(false),

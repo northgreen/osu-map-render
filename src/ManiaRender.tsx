@@ -43,6 +43,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
     stageBgOpacity,
     hitsounds,
     hitOffsetIndicator,
+    sbManualLayer,
   } = contentsWithDefaults;
 
   const indicator = hitOffsetIndicator ?? { enabled: false };
@@ -68,7 +69,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       <Audio src={staticFile(importedBeatmap.audioFile || "audio.mp3")} />
 
       {/* Layer 1: Background (handles bg image or black bg + storyboard based on storyboardEnabled) */}
-      <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} bgBlur={bgBlur} />
+      <ManiaBackground storyboardEnabled={storyboardEnabled} bgDarken={bgDarken} bgBlur={bgBlur} manualLayer={sbManualLayer} />
 
       {/* Layer 2: Stage (notes, judgment line, key presses, hit effects) */}
       <ManiaStageLayer

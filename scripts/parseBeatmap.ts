@@ -6,6 +6,7 @@ import { parseStoryboardFile } from "../src/lib/sbParser";
 import { extractScrollVelocitySegments } from "../src/lib/scrollVelocity";
 import type { ParsedBeatmap, BeatmapMetadata, BeatmapDifficulty, TimingPoint, HitObject } from "../src/lib/osuParser";
 import { parseHitSample } from "../src/lib/osuParser";
+import { getAudioDurationInMs } from "./audioUtils";
 
 function parseSection(content: string, section: string): string[] {
   const lines = content.split("\n");
@@ -423,16 +424,39 @@ async function main() {
           ...mergedStoryboard.objects,
           ...renumberedOsbObjects,
         ];
+        // Merge storyboard samples from .osb file (same logic: renumber IDs to avoid conflicts)
+        const osuSampleCount = mergedStoryboard.samples.length;
+        const renumberedOsbSamples = osbSb.samples.map((sample, index) => ({
+          ...sample,
+          id: `sample_${osuSampleCount + index}`,
+        }));
+        mergedStoryboard.samples = [
+          ...mergedStoryboard.samples,
+          ...renumberedOsbSamples,
+        ];
         // Update duration
         if (osbSb.duration > mergedStoryboard.duration) {
           mergedStoryboard.duration = osbSb.duration;
         }
         console.log(
-          `Merged storyboard: ${mergedStoryboard.objects.length} objects (.osu: ${osuObjectCount} + .osb: ${osbSb.objects.length})`,
+          `Merged storyboard: ${mergedStoryboard.objects.length} objects, ${mergedStoryboard.samples.length} samples (.osu: ${osuObjectCount} obj + ${osuSampleCount} samples | .osb: ${osbSb.objects.length} obj + ${osbSb.samples.length} samples)`,
         );
       } else {
         mergedStoryboard = osbSb;
         console.log(`Parsed .osb storyboard: ${osbSb.objects.length} objects`);
+      }
+    }
+  }
+
+  // Probe audio duration for storyboard samples via ffprobe
+  if (mergedStoryboard?.samples.length) {
+    for (const sample of mergedStoryboard.samples) {
+      const samplePath = path.join(publicDir, sample.path);
+      if (fs.existsSync(samplePath)) {
+        const duration = getAudioDurationInMs(samplePath);
+        if (duration !== null) {
+          sample.duration = duration;
+        }
       }
     }
   }
@@ -447,7 +471,7 @@ async function main() {
     );
     fs.writeFileSync(sbOutputPath, JSON.stringify(mergedStoryboard, null, 2));
     console.log(
-      `Final storyboard: ${mergedStoryboard.objects.length} objects, ${mergedStoryboard.duration}ms`,
+      `Final storyboard: ${mergedStoryboard.objects.length} objects, ${mergedStoryboard.samples.length} samples, ${mergedStoryboard.duration}ms`,
     );
   } else if (
     !hasOsbEvents &&

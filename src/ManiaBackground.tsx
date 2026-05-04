@@ -1,8 +1,10 @@
-import { AbsoluteFill, staticFile, Img, OffthreadVideo } from "remotion";
+import { AbsoluteFill, staticFile, Img, OffthreadVideo, useCurrentFrame, useVideoConfig } from "remotion";
 import { useMemo } from "react";
 import { beatmap as importedBeatmap } from "./lib/osuParser";
 import { config, STAGE_X } from "./config";
-import { StoryboardLayer, storyboard } from "./lib/StoryboardLayer";
+import { StoryboardLayer, storyboard, storyboardSamples } from "./lib/StoryboardLayer";
+import { StoryboardAudioLayer } from "./lib/StoryboardAudioLayer";
+import { replay } from "./lib/replay";
 
 interface ManiaBackgroundProps {
   beatmap?: typeof importedBeatmap;
@@ -10,6 +12,7 @@ interface ManiaBackgroundProps {
   storyboardEnabled?: boolean; // When true, show storyboard with black bg; when false, show bg image only
   bgDarken?: number; // 0 = no darkening, 1 = fully dark
   bgBlur?: number; // 0 = no blur, 1-20 = blur radius in pixels
+  manualLayer?: "all" | "Background" | "Fail" | "Pass" | "Foreground" | "Overlay";
 }
 
 export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
@@ -18,7 +21,10 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
   storyboardEnabled = false,
   bgDarken = 0,
   bgBlur = 0,
+  manualLayer,
 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const { backgroundImage } = beatmap;
   const bgFileName = backgroundImage ? backgroundImage.replace(/"/g, "") : null;
 
@@ -27,6 +33,36 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
     () => storyboard.find((obj) => obj.type === "video"),
     [],
   );
+
+  // Compute isFailing from replay life data (interpolate current time to get health)
+  const effectiveIsFailing = useMemo(() => {
+    if (replay.lifeData && replay.lifeData.length > 0) {
+      const currentTimeMs = (frame / fps) * 1000;
+      const lifeData = replay.lifeData;
+
+      // Before first entry, use first entry's health
+      if (currentTimeMs <= lifeData[0].time) {
+        return lifeData[0].life < 0.5;
+      }
+
+      // After last entry, use last entry's health
+      if (currentTimeMs >= lifeData[lifeData.length - 1].time) {
+        return lifeData[lifeData.length - 1].life < 0.5;
+      }
+
+      // Binary search for the last entry at or before currentTime
+      let lo = 0;
+      let hi = lifeData.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (lifeData[mid].time <= currentTimeMs) lo = mid;
+        else hi = mid;
+      }
+
+      return lifeData[lo].life < 0.5;
+    }
+    return isFailing;
+  }, [frame, fps, isFailing]);
 
   return (
     <AbsoluteFill style={{
@@ -105,10 +141,10 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
             <StoryboardLayer storyboard={storyboard} layer="Background" />
 
             {/* Storyboard layer - Fail (only when failing) */}
-            <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={isFailing} />
+            <StoryboardLayer storyboard={storyboard} layer="Fail" isFailing={effectiveIsFailing} />
 
             {/* Storyboard layer - Pass (only when passing/not failing) */}
-            <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={isFailing} />
+            <StoryboardLayer storyboard={storyboard} layer="Pass" isFailing={effectiveIsFailing} />
 
             {/* Storyboard layer - Foreground (always visible) */}
             <StoryboardLayer storyboard={storyboard} layer="Foreground" />
@@ -127,6 +163,13 @@ export const ManiaBackground: React.FC<ManiaBackgroundProps> = ({
               }}
             />
           )}
+
+          {/* Storyboard audio layer - rendered last (non-visual, doesn't overlap with elements) */}
+          <StoryboardAudioLayer
+            samples={storyboardSamples}
+            isFailing={effectiveIsFailing}
+            manualLayer={manualLayer}
+          />
         </>
       )}
     </AbsoluteFill>

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { parseStoryboardFile } from "../src/lib/sbParser";
+import { getAudioDurationInMs } from "./audioUtils";
 
 function main() {
   const publicDir = path.join(process.cwd(), "public");
@@ -13,6 +14,19 @@ function main() {
   if (!storyboard) {
     console.error("Failed to parse storyboard");
     process.exit(1);
+  }
+
+  // Probe audio duration for storyboard samples via ffprobe
+  if (storyboard.samples.length) {
+    for (const sample of storyboard.samples) {
+      const samplePath = path.join(publicDir, sample.path);
+      if (fs.existsSync(samplePath)) {
+        const duration = getAudioDurationInMs(samplePath);
+        if (duration !== null) {
+          sample.duration = duration;
+        }
+      }
+    }
   }
 
   // Write parsed storyboard to JSON
