@@ -15,9 +15,9 @@ import {
   getKeyCount,
   BASE_VISIBLE_TIME,
   type HitsoundsConfig,
-  hitsoundConfig,
   MAX_HITSOUNDS_CONCURRENT,
 } from "./config";
+import { availableHitsoundFiles } from "./lib/hitsoundFiles";
 import { bisectRight } from "./lib/utils";
 import {
   BeatLinesLayer,
@@ -195,7 +195,8 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
       );
 
       for (const info of infos) {
-        if (!hitsoundConfig.availableFiles.has(info.filename)) continue;
+        // Skip if file doesn't exist in public/ (prevents renderer 404 errors)
+        if (!availableHitsoundFiles.has(info.filename)) continue;
         result.push({
           noteFrame,
           key: `${note.time}-${note.column}-${info.filename}`,

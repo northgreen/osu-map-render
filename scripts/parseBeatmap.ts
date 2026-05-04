@@ -348,6 +348,21 @@ async function main() {
   copyRecursive(sourceDir, publicDir);
   console.log(`Copied beatmap resources from ${sourceDir}`);
 
+  // Scan public/ for available hitsound files
+  const hitsoundFiles: string[] = [];
+  const publicEntries = fs.readdirSync(publicDir);
+  for (const entry of publicEntries) {
+    const ext = path.extname(entry).toLowerCase();
+    // Include .wav and .ogg, but exclude the main audio BGM file
+    if ((ext === ".wav" || ext === ".ogg") && !entry.toLowerCase().startsWith("audio.")) {
+      hitsoundFiles.push(entry);
+    }
+  }
+
+  // Write hitsound file list for runtime import
+  const hitsoundOutputPath = path.join(projectDir, "src", "generated", "hitsound-files.json");
+  fs.writeFileSync(hitsoundOutputPath, JSON.stringify(hitsoundFiles, null, 2));
+  console.log(`Found ${hitsoundFiles.length} hitsound files`);
 
   // Copy .osb storyboard file if exists
   // Try different possible locations: same directory as .osu, or base directory

@@ -1,3 +1,4 @@
+import { availableHitsoundFiles } from "./hitsoundFiles";
 import { hitsoundConfig } from "../config";
 import type { HitObject, TimingPoint } from "./osuParser";
 
@@ -95,9 +96,9 @@ export class HitsoundManager {
         soundType,
         hitSample?.index,
       );
-      if (hitsoundConfig.availableFiles.has(filename)) {
-        files.push(filename);
-      }
+      // Only include if the file actually exists in public/
+      if (!availableHitsoundFiles.has(filename)) continue;
+      files.push(filename);
     }
 
     return files;
@@ -281,10 +282,8 @@ export class HitsoundManager {
         timingPoint?.volume,
         globalVolume,
       );
-      // Check if default file exists before returning
-      if (!hitsoundConfig.availableFiles.has("soft-hitnormal.wav")) {
-        return [];
-      }
+      // Check if default hitsound exists, skip if not
+      if (!availableHitsoundFiles.has("soft-hitnormal.wav")) return [];
       return [{ filename: "soft-hitnormal.wav", volume }];
     }
 
