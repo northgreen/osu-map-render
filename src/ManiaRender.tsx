@@ -75,7 +75,7 @@ const ManiaRenderComponent: React.FC<ManiaRenderProps> = (props) => {
       <ManiaStageLayer
         beatmap={importedBeatmap}
         scrollSpeed={scrollSpeed}
-        beatOffset={(beatOffset || 900) + (timeOffset || 0)}
+        beatOffset={(beatOffset ?? 900) + (timeOffset ?? 0)}
         showJudgmentZones={showZones}
         stageOffset={stageOffset}
         judgmentLineY={judgmentLineY}

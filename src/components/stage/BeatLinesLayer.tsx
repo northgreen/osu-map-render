@@ -60,7 +60,7 @@ export const BeatLinesLayer: React.FC<BeatLinesLayerProps> = ({
         if (timeUntilHit < -16 || timeUntilHit > visibleTime) return null;
 
         const progress = scrollAlgorithm
-          ? scrollAlgorithm.getProgress(time, currentTime)
+          ? scrollAlgorithm.getProgress(adjustedTime, currentTime)
           : 1 - timeUntilHit / visibleTime;
         const y = progress * judgmentY;
 
