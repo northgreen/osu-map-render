@@ -102,8 +102,20 @@ export const ReplayCursor: React.FC<ReplayCursorProps> = React.memo(
     const visibleStart = currentTime - 200;
     const visibleEnd = currentTime + VISIBLE_TIME;
 
-    const intervalStartIdx = Math.max(0, bisectRight(startTimes, visibleStart));
+    // Right boundary: find last index where startTime <= visibleEnd
     const intervalEndIdx = bisectRight(startTimes, visibleEnd);
+
+    // Left boundary: find first index where startTime >= visibleStart
+    // bisectRight returns rightmost index where startTime <= visibleStart-0.001 (or -1)
+    const leftByStart = bisectRight(startTimes, visibleStart - 0.001) + 1;
+
+    // Expand leftwards to include intervals whose end is still within the visible window
+    let intervalStartIdx = leftByStart;
+    for (let i = leftByStart - 1; i >= 0; i--) {
+      if (keyIntervals[i].end >= visibleStart) {
+        intervalStartIdx = i;
+      }
+    }
 
     for (
       let i = intervalStartIdx;
