@@ -21,6 +21,18 @@ export const STAGE_X = 64;
 export const STAGE_WIDTH_BASE = 512;
 export const JUDGMENT_LINE_Y = 900;
 
+// ============================================
+// Performance Options
+// ============================================
+
+// Enable hit object culling (pre-filter off-screen notes before rendering)
+// Disable to render all notes at all times (useful for debugging)
+export const ENABLE_NOTE_CULLING = true;
+
+// Enable replay cursor interval culling
+// Disable to render all replay cursor bars at all times
+export const ENABLE_REPLAY_CURSOR_CULLING = true;
+
 // Hit effect duration (in milliseconds)
 export const HIT_EFFECT_DURATION = 30;
 

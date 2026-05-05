@@ -16,6 +16,7 @@ import {
   BASE_VISIBLE_TIME,
   type HitsoundsConfig,
   MAX_HITSOUNDS_CONCURRENT,
+  ENABLE_NOTE_CULLING,
 } from "./config";
 import { availableHitsoundFiles } from "./lib/hitsoundFiles";
 import { bisectRight } from "./lib/utils";
@@ -153,7 +154,7 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   // Pre-filter visible notes to avoid mounting 3000+ ManiaNote components
   // Uses both startTime and endTime for long notes to prevent premature culling
   const visibleNotes = useMemo(() => {
-    if (hitObjects.length === 0) return hitObjects;
+    if (!ENABLE_NOTE_CULLING || hitObjects.length === 0) return hitObjects;
 
     const startTimes = hitObjects.map(n => n.time);
     const margin = 500; // ms buffer (notes slightly off-screen)
