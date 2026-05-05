@@ -27,11 +27,11 @@ export const JUDGMENT_LINE_Y = 900;
 
 // Enable hit object culling (pre-filter off-screen notes before rendering)
 // Disable to render all notes at all times (useful for debugging)
-export const ENABLE_NOTE_CULLING = true;
+export const ENABLE_NOTE_CULLING = false;
 
 // Enable replay cursor interval culling
 // Disable to render all replay cursor bars at all times
-export const ENABLE_REPLAY_CURSOR_CULLING = true;
+export const ENABLE_REPLAY_CURSOR_CULLING = false;
 
 // Hit effect duration (in milliseconds)
 export const HIT_EFFECT_DURATION = 30;
@@ -144,7 +144,7 @@ export function getColumnColors(keyCount: number): string[] {
   return COLUMN_COLORS_MAP[keyCount] || COLUMN_COLORS_WILDCARD.slice(0, keyCount);
 }
 
-/**
+/*
  * Get stage positions (column centers) for a specific key count.
  * Pre-computed for 1-18K; computed on demand for > 18K.
  */
@@ -261,9 +261,6 @@ export const hitsoundConfig = {
     finish: "soft-hitfinish.wav",
     clap: "soft-hitclap.wav", // Will be silently skipped if missing
   },
-
-  // Concurrency limit (0 = unlimited)
-  maxConcurrentSounds: 0,
 } as const;
 
 /**
