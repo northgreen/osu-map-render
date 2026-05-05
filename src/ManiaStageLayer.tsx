@@ -151,19 +151,33 @@ export const ManiaStageLayer: React.FC<ManiaStageLayerProps> = ({
   }, []);
 
   // Pre-filter visible notes to avoid mounting 3000+ ManiaNote components
+  // Uses both startTime and endTime for long notes to prevent premature culling
   const visibleNotes = useMemo(() => {
     if (hitObjects.length === 0) return hitObjects;
 
-    const times = hitObjects.map(n => n.time);
+    const startTimes = hitObjects.map(n => n.time);
     const margin = 500; // ms buffer (notes slightly off-screen)
     const earliestTime = currentTime - margin;
     const latestTime = currentTime + visibleTime + margin;
 
-    // bisectRight returns last index where arr[i] <= value
-    // For earliest: find first index where time >= earliestTime
-    const leftIdx = Math.max(0, bisectRight(times, earliestTime - 0.001) + 1);
-    // For latest: find last index where time <= latestTime
-    const rightIdx = bisectRight(times, latestTime);
+    // Right boundary: find last index where startTime <= latestTime
+    const rightIdx = bisectRight(startTimes, latestTime);
+    if (rightIdx < 0) return [];
+
+    // Left boundary: find first index where startTime >= earliestTime
+    // bisectRight returns rightmost index where startTime < earliestTime (or -1)
+    const leftByStart = bisectRight(startTimes, earliestTime - 0.001) + 1;
+
+    // Expand leftwards to include long notes whose tails are still visible
+    // (startTime < earliestTime but endTime >= earliestTime)
+    let leftIdx = leftByStart;
+    for (let i = leftByStart - 1; i >= 0; i--) {
+      const note = hitObjects[i];
+      if (note.isLongNote && note.endTime && note.endTime >= earliestTime) {
+        leftIdx = i;
+      }
+      // Cannot break early: a note with earlier startTime can have later endTime
+    }
 
     if (leftIdx > rightIdx || rightIdx < 0) return [];
     return hitObjects.slice(leftIdx, rightIdx + 1);

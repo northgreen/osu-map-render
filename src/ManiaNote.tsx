@@ -71,7 +71,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
   // For regular note, visible if timeUntilStart is in range
   const isVisible =
     isLongNote && endTime
-      ? timeUntilStart <= VISIBLE_TIME && timeUntilEnd >= -200
+      ? timeUntilStart <= VISIBLE_TIME && timeUntilEnd >= -VISIBLE_TIME
       : timeUntilStart <= VISIBLE_TIME && timeUntilStart >= -200;
 
   if (!isVisible) {
@@ -117,7 +117,7 @@ export const ManiaNote: React.FC<ManiaNoteProps> = memo(({
 
     // Body is visible when head has appeared, and tail hasn't passed too far
     // bodyHeight > 0 means tail is below head (normal case)
-    const showBody = headProgress > 0 && timeUntilEnd > -500 && bodyHeight > 0;
+    const showBody = headProgress > 0 && timeUntilEnd > -VISIBLE_TIME && bodyHeight > 0;
 
     return (
       <>
